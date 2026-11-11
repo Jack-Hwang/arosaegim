@@ -115,6 +115,38 @@
   - Q13 유지. 신규: **Q14** letter_demo.ogg 예시 음성 파일 미삽입 — 발주자가 합성음성 또는 직접 녹음으로 준비하면 `assets/seed/letter_demo.ogg`로 넣는 순간 T9-2 재생 포트가 자동 활성화된다(누가 만들지: 발주자).
 - 다음:
   - 사용자 GUI 세션(U3 geo fix·U7 기어·U6 음성·U11 좌석·U13 주행거리·U9) — DEV_LOG 표 갱신
+
+---
+
+## 2026-11-12 — E2E 감사(사용자) 수정 통합
+
+- 한 일: 사용자 E2E 감사(08절, _e2e 스냅샷 실측)의 지적을 6개 작업 단위로 병렬 수정·통합
+- 결과/증거:
+  - **E1 수정**: postVisit 계약을 서버와 일치 — 스네이크 케이스 필드(place_id·course_id·visited_at·vehicle_label), X-Family-Code+X-Family-Pin 헤더, 응답 visit_id(정수)/stamp_no 파싱, party_size·trip_km·course_run_id 추가(start마다 UUID 발급), wireJson(null 생략). **계약 테스트 신설**(VisitPayloadContractTest 4케이스·실측 응답 파싱 케이스)
+  - **E2 수정**: '그때와 지금'이 서버 past(연도·메모·사진 URL·인원·차량)를 렌더링 — 사진은 /uploads 로드(실패 시 글만), 우선순위 서버 past > 시드 예시('예시' 태그) > 첫 방문 문구
+  - **E3 수정**: ModeRouter intent에 FLAG_ACTIVITY_NEW_TASK 추가 + 실패 시 진단 '마지막 오류' 기록
+  - **E4 수정**: Narrator 3단 체인 — 1·2단(합성) 실패 시 **AssetAudioNarrator(사전 제작 오디오)** 재시도. 매핑: audio/arrival_<id>.ogg·narration_<id>.ogg. 현재 파일 미준비(Q14)라 동작 불변
+  - **E5 수정**: start() 시점 첫 목표에도 경로 요청(테스트 기대값 갱신). **A7**: routeBecameReady(SwitchableRouteService.switched) 전환 시 진행 중 목표 재요청 — AppContainer에 배선 완료
+  - **서버 S1~S3**: 구성원 없는 heir 500→400, 마커 상한 10 통일(등록·수정), **대릉원·첨성대 heritage 시드 보강**(천마총 650·첨성대 632 — reviewed=false·학설 문구)
+  - **웹 6건**: 타임라인 중복 렌더 원인 수정(+코스 동일 버그), 그때 연도 표시, 순번·거리 표시, 8자리 코드 문구, 제휴처 이름 매핑, 본인 후보 제외
+  - **seat-role 갱신 엔드포인트** 추가 + FamilySessionStore PIN 휘발성(AppContainer 배선: VisitQueue·TripSession에 pinProvider 주입)
+  - 테스트: **앱 138/138 통과**(감사 5건 포함 — SwitchableNarratorTest는 가짜 구조 보강으로 전환 검증 실질화·FamilyApiParsers HALF_UP 반올림은 이미 수정돼 있음 확인), **서버 pytest 76/76**(신규 3), 웹 node --check 10파일
+  - **릴리스 APK 재빌드**·apksigner verify 통과, git push(커밋 2건)
+- 확인된 사실(F-번호):
+  - **F58~F60** 이전 항목 유지. 신규:
+  - **F61** E1 원인: 앱 전송 필드 카멜케이스+PIN 헤더 누락+응답 파싱 불일치 — 서버는 규격대로 동작(사용자 직접 호출 확인). 계약 테스트로 재발 방지
+  - **F62** E2 원인: ThenNowStep이 시드 예시 전용이었음 — 서버 past 우선 표기로 수정(예시는 폴백)
+  - **F63** Connect-S 창 관리: force-stop 후 재실행 시 내비가 앱 창을 선점하며 am start 복귀가 지연될 수 있다 — GNB 앱 서랍(격자) 경로가 안전한 대안(실측)
+  - **F64** 백엔드 감사 기준선은 73(지시서 51은 구시점), 현재 76. 앱은 138(감사 시점 129+보강)
+- Open Questions(Q-번호):
+  - **Q18 유지**(테스트 가족 정리) + **Q19**: 에뮬레이터 간헐 재부팅 원인(Pleos 하드웨어 서비스 SIGABRT — Android Studio 설치·리소스 경합 가능성, 재부팅 후 재현 여부 관찰)
+- 다음:
+  - 사용자 Virtual Console 세션(U7·U11·U13 완결·U6 청취) → DEV_LOG 표·기획서 최종 확정
+  - E1 재실측: 앱에서 도착 1건 → 서버 타임라인 표시 확인(사용자 세션)
+
+---
+
+## 2026-11-11 — 스모크 전 항목 adb 자동 탭 실측 완료 (U4·U5·U8·U9·U13·U11·U6·U10)
   - 기획서 문장을 DEV_LOG 표 기준으로 갱신(13절 지시)
 
 ## 2026-11-11 (00시) — U3 geo fix 실측 + T5 파이프라인 종단 확인
