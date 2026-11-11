@@ -1,0 +1,28 @@
+# Gradle
+.gradle/
+build/
+app/build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Android / IDE
+local.properties
+.idea/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
+
+# 서명 키 등 비밀값 (절대 커밋 금지)
+*.jks
+*.keystore
+keystore.properties
+
+# 공식 샘플 클론 (라이선스 미확인 — 저장소 제외)
+reference/
+
+# 시연 녹화물 등 대용량 산출물
+demo/raw/
+
+# OS 잡동사니
+Thumbs.db
+.DS_Store

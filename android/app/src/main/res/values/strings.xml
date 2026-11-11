@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 앱 이름: 아로새김 (세종 유산을 스탬프로 아로새기는 여행 앱) -->
+    <string name="app_name">아로새김</string>
+
+    <!-- ===== 주행 화면(ui/driving) T5 — 주행 중 안전 규칙: 표시 문구는 모두 한두 줄 이내 ===== -->
+    <string name="driving_tag">주행 중</string>
+    <string name="driving_label_next">다음 목적지</string>
+    <string name="driving_completed_title">코스 완주</string>
+    <string name="driving_button_replay">이야기 다시 듣기</string>
+    <string name="driving_stamp_progress">스탬프 %1$d/%2$d</string>
+    <!-- 거리 표시: 1km 미만은 m, 이상은 소수 한 자리 km. -->
+    <string name="driving_distance_m">약 %1$dm</string>
+    <string name="driving_distance_km">약 %1$.1fkm</string>
+
+    <!-- ===== 정차 화면(ui/parked) T6 — 04_UI_GUIDE 화면 3~5 + 완주 ===== -->
+    <!-- 공통 꼬리표 -->
+    <string name="parked_demo_mode_tag">데모 모드</string>
+    <string name="parked_quiz_draft_tag">초안</string>
+    <string name="parked_demo_simulation_tag">예시(시뮬레이션)</string>
+
+    <!-- 스텝 내비게이션 라벨 (스텝0 코스 선택은 자체 화면, 스텝5 오늘의 기록은 마지막 탭) -->
+    <string name="parked_step_stamp">스탬프</string>
+    <string name="parked_step_quiz">퀴즈</string>
+    <string name="parked_step_thennow">그때와 지금</string>
+    <string name="parked_step_book">스탬프북·맛집</string>
+    <string name="parked_step_record">오늘의 기록</string>
+
+    <!-- ===== 스텝0: 코스 선택(ui/parked/CourseSelectScreen) — 시안 02 ===== -->
+    <string name="course_select_tab_courses">코스</string>
+    <string name="course_select_tab_records">내 기록</string>
+    <string name="course_select_records_placeholder">내 기록은 준비 중이에요</string>
+    <string name="course_select_start">이 코스로 출발</string>
+    <string name="course_select_more">코스 소개 더 보기</string>
+    <string name="course_select_fold">접기</string>
+    <string name="course_select_places_line">%1$d곳 코스</string>
+    <string name="course_select_history_line">지난 방문 기록 있음</string>
+    <string name="course_select_footnote">출발하면 첫 목적지가 차량 내비게이션에 설정돼요</string>
+    <string name="course_select_empty">코스를 준비 중이에요</string>
+
+    <!-- ===== 스텝5: 오늘의 기록(시안 09) — 요약 타일. 값이 없는 타일은 통째로 숨긴다 ===== -->
+    <string name="parked_record_tile_stamps">스탬프</string>
+    <string name="parked_record_stamps_value">%1$d/%2$d</string>
+    <string name="parked_record_tile_party">함께 온 인원</string>
+    <string name="parked_record_tile_distance">함께 달린 거리</string>
+    <string name="parked_record_tile_places">방문 장소</string>
+    <string name="parked_record_party_value">%1$d명</string>
+    <string name="parked_record_distance_value">약 %1$.1fkm</string>
+    <string name="parked_record_places_value">%1$d곳</string>
+    <string name="parked_record_back_home">처음으로</string>
+
+    <!-- 스텝1: 스탬프 획득 카드 -->
+    <string name="parked_stamp_done">%1$s에 스탬프를 찍었어요</string>
+    <string name="parked_stamp_progress">스탬프 %1$d/%2$d</string>
+    <string name="parked_course_start">코스를 시작하세요</string>
+    <string name="parked_first_target">첫 목표: %1$s</string>
+
+    <!-- 스텝2: 퀴즈 (시간 제한·점수·효과음 없음) -->
+    <string name="parked_quiz_progress">%1$d/%2$d</string>
+    <string name="parked_quiz_correct">정답이에요!</string>
+    <string name="parked_quiz_wrong">정답: %1$s</string>
+    <string name="parked_quiz_next">다음</string>
+    <string name="parked_quiz_empty">이 장소에는 준비된 퀴즈가 없어요</string>
+
+    <!-- 스텝3: 그때와 지금 -->
+    <string name="parked_then_label">그때</string>
+    <string name="parked_now_label">지금</string>
+    <string name="parked_now_today">오늘: %1$s</string>
+    <string name="parked_now_arrival">도착: %1$s</string>
+    <string name="parked_then_vehicle">그때의 차: %1$s</string>
+    <string name="parked_now_vehicle">지금의 차: %1$s</string>
+    <string name="parked_now_vehicle_default">오늘의 차</string>
+    <string name="parked_photo_placeholder">사진 자리</string>
+    <string name="parked_first_visit">첫 방문이에요. 오늘이 다음의 ‘그때’가 돼요.</string>
+
+    <!-- T6-1: 유물×가족 타임라인 한 줄(정적). heritage 가 없는 장소는 줄 자체를 숨긴다. -->
+    <string name="parked_heritage_family">우리 가족 · %1$d년</string>
+    <!-- T6-2: 함께 온 인원 한 줄. 인원 수만 쓰고 좌석별·누가 탔는지는 표시 금지(04문서 화면 4). -->
+    <string name="parked_party_line">오늘은 %1$d명이 함께 왔어요. 그때는 %2$d명이었어요.</string>
+    <!-- T9-2: 음성 편지(예시 재생). 정차 화면에만 버튼이 보인다. -->
+    <string name="parked_voice_letter_section">음성 편지</string>
+    <string name="parked_voice_letter_example_tag">예시</string>
+    <string name="parked_voice_letter_play">재생</string>
+    <string name="parked_voice_letter_playing">재생 중…</string>
+    <string name="parked_voice_letter_unavailable">예시(음성 준비 중)</string>
+    <!-- T9-3: 오늘의 자리 이름표 — 서버(members.seat_role) 연동 전에는 표시하지 않는다. -->
+    <string name="parked_seat_names_section">오늘의 자리 이름표</string>
+    <string name="parked_seat_names_pending">서버 연동 시 표시</string>
+    <!-- T9-3 서버 실데이터(2026-11-11): 세션(가족 코드·PIN)이 없거나 조회 실패하면 카드를 숨기고,
+         코드·PIN 불일치(401/403)일 때만 아래 안내 한 줄을 카드 안에 보인다. -->
+    <string name="parked_seat_names_auth_error">가족 코드·PIN을 다시 확인해 주세요</string>
+    <!-- members.seat_role 코드 → 화면 라벨(웹에서 정한 자리 역할 3종). -->
+    <string name="seat_role_driver">운전석</string>
+    <string name="seat_role_navigator">조수석 길잡이</string>
+    <string name="seat_role_explorer">뒷좌석 탐험가</string>
+
+    <!-- ===== 진단 화면(ui/driving) T12+ 지표 서버 값(2026-11-11) — 성공 시 출처 '서버',
+         실패·세션 없음 시 로컬 카운터 유지. 코드·PIN 값 자체는 어디에도 표시하지 않는다 ===== -->
+    <string name="diag_metrics_source_server">서버</string>
+    <string name="diag_metrics_source_local">로컬 카운터</string>
+    <string name="diag_metrics_refresh">지표 새로고침</string>
+    <string name="diag_metrics_no_session">가족 코드·PIN 세션이 없어 로컬 값을 표시해요</string>
+    <string name="diag_metrics_fetch_failed">서버 지표를 가져오지 못해 로컬 값을 유지해요</string>
+    <!-- 완주 화면: 오늘 함께 달린 거리. tripKm 을 못 읽으면 이 문장을 숨긴다. -->
+    <string name="parked_trip_distance">오늘 함께 달린 거리 약 %1$.1f km</string>
+
+    <!-- 스텝4: 스탬프북·제휴처(시안 08 — 맛집·가게·숙소 3종 꼬리표. 입력란·결제 버튼 없음) -->
+    <string name="parked_book_progress">진행 %1$d%% (%2$d/%3$d)</string>
+    <string name="parked_book_badge">배지: %1$s</string>
+    <string name="parked_book_empty">이 코스의 스탬프북이 준비되지 않았어요</string>
+    <string name="parked_partner_section">이 근처에서 먹고, 묵고, 돌러받기</string>
+    <string name="parked_partner_rate">결제액 %1$s 포인트 캐시백(예시)</string>
+    <string name="parked_partner_point_notice">캐시백은 현금이 아닌 포인트로 지급돼요</string>
+    <string name="parked_partner_kind_restaurant">맛집</string>
+    <string name="parked_partner_kind_shop">가게</string>
+    <string name="parked_partner_kind_lodging">숙소</string>
+    <string name="parked_partner_kind_default">제휴처</string>
+    <string name="parked_partner_lodging_notice">숙박 기간 안의 영수증도 인정(예시)</string>
+    <string name="parked_partner_open_record">오늘의 기록 보기</string>
+    <string name="parked_receipt_notice">영수증 인증은 스마트폰에서</string>
+
+    <!-- 하단 버튼·완주 화면 -->
+    <string name="parked_next_place">다음: %1$s</string>
+    <string name="parked_course_complete">코스 완주!</string>
+    <string name="parked_record_saved">오늘의 기록이 저장됐어요.</string>
+    <string name="parked_offers_section">완주 혜택 미리보기</string>
+
+    <!-- ===== 시작 화면(ui/session) T9-1 — 차량 세션: 가족 코드 접속·둘러보기 =====
+         PIN(02문서 9절): 코드는 식별용, 열람·수정은 PIN. PIN 은 저장하지 않으며
+         서버 연동 시 입력받는 UI 자리만 StartScreen 처리부 주석에 남긴다. -->
+    <string name="session_title">가족 코드로 이어 보기</string>
+    <string name="session_code_label">가족 코드</string>
+    <string name="session_code_hint">여섯 자리 숫자·영문</string>
+    <string name="session_connect">이어 보기</string>
+    <string name="session_connect_invalid">코드는 여섯 자리 숫자·영문이어야 해요</string>
+    <string name="session_connect_done">가족 코드가 이 차에 저장됐어요. 같은 코드로 다른 차에서도 기록이 이어져요.</string>
+    <string name="session_guest">가족 없이 둘러보기</string>
+    <string name="session_guest_note">데모·개인 모드 — 기록은 이 차에만 저장돼요</string>
+    <string name="session_guest_done">둘러보기로 시작해요. 기록은 이 차에만 저장돼요.</string>
+    <string name="session_proceed_parked">정차 화면으로 이동</string>
+</resources>

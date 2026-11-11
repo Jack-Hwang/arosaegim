@@ -1,0 +1,8 @@
+# 아로새김 백엔드 의존성 (02문서 1절: Python 3.12 + FastAPI + SQLite)
+# Google Play Services / Firebase 등 외부 서비스 의존은 넣지 않는다.
+fastapi>=0.115
+uvicorn>=0.30
+python-multipart>=0.0.9  # multipart(사진 업로드) 폼 파싱 — FastAPI Form/File에 필요
+pillow>=10.0      # 사진 EXIF 제거(02문서 6-2)
+httpx>=0.27       # 테스트(TestClient)용
+pytest>=8.0

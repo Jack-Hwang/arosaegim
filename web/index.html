@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>아로새김 — 가족 기록</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- 오류 배너: 모든 실패는 여기 한 줄로 3초 표시 (02문서: 어떤 오류에도 크래시 없이) -->
+<div id="banner" class="banner" role="alert" hidden></div>
+
+<header class="topbar">
+  <button id="homeBtn" class="topbar-title" type="button">아로새김</button>
+  <span id="topSub" class="topbar-sub"></span>
+</header>
+
+<main id="app" class="app"><!-- 각 화면이 여기에 그려진다 --></main>
+
+<nav id="nav" class="nav" hidden>
+  <button data-go="#/courses"  type="button">코스</button>
+  <button data-go="#/record"   type="button">기록</button>
+  <button data-go="#/timeline" type="button">타임라인</button>
+  <button data-go="#/receipt"  type="button">영수증</button>
+  <button data-go="#/family"   type="button">가족</button>
+</nav>
+
+<!--
+  서버 주소: 기본은 같은 오리진(상대 경로 fetch).
+  안드로이드 에뮬레이터 웹뷰에서는 호스트가 http://10.0.2.2:8000 이므로
+  홈 화면 "서버 주소" 설정에서 전환한다(02문서 1절).
+-->
+<script src="js/api.js"></script>
+<script src="js/app.js"></script>
+<script src="js/screens/setup.js"></script>
+<script src="js/screens/consent.js"></script>
+<script src="js/screens/courses.js"></script>
+<script src="js/screens/record.js"></script>
+<script src="js/screens/timeline.js"></script>
+<script src="js/screens/family.js"></script>
+<script src="js/screens/data.js"></script>
+<script src="js/screens/receipt.js"></script>
+</body>
+</html>

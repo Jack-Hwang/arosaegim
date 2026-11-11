@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  아로새김 런처 아이콘: 스탬프 모티프.
+  다크 배경 위 밝은 원형 스탬프 + 내부 홈(가운데 구멍) 형태.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+
+    <!-- 다크 배경 -->
+    <path
+        android:fillColor="#FF101014"
+        android:pathData="M0,0h48v48h-48z" />
+
+    <!-- 스탬프 원 (밝은 골드) -->
+    <path
+        android:fillColor="#FFFFD54F"
+        android:pathData="M24,6a18,18 0,1 1,-0.01 0z" />
+
+    <!-- 스탬프 내부 (다크) — 원과 대비되는 홈 -->
+    <path
+        android:fillColor="#FF101014"
+        android:pathData="M24,12a12,12 0,1 1,-0.01 0z" />
+
+    <!-- 중앙 강조점 (밝은 본문색) -->
+    <path
+        android:fillColor="#FFF2F2F2"
+        android:pathData="M24,20a4,4 0,1 1,-0.01 0z" />
+</vector>

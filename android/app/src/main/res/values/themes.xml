@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  아로새김 다크 테마 (최소 구성).
+  Compose UI가 실제 스타일을 담당하므로 플랫폼 테마는 NoActionBar 정도만 필요.
+  windowBackground를 다크로 지정해 액티비티 기동 직후 흰색 플래시를 막는다.
+-->
+<resources>
+    <style name="Theme.Arosaegim" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#FF101014</item>
+    </style>
+</resources>

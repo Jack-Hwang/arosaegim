@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  아로새김(Arosaegim) 매니페스트.
+  - Pleos Connect 차량 SDK 권한: 네비 경로/지도, 융합 위치, 차량 정보/주행/에너지, TTS
+  - 로터리(다이얼) 지원 안 함: 01문서 규칙에 따라 ROTARY_SUPPORTED=false 명시
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Pleos SDK 권한 -->
+    <uses-permission android:name="pleos.car.permission.NAVI_ROUTE_SEARCH" />
+    <uses-permission android:name="pleos.car.permission.NAVI_ROUTE" />
+    <uses-permission android:name="pleos.car.permission.NAVI_CUSTOM_MAP" />
+    <uses-permission android:name="pleos.car.permission.FUSED_LOCATION" />
+    <uses-permission android:name="pleos.car.permission.CAR_INFO" />
+    <uses-permission android:name="pleos.car.permission.CAR_DRIVE" />
+    <uses-permission android:name="pleos.car.permission.CAR_ENERGY" />
+    <uses-permission android:name="pleos.car.permission.TTS_SERVICE" />
+
+    <!-- 코스 데이터 원격 조회용 (릴리스는 HTTPS 전제) -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:name=".ArosaegimApp"
+        android:label="@string/app_name"
+        android:icon="@drawable/ic_launcher"
+        android:theme="@style/Theme.Arosaegim"
+        android:allowBackup="false"
+        android:supportsRtl="true">
+
+        <!-- 로터리 컨트롤러 미지원 선언 (01문서 규칙) -->
+        <meta-data
+            android:name="com.hmg.rotary.ROTARY_SUPPORTED"
+            android:value="false" />
+
+        <!-- 진단 화면: 개발 중 런처 (릴리스에서 BuildConfig로 차단 예정) -->
+        <activity
+            android:name="app.arosaegim.ui.driving.DiagnosticsActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- 주행 화면: distractionOptimized 선언으로 주행 중 사용 가능 -->
+        <activity
+            android:name="app.arosaegim.ui.driving.DrivingActivity"
+            android:exported="true">
+            <meta-data
+                android:name="distractionOptimized"
+                android:value="true" />
+        </activity>
+
+        <!-- 정차 화면: 주차 상태 전용 (외부 노출 없음) -->
+        <activity
+            android:name="app.arosaegim.ui.parked.ParkedActivity"
+            android:exported="false" />
+
+        <!-- 시작 화면(T9-1): 가족 코드 접속 / 가족 없이 둘러보기.
+             launcher 는 DiagnosticsActivity 로 유지한다(개발 루프 보존).
+             릴리스 흐름은 DiagnosticsActivity 가 BuildConfig.DEBUG=false 일 때
+             StartActivity 로 리다이렉트한다(DiagnosticsActivity 주석 참조). -->
+        <activity
+            android:name="app.arosaegim.ui.session.StartActivity"
+            android:exported="false" />
+    </application>
+</manifest>
