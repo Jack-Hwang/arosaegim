@@ -103,6 +103,29 @@ cd android
 - 나머지 실측 한계(TTS 환경·내비 콜백 지연·좌석 미조작 시 인원 숨김·odometer 트립 채널)는
   `docs/ARCHITECTURE.md` 8절과 `docs/DEV_LOG.md` F/Q 번호로 추적한다.
 
+## Virtual Console 실측 세션 체크리스트 (U7·U11·U13 완결용)
+
+에뮬레이터 기동(내비 지도 포함 화면 확인 시 `-gpu host` 권장):
+
+```bash
+C:	oolsndroid-sdk\emulator\emulator.exe -avd PleosConnect -gpu host
+adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+tools\grant-permissions.ps1 -Package app.arosaegim
+adb forward tcp:8088 tcp:8088     # Virtual Console → 브라우저 http://127.0.0.1:8088/ (탭 유지 필수)
+```
+
+부팅 직후 내비가 앱 창을 선점하면: GNB의 앱 서랍(격자) → 아로새김 아이콘으로 전환하거나, 아로새김 실행 직후가 아니면 `am start`를 두 번 반복한다.
+
+| 순서 | 조작 | 확인 |
+|---|---|---|
+| 1 | 진단 화면(U1~U14 목록)에서 **U7 탭** → 관찰 시작 | "주행 상태 관찰" 카드가 실행 중이 됨 |
+| 2 | Virtual Console **기어 D** | 앱이 주행 화면으로 전환(DO 상태 수신) — U7 완결·T6 전환 확인 |
+| 3 | 기어 P 복귀 → 진단에서 U7 카드 결과 확인 | 수신 기록( restrictions 값) 갱신 |
+| 4 | **U11 탭** → Virtual Console Convenience **Seat Occupancy** 2~3석 점유 → U11 재탭 | partySize가 null 대신 인원 수 반환 → "오늘은 N명…" 문장 표시 |
+| 5 | **U13 탭** → Motion **Odometer** 값 조작 → U13 재탭 | km 단위·값 변화 확인(T5-1 단위 확정) |
+| 6 | **U6 재탭** — 기동 후 수 분 경과 시점에서 | Pleos TTS onReady 미수신이 지속되는지(F54) |
+| 7 | 결과를 `docs/DEV_LOG.md` U 표에 기록 → 기획서 문장 확정 | |
+
 ## 문서
 
 - `docs/ARCHITECTURE.md` — 아키텍처·모듈 지도·스모크 실측 요약·예상 기술 Q&A 18문항
