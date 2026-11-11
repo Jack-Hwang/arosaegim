@@ -15,7 +15,7 @@ class FallbackVoiceLetterPlayer : VoiceLetterPlayer {
     override val isAvailable: Boolean = false
 
     override suspend fun play(letterId: String): Result<Unit> =
-        Result.failure(IllegalStateException("예시 음성 준비 중"))
+        Result.failure(IllegalStateException("사전 제작 오디오 없음 — 재생 생략"))
 
     override fun stop() = Unit
 

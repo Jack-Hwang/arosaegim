@@ -75,16 +75,27 @@ class SeedRepositoryTest {
         // T6-2 데이터: '그때 함께 간 인원' — 발주자 확정 5명(party_size)
         assertEquals("그때 인원은 발주자 확정값(5)", 5, content.thenNowDemo?.partySize)
 
-        // T6-1 데이터: 유물의 시간(heritage) — gj-museum 만 1건을 가진다
-        val heritage = content.places.firstOrNull { it.id == "gj-museum" }?.heritage
-        assertNotNull("gj-museum 에 heritage 가 있어야 한다", heritage)
-        assertEquals("성덕대왕신종", heritage?.name)
-        assertEquals(771, heritage?.year)
-        assertEquals("1,250여 년", heritage?.label)
-        assertFalse("heritage 는 아직 검수 전 초안이다", heritage?.reviewed == true)
-        assertTrue("검수 메모가 있어야 한다", !heritage?.note.isNullOrBlank())
-        // heritage 가 없는 장소는 null 이다(호출부 호환 규칙).
-        assertNull(content.places.first { it.id == "gj-daereungwon" }.heritage)
+        // T6-1 데이터: 유물의 시간(heritage) — 2026-11-11 시드 보강으로 3곳 모두 보유
+        val heritageByPlace = content.places.associate { it.id to it.heritage }
+        val museum = heritageByPlace["gj-museum"]
+        val daereungwon = heritageByPlace["gj-daereungwon"]
+        val cheomseongdae = heritageByPlace["gj-cheomseongdae"]
+        assertNotNull("gj-museum heritage", museum)
+        assertEquals("성덕대왕신종", museum?.name)
+        assertEquals(771, museum?.year)
+        assertEquals("1,250여 년", museum?.label)
+        assertNotNull("gj-daereungwon heritage(신규 보강)", daereungwon)
+        assertEquals("천마총", daereungwon?.name)
+        assertEquals(650, daereungwon?.year)
+        assertNotNull("gj-cheomseongdae heritage(신규 보강)", cheomseongdae)
+        assertEquals("첨성대", cheomseongdae?.name)
+        assertEquals(632, cheomseongdae?.year)
+        // 초안 표기 규칙: heritage 가 있는 곳은 reviewed=false 유지(00문서 13절 — 학설 단정 금지)
+        assertTrue("모든 heritage 는 초안(reviewed=false)이어야 한다",
+            listOf(museum, daereungwon, cheomseongdae).all { it?.reviewed == false })
+        // 검수 메모: heritage note 는 '공식 자료로 검수 필요' 안내를 담는다(02문서 7절 — 단정 금지).
+        assertTrue("heritage note 는 검수 필요 안내를 담는다",
+            listOf(museum, daereungwon, cheomseongdae).all { !it?.note.isNullOrBlank() })
 
         // T9-2 데이터: 예시 음성 편지 — 시드 단일 객체가 목록 1건으로 정규화된다
         assertEquals("voice_letter_demo 단일 객체 → 목록 1건", 1, content.voiceLetters.size)

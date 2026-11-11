@@ -2,7 +2,10 @@ package app.arosaegim.ui.parked
 
 import android.content.Context
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import app.arosaegim.data.FamilySessionStore
 
 /*
@@ -20,3 +23,34 @@ import app.arosaegim.data.FamilySessionStore
 @Composable
 internal fun rememberFamilyStore(context: Context): FamilySessionStore =
     remember { FamilySessionStore(context.applicationContext) }
+
+/**
+ * '나중에 정하기' 세션 메모리(B1, 2026-11-11) — QuizStateHolder·CourseStartState 와 같은
+ * object 홀더다(프로세스 수명, Compose mutableStateOf 로 화면 갱신만 담당).
+ *
+ * 규약(계약):
+ *  - 이 코스(코스 id 단위)에서 '나중에 정하기'를 누르면 그 코스에서는 다시 질문하지 않는다.
+ *  - **세션 메모리만** — SharedPreferences·파일 어디에도 저장하지 않는다(영속 금지).
+ *    프로세스가 끝나면 사라지고, 재방문 시 다시 물어도 된다.
+ *  - 로그아웃 시 [clearAll] 로 즉시 소멸시킨다(DiagnosticsViewModel.signOutFromCar 가 호출 —
+ *    '로그아웃 시 소멸' 계약).
+ */
+object HeirQuestionMemory {
+
+    /** '나중에 정하기'를 누른 코스 id 집합. 세션(프로세스) 메모리에만 존재한다. */
+    var deferredCourseIds by mutableStateOf(emptySet<String>())
+        private set
+
+    /** 이 코스에서 '나중에 정하기'를 눌렀는지. */
+    fun isDeferred(courseId: String): Boolean = courseId in deferredCourseIds
+
+    /** '나중에 정하기' 처리 — 이 코스에서는 더 이상 질문하지 않는다. */
+    fun defer(courseId: String) {
+        deferredCourseIds = deferredCourseIds + courseId
+    }
+
+    /** 세션 메모리 전체 소멸(로그아웃). */
+    fun clearAll() {
+        deferredCourseIds = emptySet()
+    }
+}

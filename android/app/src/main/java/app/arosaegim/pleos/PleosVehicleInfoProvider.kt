@@ -82,6 +82,56 @@ class PleosVehicleInfoProvider(context: Context) {
     }
 
     /**
+     * 진단 스모크 D1(실측 전용, 2026-11-11): Fuel.checkFuelPercentCapabilities 확인만.
+     * ★ 연료 값 자체(getFuelPercent)는 절대 읽지 않는다 — capability 결과(AccessType)만
+     *   성공/실패로 기록·표시한다('실측만, 화면 문장 생성 등 기능 구현은 보류' 범위).
+     * 결과는 표시 전용이며 저장·전송하지 않는다. VIN 계열과 같은 콜백 규약(F10)을 따른다.
+     */
+    fun checkFuelCapabilityOnly(onResult: (String) -> Unit) {
+        checkCapabilityOnly("Fuel", onResult) {
+            vehicle.getFuel().checkFuelPercentCapabilities(
+                onComplete = { config -> onResult(config.accessType?.name ?: "UNKNOWN") },
+                onFailed = { e ->
+                    onResult("FAILED:${e.javaClass.simpleName}: ${e.message ?: ""}")
+                },
+            )
+        }
+    }
+
+    /**
+     * 진단 스모크 D2(실측 전용, 2026-11-11): EvBattery.checkEvBatteryStateOfChargeCapabilities 확인만.
+     * ★ 배터리 값 자체(getEvBatteryStateOfCharge)는 절대 읽지 않는다 — capability 결과만
+     *   성공/실패로 기록·표시한다. 결과는 표시 전용이며 저장·전송하지 않는다.
+     */
+    fun checkEvBatteryCapabilityOnly(onResult: (String) -> Unit) {
+        checkCapabilityOnly("EvBattery", onResult) {
+            vehicle.getEvBattery().checkEvBatteryStateOfChargeCapabilities(
+                onComplete = { config -> onResult(config.accessType?.name ?: "UNKNOWN") },
+                onFailed = { e ->
+                    onResult("FAILED:${e.javaClass.simpleName}: ${e.message ?: ""}")
+                },
+            )
+        }
+    }
+
+    /** capability 확인 공용 골격 — 초기화 확인·예외 흡수만 담당한다(값 읽기 없음). */
+    private inline fun checkCapabilityOnly(
+        domain: String,
+        crossinline onResult: (String) -> Unit,
+        crossinline check: () -> Unit,
+    ) {
+        if (!initialized) {
+            onResult("NOT_INITIALIZED${lastError?.let { ": $it" } ?: ""}")
+            return
+        }
+        try {
+            check()
+        } catch (t: Throwable) {
+            onResult("ERROR[$domain]:${t.javaClass.simpleName}: ${t.message ?: ""}")
+        }
+    }
+
+    /**
      * 종료 시 일괄 해제. 규칙(01문서): 콜백(onComplete/onFailed)이 끝나기 전에 release 금지 —
      * 호출자(AppContainer.closeAll)는 스모크 테스트 콜백이 모두 끝난 뒤 이 함수를 호출해야 한다.
      */

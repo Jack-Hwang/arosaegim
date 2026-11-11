@@ -89,7 +89,14 @@
           "explain": "천마(하늘을 나는 말)가 그려진 그림이 발견되어 천마총이라 불려요.",
           "reviewed": false
         }
-      ]
+      ],
+      "heritage": {
+        "name": "천마총",
+        "year": 650,
+        "label": "1,300여 년",
+        "reviewed": false,
+        "note": "조성 시기는 6~7세기로 추정된다. 공식 자료로 검수 필요"
+      }
     },
     {
       "id": "gj-cheomseongdae",
@@ -125,7 +132,14 @@
           "explain": "첨성대는 신라 시대에 세워졌다고 전해져요.",
           "reviewed": false
         }
-      ]
+      ],
+      "heritage": {
+        "name": "첨성대",
+        "year": 632,
+        "label": "1,350여 년",
+        "reviewed": false,
+        "note": "건축 시기는 선덕여왕 대(632~647년) 설이 널리 알려져 있으나 학설이 갈린다. 공식 자료로 검수 필요"
+      }
     }
   ],
   "then_now_demo": {

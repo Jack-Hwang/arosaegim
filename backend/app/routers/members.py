@@ -1,20 +1,23 @@
-# 가족 구성원·계승 API (02문서 9·10절).
+# 가족 구성원·계승 API (02문서 9·10절 + 기획서 v10 B1).
 # GET  /v1/families/me/members : 구성원 목록 — PIN 필요
 # POST /v1/families/me/members : 구성원 추가(별칭·세대·미성년) — 첫 구성원은 owner
 # POST /v1/families/me/members/{id}/consent : 보호자 동의 기록(웹 전용 화면에서 호출)
-# POST /v1/families/me/heir    : 상속자 지정 — owner만 (handovers에 'designated' 기록)
+# GET  /v1/families/me/heir    : 지정된 상속자 조회 — PIN 필요 (없으면 member_id null)
+# POST /v1/families/me/heir    : 상속자 지정 — owner 전용(PIN 불일치 403, 기획서 v10 B1)
+# PUT  /v1/families/me/heir    : 상속자 지정(POST와 동일 동작의 계약 경로) — 재지정 허용
 # POST /v1/families/me/handover: 관리 권한 이전 — owner만 (handovers에 'transferred' 기록)
 #
 # 설계 결정(주석 명시): 서버 인증은 가족 단위(코드+PIN)만 있으므로 "owner만"은
 # '이 가족의 owner 구성원 기준'으로 서버가 판정한다. 웹 화면이 owner 기기에서
 # 호출한다고 가정하며, 개인 로그인·기기 식별은 이 서비스 범위에 없다(02문서 10절:
-# 실명·이메일 입력 없음).
+# 실명·이메일 입력 없음). owner 전용 경로는 security.require_owner_auth를 쓰며
+# PIN이 틀리면 401이 아니라 403 not_owner로 답한다(401=미인증, 403=권한 없음).
 from fastapi import APIRouter, Depends
 
 from .. import db, timeutil
 from ..errors import AppError
-from ..models import HandoverIn, HeirIn, MemberIn, MemberOut, SeatRoleIn
-from ..security import require_family_auth
+from ..models import HandoverIn, HeirIn, HeirOut, HeirSet, MemberIn, MemberOut, SeatRoleIn
+from ..security import require_family_auth, require_owner_auth
 
 router = APIRouter()
 
@@ -39,8 +42,11 @@ def _get_owner(conn, family_code: str) -> dict:
     row = conn.execute(
         "SELECT * FROM members WHERE family_code = ? AND role = 'owner'", (family_code,)
     ).fetchone()
-    if row is None:  # pragma: no cover — 첫 구성원 owner 보장으로 도달하지 않음
-        raise AppError(500, "internal_error", "owner 구성원이 없습니다")
+    if row is None:
+        # 감사 지적 S1: 관리자(owner) 구성원이 없으면 서버 오류(500)가 아니라
+        # 사용자가 고칠 수 있는 요청 오류(400)로 안내한다. heir·handover 양쪽 경로가
+        # 모두 이 함수를 거치므로 한 곳에서 두 경로를 함께 막는다.
+        raise AppError(400, "invalid_request", "구성원을 먼저 등록해 주세요")
     return dict(row)
 
 
@@ -106,37 +112,61 @@ def record_consent(member_id: int, family: dict = Depends(require_family_auth)):
     return {"member_id": member_id, "guardian_consent": True, "consent_at": now}
 
 
-@router.post("/v1/families/me/heir")
-def designate_heir(payload: HeirIn, family: dict = Depends(require_family_auth)):
-    """상속자 지정(owner만). 이전 상속자가 있으면 member로 되돌리고,
-    handovers에 status='designated' 기록을 남긴다."""
-    owner = None
+@router.get("/v1/families/me/heir", response_model=HeirOut)
+def get_heir(family: dict = Depends(require_family_auth)):
+    """지정된 상속자 조회 (기획서 v10 B1). 없으면 {"member_id": null} — 값을 지어내지 않는다."""
     with db.connect() as conn:
-        owner = _get_owner(conn, family["code"])
-        target = _get_member(conn, family["code"], payload.member_id)
+        row = conn.execute(
+            "SELECT id FROM members WHERE family_code = ? AND role = 'heir' ORDER BY id LIMIT 1",
+            (family["code"],),
+        ).fetchone()
+    return HeirOut(member_id=row["id"] if row else None)
+
+
+def _set_heir(family_code: str, payload: HeirIn) -> HeirSet:
+    """상속자 지정 공통 로직. 이전 상속자는 member로 되돌리고 handovers에
+    status='designated' 기록을 남긴다. 다른 구성원으로 재지정도 언제든 허용된다."""
+    with db.connect() as conn:
+        owner = _get_owner(conn, family_code)
+        target = _get_member(conn, family_code, payload.member_id)
         if target["id"] == owner["id"]:
             raise AppError(400, "already_owner", "owner를 상속자로 지정할 수 없습니다")
-        # 기존 상속자 되돌리기
         conn.execute(
             "UPDATE members SET role = 'member' WHERE family_code = ? AND role = 'heir'",
-            (family["code"],),
+            (family_code,),
         )
         conn.execute(
             "UPDATE members SET role = 'heir' WHERE id = ? AND family_code = ?",
-            (target["id"], family["code"]),
+            (target["id"], family_code),
         )
         conn.execute(
             "INSERT INTO handovers (family_code, from_member, to_member, created_at, status)"
             " VALUES (?,?,?,?, 'designated')",
-            (family["code"], owner["id"], target["id"], timeutil.now_iso()),
+            (family_code, owner["id"], target["id"], timeutil.now_iso()),
         )
-    return {"member_id": target["id"], "role": "heir", "status": "designated"}
+    return HeirSet(member_id=target["id"])
+
+
+@router.post("/v1/families/me/heir", response_model=HeirSet)
+def designate_heir(payload: HeirIn, family: dict = Depends(require_owner_auth)):
+    """상속자 지정 (기획서 v10 B1, POST). owner 인증 실패(PIN 불일치)는 403 not_owner,
+    없는 구성원은 404, owner 지정 시도는 400 already_owner,
+    구성원이 아예 없으면 400 invalid_request(감사 지적 S1)."""
+    return _set_heir(family["code"], payload)
+
+
+@router.put("/v1/families/me/heir", response_model=HeirSet)
+def update_heir(payload: HeirIn, family: dict = Depends(require_owner_auth)):
+    """상속자 지정 (기획서 v10 B1, PUT — POST와 동일 동작의 계약 경로).
+    이미 상속자가 있어도 다른 구성원으로 재지정할 수 있다."""
+    return _set_heir(family["code"], payload)
 
 
 @router.post("/v1/families/me/handover")
 def handover(payload: HandoverIn, family: dict = Depends(require_family_auth)):
     """관리 권한 이전(owner만). 이전 owner는 member가 되고 데이터는 전부 유지된다.
-    handovers에 status='transferred' 기록을 남긴다."""
+    handovers에 status='transferred' 기록을 남긴다.
+    구성원이 아예 없으면 400 invalid_request(감사 지적 S1 — heir 경로와 동일 규칙)."""
     with db.connect() as conn:
         owner = _get_owner(conn, family["code"])
         target = _get_member(conn, family["code"], payload.to_member_id)

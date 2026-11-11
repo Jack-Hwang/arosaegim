@@ -84,6 +84,9 @@ CREATE TABLE IF NOT EXISTS visits (
     vehicle_label TEXT,
     party_size    INTEGER,        -- 좌석 신호로 읽은 인원 수(식별 정보 없음, 02문서 10절)
     trip_km       REAL,           -- 코스 시작~완주 주행거리 차이(02문서 10절)
+    course_run    TEXT,           -- '코스 주행 1회' 식별(기획서 v10 B4). 같은 run의 visit은
+                                  -- trip_km를 지표에 한 번만 합산한다. 클라이언트가 course_run_id를
+                                  -- 보내면 그 값을 쓰고, 없으면 '<course_id>#<방문 날짜>'로 서버가 유도한다.
     stamp_no      INTEGER NOT NULL DEFAULT 0,
     created_at    TEXT NOT NULL,
     UNIQUE (family_code, place_id, course_id, visited_at)
@@ -167,9 +170,33 @@ CREATE TABLE IF NOT EXISTS point_ledger (
     reason      TEXT,
     created_at  TEXT NOT NULL
 );
+-- 기획서 v10 B2: 가족 단위 화면 설정(지금은 '사람 비교 접기' 하나).
+CREATE TABLE IF NOT EXISTS family_settings (
+    family_code                TEXT PRIMARY KEY,
+    fold_person_comparison_all INTEGER NOT NULL DEFAULT 0
+);
+-- 기획서 v10 B3: 장소별 접기. then-now 카드의 folded 필드와 목록 응답의 원천.
+CREATE TABLE IF NOT EXISTS folded_places (
+    family_code TEXT NOT NULL,
+    place_id    TEXT NOT NULL,
+    created_at  TEXT NOT NULL,
+    PRIMARY KEY (family_code, place_id)
+);
+-- 기획서 v10 B5: 그때 기록 사진의 인물 이름표(단순 저장 — 얼굴 인식 일절 없음).
+-- x·y는 사진 크기 대비 0..1 비율이다.
+CREATE TABLE IF NOT EXISTS memory_markers (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    family_code TEXT NOT NULL,
+    memory_id   INTEGER NOT NULL,
+    x           REAL NOT NULL,
+    y           REAL NOT NULL,
+    name        TEXT NOT NULL,
+    seq         INTEGER NOT NULL DEFAULT 0
+);
 CREATE INDEX IF NOT EXISTS idx_visits_family ON visits (family_code, place_id, visited_at);
 CREATE INDEX IF NOT EXISTS idx_memories_family ON memories (family_code, place_id);
 CREATE INDEX IF NOT EXISTS idx_food_notes_visit ON food_notes (visit_id);
+CREATE INDEX IF NOT EXISTS idx_memory_markers_mem ON memory_markers (family_code, memory_id);
 """
 
 
@@ -218,6 +245,7 @@ def _migrate_schema(conn: sqlite3.Connection) -> None:
     for table, name, decl in (
         ("visits", "party_size", "INTEGER"),
         ("visits", "trip_km", "REAL"),
+        ("visits", "course_run", "TEXT"),
         ("memories", "party_size", "INTEGER"),
         ("memories", "audio_path", "TEXT"),
         ("members", "seat_role", "TEXT"),
@@ -229,6 +257,16 @@ def _migrate_schema(conn: sqlite3.Connection) -> None:
         cols = {r[1] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
         if cols and name not in cols:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
+
+    # course_run 백필(멱등): 기존 방문에는 '코스#방문 날짜'를 채운다.
+    # 같은 코스를 같은 날 여러 장소에서 찍은 visit들이 한 번의 주행으로 묶여
+    # family_total_trip_km 중복 합산이 방지된다. 새 요청은 항상 값을 채워 넣는다.
+    conn.execute(
+        "UPDATE visits SET course_run = course_id || '#' || substr(visited_at, 1, 10)"
+        " WHERE course_run IS NULL"
+    )
+    # 이 인덱스는 course_run 컬럼이 생긴 뒤에 만들어야 하므로 마이그레이션에서 실행한다.
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_visits_course_run ON visits (family_code, course_run)")
 
     row = conn.execute(
         "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'receipts'"

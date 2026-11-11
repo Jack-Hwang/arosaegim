@@ -49,6 +49,7 @@ import app.arosaegim.data.ThenNowDemo
 import app.arosaegim.domain.Place
 import app.arosaegim.domain.StampBook
 import app.arosaegim.domain.StampBookDef
+import app.arosaegim.domain.ThenNowPlaceState
 import app.arosaegim.domain.VoiceLetter
 import app.arosaegim.ports.VoiceLetterPlayer
 import app.arosaegim.ui.common.AroTextStyles
@@ -200,7 +201,13 @@ internal fun QuizChoiceButton(
  * 스텝3: 그때와 지금 카드. 좌 '그때'(연대·사진 자리·메모 2줄·그때의 차) / 우 '지금'(오늘·도착 시각·지금의 차).
  * 좁은 창(세로)에서는 위아래로 쌓는다(04문서 공통·화면 4).
  *
- * 점수 보강 추가(00문서 11절) — 카드 아래에 차례로:
+ * E2(2026-11-11) — 표시 우선순위(02문서 4절): 서버 past > 시드 then_now_demo(예시) > 첫 방문 문구.
+ *  - serverPast 가 있고 past 가 있으면: 서버 실데이터(연도·메모·사진·그때 인원·그때의 차)를 그리고
+ *    '예시' 태그는 숨긴다. 사진은 photo_url 을 네트워크로 내려오고, 실패하면 글만 남긴다.
+ *  - serverPast 가 있고 past 가 null 이면: 서버가 '과거 없음'이라 답한 것 — 첫 방문 문구.
+ *  - serverPast 가 null(미조회·실패·세션 없음)이면: 기존 동작대로 시드 then_now_demo(예시 태그) 폴백.
+ *
+ * 점수 보강(00문서 11절) — 카드 아래에 차례로([ThenNowExtrasColumn] 공용):
  *  ① T6-1 유물×가족 타임라인 한 줄(정적, heritage 없는 장소는 숨김)
  *  ② T6-2 인원 문장(좌석 점유 신호가 없으면 숨김 — 인원 수만, 좌석별 표시 금지)
  *  ③ T9-2 음성 편지 카드(예시 태그, 정차 화면 전용 버튼)
@@ -215,10 +222,24 @@ internal fun ThenNowStep(
     partySizeNow: Int?,
     voiceLetter: VoiceLetter?,
     voiceLetterPlayer: VoiceLetterPlayer?,
+    // ── E2 서버 과거 기록(2026-11-11) ── ParkedScreen 이 스텝3 진입 때 apiClient.getThenNow 로
+    // 조회·파싱한 값(ThenNowExtras.kt 의 ServerThenNowInfo). null = 미조회·실패·세션 없음 →
+    // 예시(시드) 폴백으로 기존 동작을 유지한다. 서버 값이면 '예시' 태그를 숨긴다(계약).
+    serverPast: ServerThenNowInfo? = null,
     // T9-3 서버 실데이터(2026-11-11): seat_role → 이름 Map. null·빈 Map = 이름표 카드 숨김.
     seatTags: Map<String, String>? = null,
     // 코드·PIN 불일치(401/403)일 때만 true — 이름표 대신 카드 안 작은 안내 한 줄을 보인다.
     seatAuthError: Boolean = false,
+    // ── B2·B4 then-now 부가 상태(2026-11-11) ──
+    // 서버 then-now 조회 성공분(parseThenNowPlaceState). null = 조회 실패·필드 없음 →
+    // 첫 기록 문구·접기 버튼을 만들지 않고 기존 동작(빈 칸/숨김)을 유지한다(추측 금지).
+    thenNowState: ThenNowPlaceState? = null,
+    // B4: 인원 비교 문장 접힘(이 장소 folded 또는 가족 설정 fold_person_comparison_all).
+    comparisonFolded: Boolean = false,
+    // B4: 접기 버튼 표시 가능(then-now 조회 성공 + 전역 설정 아님). 조회 실패면 false(버튼만 숨김).
+    showFoldButton: Boolean = false,
+    // B4: 접기 버튼 처리 — ParkedScreen 이 POST folded-places 를 호출하고 상태를 갱신한다.
+    onFoldComparison: () -> Unit = {},
 ) {
     // 도착 시각: TripSession 이 도착 갱신 시각을 주지 않으므로 이 화면 진입 시각으로 표시한다.
     val arrivalTime = remember { SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date()) }
@@ -226,27 +247,148 @@ internal fun ThenNowStep(
     // 지금의 차: 차량 프로필을 비동기로 읽고, 프로필이 없으면 '오늘의 차'.
     var nowVehicle by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) { nowVehicle = runCatching { container.vehicleInfo.read()?.model }.getOrNull() }
+    val nowVehicleText = nowVehicle ?: stringResource(R.string.parked_now_vehicle_default)
 
-    if (demo == null || place == null || demo.placeId != place.id) {
-        // 빈 상태(04문서): 과거 기록이 없으면 첫 방문 안내 한 줄.
+    // '지금' 카드 — 예시·서버 경로 공용. 서버의 이번 방문 기록(now.party_size·now.trip_km)은
+    // 있을 때만 한 줄씩 추가한다(04문서 화면 4 — 없으면 숨김). 예시 폴백 때는 자동으로 숨는다.
+    val nowCard: @Composable () -> Unit = {
         SectionCard {
+            Text(stringResource(R.string.parked_now_label), style = AroTextStyles.titleSmall, color = MaterialTheme.aroColors.textPrimary)
+            Text(stringResource(R.string.parked_now_today, todayText), style = AroTextStyles.bodySmall, color = MaterialTheme.aroColors.textPrimary, maxLines = 1)
+            Text(stringResource(R.string.parked_now_arrival, arrivalTime), style = AroTextStyles.bodySmall, color = MaterialTheme.aroColors.textPrimary, maxLines = 1)
             Text(
-                text = stringResource(R.string.parked_first_visit),
-                style = AroTextStyles.bodyMedium,
-                color = MaterialTheme.aroColors.textPrimary,
+                text = stringResource(R.string.parked_now_vehicle, nowVehicleText),
+                style = AroTextStyles.bodySmall,
+                color = MaterialTheme.aroColors.textSecondary,
                 maxLines = 2,
             )
+            val nowParty = serverPast?.nowPartySize
+            val nowTripKm = serverPast?.nowTripKm
+            if (nowParty != null) {
+                Text(
+                    text = stringResource(R.string.parked_now_party, nowParty),
+                    style = AroTextStyles.bodySmall,
+                    color = MaterialTheme.aroColors.textPrimary,
+                    maxLines = 1,
+                )
+            }
+            if (nowTripKm != null) {
+                Text(
+                    text = stringResource(R.string.parked_trip_distance, nowTripKm),
+                    style = AroTextStyles.bodySmall,
+                    color = MaterialTheme.aroColors.textPrimary,
+                    maxLines = 1,
+                )
+            }
         }
+    }
+    // 넓은 창(가로)은 좌우, 좁은 창(세로)은 위아래(04문서 공통). thenCard 만 경로별로 바뀐다.
+    val showPair: @Composable (@Composable () -> Unit) -> Unit = { thenCard ->
+        if (isWide) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(Modifier.weight(1f)) { thenCard() }
+                Box(Modifier.weight(1f)) { nowCard() }
+            }
+        } else {
+            // 세로 창(04문서 시안 10): '그때와 지금' 카드를 위아래로 쌓는다.
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                thenCard()
+                nowCard()
+            }
+        }
+    }
+
+    // ── 1순위: 서버 실데이터(E2). ──
+    val server = serverPast
+    if (server != null) {
+        val past = server.past
+        if (past == null) {
+            // 서버가 '과거 기록 없음'이라 답했다 — 예시 대신 첫 방문 문구(past null 계약).
+            // visit_ordinal==1 은 '첫 기록' 문구(B2 — 서버 응답에서 우선 읽고, 없으면 B2 조회분).
+            FirstVisitCard(
+                firstRecord = (server.visitOrdinal ?: thenNowState?.visitOrdinal) == 1,
+                todayPartyCount = partySizeNow,
+            )
+            return
+        }
+        // 연도 줄: 서버는 year 가 진짜 — "1994년 (32년 전)" 형식. years_ago 는 서버값 우선,
+        // 없으면(파서가 현재 연도로 계산해 둔다) 그 값을 쓴다. 올해 기록이면 연도만 표시.
+        val yearLabel = if (past.yearsAgo > 0) {
+            stringResource(R.string.parked_then_server_year, past.year, past.yearsAgo)
+        } else {
+            "${past.year}년"
+        }
+        val thenCard: @Composable () -> Unit = {
+            SectionCard {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.parked_then_label), style = AroTextStyles.titleSmall, color = MaterialTheme.aroColors.textPrimary, modifier = Modifier.weight(1f))
+                    // 서버 실데이터 — '예시' 태그를 붙이지 않는다(계약: 서버 값이면 태그 숨김).
+                }
+                SmallTag(yearLabel)
+                // 사진: photo_url 네트워크 로드. 경로 없음·실패면 칸 없이 아래 메모만(글만 — 계약).
+                past.photoUrl?.let { ThenNetworkPhoto(photoUrl = it) }
+                // 메모는 2줄로 자른다(04문서 화면 4 금지: 긴 메모 전체 표시).
+                past.note?.let {
+                    Text(it, style = AroTextStyles.bodySmall, color = MaterialTheme.aroColors.textPrimary, maxLines = 2)
+                }
+                // 그때 인원 — 인원 수만(누가 탔는지 표시 금지, 04문서 화면 4). 없으면 줄 숨김.
+                past.partySize?.let {
+                    Text(
+                        text = stringResource(R.string.parked_then_party, it),
+                        style = AroTextStyles.bodySmall,
+                        color = MaterialTheme.aroColors.textPrimary,
+                        maxLines = 1,
+                    )
+                }
+                past.vehicleLabel?.let {
+                    Text(
+                        text = stringResource(R.string.parked_then_vehicle, it),
+                        style = AroTextStyles.bodySmall,
+                        color = MaterialTheme.aroColors.textSecondary,
+                        maxLines = 2,
+                    )
+                }
+            }
+        }
+        showPair(thenCard)
+        ThenNowExtrasColumn(
+            place = place,
+            familyYear = past.year, // 타임라인의 '우리 가족' 연도도 서버 기록을 쓴다.
+            thenCount = past.partySize,
+            todayCount = partySizeNow,
+            comparisonFolded = comparisonFolded,
+            showFoldButton = showFoldButton,
+            onFold = onFoldComparison,
+            voiceLetter = voiceLetter,
+            voiceLetterPlayer = voiceLetterPlayer,
+            seatTags = seatTags,
+            seatAuthError = seatAuthError,
+        )
         return
     }
+
+    // ── 2·3순위: 예시(시드) 폴백 / 첫 방문 — 서버 응답이 없을 때의 기존 동작(02문서 4절). ──
+    if (demo == null || place == null || demo.placeId != place.id) {
+        // 빈 상태(04문서): 과거 기록이 없으면 첫 방문 안내 한 줄.
+        // B2(2026-11-11): 서버 then-now 가 visit_ordinal==1(옛 기록·지난 방문이 전혀 없음)을
+        // 확인한 때만 빈 칸 대신 첫 기록 문구로 바꾼다. 서버 필드 없음·조회 실패 시 추측으로
+        // 문구를 만들지 않고 기존 한 줄을 유지한다(계약). 인원은 '오늘은 N명이 함께 왔어요'까지만.
+        FirstVisitCard(
+            firstRecord = thenNowState != null && thenNowState.visitOrdinal == 1,
+            todayPartyCount = partySizeNow,
+        )
+        return
+    }
+    // 예시(시드 then_now_demo) — 서버 응답이 없을 때만 본다. 카드에 '예시' 태그를 붙인다(계약).
     // 연도 표시 규칙(00문서 10.4): label("1990년대 중반") 우선, 없으면 현재 연도 − yearsAgo.
     // 절대 연도(demo.year, 예: 1994)가 시드에 있으면 타임라인의 '우리 가족' 쪽에 그 값을 쓴다.
     val pastYear = Calendar.getInstance().get(Calendar.YEAR) - demo.yearsAgo
-    val nowVehicleText = nowVehicle ?: stringResource(R.string.parked_now_vehicle_default)
-
     val thenCard: @Composable () -> Unit = {
         SectionCard {
-            Text(stringResource(R.string.parked_then_label), style = AroTextStyles.titleSmall, color = MaterialTheme.aroColors.textPrimary)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.parked_then_label), style = AroTextStyles.titleSmall, color = MaterialTheme.aroColors.textPrimary, modifier = Modifier.weight(1f))
+                SmallTag(stringResource(R.string.parked_thennow_example_tag))
+            }
             SmallTag(demo.label ?: "${pastYear}년")
             ThenPhoto(demo.photoAsset)
             // 메모는 2줄로 자른다(04문서 화면 4 금지: 긴 메모 전체 표시).
@@ -259,53 +401,38 @@ internal fun ThenNowStep(
             )
         }
     }
-    val nowCard: @Composable () -> Unit = {
+    showPair(thenCard)
+    ThenNowExtrasColumn(
+        place = place,
+        familyYear = demo.year,
+        thenCount = demo.partySize,
+        todayCount = partySizeNow,
+        comparisonFolded = comparisonFolded,
+        showFoldButton = showFoldButton,
+        onFold = onFoldComparison,
+        voiceLetter = voiceLetter,
+        voiceLetterPlayer = voiceLetterPlayer,
+        seatTags = seatTags,
+        seatAuthError = seatAuthError,
+    )
+}
+
+/**
+ * 첫 방문 카드(공용). 서버(B2·E2)가 visit_ordinal==1 을 확인한 때만 '첫 기록' 문구로 바꾸고,
+ * 그 외(미조회·실패·2번째 이상)는 기존 한 줄을 유지한다(추측 금지 — 값이 없으면 만들지 않는다).
+ */
+@Composable
+private fun FirstVisitCard(firstRecord: Boolean, todayPartyCount: Int?) {
+    if (firstRecord) {
+        SectionCard { FirstRecordContent(todayPartyCount = todayPartyCount) }
+    } else {
         SectionCard {
-            Text(stringResource(R.string.parked_now_label), style = AroTextStyles.titleSmall, color = MaterialTheme.aroColors.textPrimary)
-            Text(stringResource(R.string.parked_now_today, todayText), style = AroTextStyles.bodySmall, color = MaterialTheme.aroColors.textPrimary, maxLines = 1)
-            Text(stringResource(R.string.parked_now_arrival, arrivalTime), style = AroTextStyles.bodySmall, color = MaterialTheme.aroColors.textPrimary, maxLines = 1)
             Text(
-                text = stringResource(R.string.parked_now_vehicle, nowVehicleText),
-                style = AroTextStyles.bodySmall,
-                color = MaterialTheme.aroColors.textSecondary,
+                text = stringResource(R.string.parked_first_visit),
+                style = AroTextStyles.bodyMedium,
+                color = MaterialTheme.aroColors.textPrimary,
                 maxLines = 2,
             )
-        }
-    }
-    if (isWide) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(Modifier.weight(1f)) { thenCard() }
-            Box(Modifier.weight(1f)) { nowCard() }
-        }
-    } else {
-        // 세로 창(04문서 시안 10): '그때와 지금' 카드를 위아래로 쌓는다.
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            thenCard()
-            nowCard()
-        }
-    }
-    // ── 카드 아래 점수 보강 요소들(T6-1·T6-2·T9-2·T9-3). 각 항목은 값이 없으면 스스로 숨는다.
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        // ① 유물×가족 타임라인 한 줄(정적). heritage 가 파싱되지 않은 시드면 null 로 숨는다.
-        HeritageTimelineLine(heritage = place.heritage, familyYear = demo.year)
-        // ② 인원 문장 — 좌석 점유 신호(TripSignalProvider)를 읽지 못하면 숨긴다.
-        PartySizeLine(todayCount = partySizeNow, thenCount = demo.partySize)
-        // ③ 음성 편지(예시) — 정차 화면 전용. 주행 전환 시 ParkedActivity.onPause 에서 재생 중단.
-        SectionCard { VoiceLetterCard(letter = voiceLetter, player = voiceLetterPlayer) }
-        // ④ 자리 이름표(T9-3) — ParkedScreen 이 서버 members.seat_role 을 조회해 실데이터를 넘긴다.
-        //    세션(가족 코드·PIN) 없음·그 외 조회 실패면 seatTags 가 null/빈 Map → 카드 자체를 숨긴다.
-        //    401/403(코드·PIN 불일치)만 아래 작은 안내 한 줄로 보여 준다(진단 lastError 로 가지 않는다).
-        if (seatAuthError && seatTags.isNullOrEmpty()) {
-            SectionCard {
-                Text(
-                    text = stringResource(R.string.parked_seat_names_auth_error),
-                    style = AroTextStyles.bodySmall,
-                    color = MaterialTheme.aroColors.textTertiary,
-                    maxLines = 1,
-                )
-            }
-        } else {
-            SeatNameTags(seatTags = seatTags)
         }
     }
 }

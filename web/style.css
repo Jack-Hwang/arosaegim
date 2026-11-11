@@ -227,6 +227,45 @@ textarea.input { resize: vertical; }
 .ledger-row:first-of-type { border-top: 0; }
 .points-total { font-size: 20px; margin-bottom: 6px; }
 
+/* B4 인원 비교 문장 접기 — 가족 관리의 장소별 되돌리기 목록 */
+.fold-list-title { margin-top: 12px; }
+.fold-row { display: flex; align-items: center; gap: 8px; padding: 8px 2px; border-top: 1px solid var(--line); }
+.fold-row:first-child { border-top: 0; }
+
+/* B5 사진 속 사람 표시 — 사진 위 점(좌표는 사진 크기 대비 비율) */
+.photo-mark { position: relative; margin: 8px 0; line-height: 0; }
+.photo-mark-img { display: block; width: 100%; border-radius: 10px; cursor: crosshair; }
+.photo-marker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  background: rgba(255, 253, 248, 0.92);
+  color: var(--accent);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1;
+  padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+}
+.marker-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0 2px; }
+.marker-chip {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 6px 12px;
+  min-height: 36px;
+  cursor: pointer;
+}
+.marker-chip b { color: var(--accent); margin-right: 6px; }
+
 /* 코드 · 결과 */
 .code-line { font-size: 17px; margin: 6px 0; }
 .code-line.big { font-size: 24px; letter-spacing: 2px; }

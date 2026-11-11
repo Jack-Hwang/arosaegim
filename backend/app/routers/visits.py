@@ -1,7 +1,10 @@
-# 방문 기록 API (02문서 3절).
+# 방문 기록 API (02문서 3절 + 기획서 v10 B4).
 # POST /v1/visits — 멱등: 같은 가족+장소+코스+'같은 분'의 방문은 새로 만들지 않고
 # 기존 기록을 그대로 돌려준다(중복 스탬프·중복 타임라인 방지).
 # DB의 UNIQUE(family_code, place_id, course_id, visited_at) 제약이 최종 방어선이다.
+# 기획서 v10 B4: course_run_id(선택)를 받아 visits.course_run에 저장한다 —
+# 코스 주행 1회 식별로, metrics의 family_total_trip_km가 같은 코스 거리를
+# 방문마다 중복 합산하지 않게 하는 열쇠다. 없으면 '<course_id>#<방문 날짜>'로 유도.
 import sqlite3
 from datetime import datetime
 
@@ -11,6 +14,7 @@ from .. import db, timeutil
 from ..errors import AppError
 from ..models import VisitIn, VisitOut
 from ..security import require_family_auth
+from ..services import summary
 from ..services import then_now as then_now_svc
 
 router = APIRouter()
@@ -29,36 +33,16 @@ def _visit_row_to_dict(row) -> dict:
 
 def _build_visit_response(conn, family_code: str, visit: dict, place: dict) -> VisitOut:
     """방문 1건 + then_now(과거=가장 오래된 기억, 없으면 이전 방문) 응답 조립.
-    02문서 10절: then-now에 past.party_size / now.party_size / now.trip_km / heritage를 실어 보낸다."""
-    memories = [
-        dict(r)
-        for r in conn.execute(
-            "SELECT year, note, photo_path, party_size, vehicle_label, created_at FROM memories"
-            " WHERE family_code = ? AND place_id = ?",
-            (family_code, place["id"]),
-        ).fetchall()
-    ]
-    earlier = [
-        dict(r)
-        for r in conn.execute(
-            "SELECT place_id, visited_at, vehicle_label, party_size FROM visits"
-            " WHERE family_code = ? AND place_id = ? AND visited_at < ?",
-            (family_code, place["id"], visit["visited_at"]),
-        ).fetchall()
-    ]
-    heritage = None
-    if place.get("heritage_name"):
-        heritage = {
-            "name": place["heritage_name"],
-            "year": place.get("heritage_year"),
-            "label": place.get("heritage_label"),
-        }
+    02문서 10절: then-now에 past.party_size / now.party_size / now.trip_km / heritage를 실어 보낸다.
+    기획서 v10 B1~B3·B5: visit_ordinal·past_visit_count·fold 설정·markers도 함께 실어 보낸다."""
+    extras = summary.then_now_body(conn, family_code, place, visit)
     then_now = then_now_svc.resolve_then_now(
-        memories=memories,
-        earlier_visits=earlier,
+        memories=extras.pop("memories"),
+        earlier_visits=extras.pop("earlier_visits"),
+        heritage=extras.pop("heritage"),
         now_visit=visit,
         current_year=datetime.now().year,
-        heritage=heritage,
+        **extras,
     )
     return VisitOut(
         visit_id=visit["id"],
@@ -101,15 +85,18 @@ def create_visit(payload: VisitIn, family: dict = Depends(require_family_auth)):
             "SELECT COALESCE(MAX(stamp_no), 0) + 1 AS n FROM visits WHERE family_code = ?",
             (family["code"],),
         ).fetchone()["n"]
+        # 코스 주행 1회 식별(기획서 v10 B4). 클라이언트 값이 우선, 없으면 '코스#날짜'로 유도.
+        course_run = payload.course_run_id or f"{payload.course_id}#{minute[:10]}"
         try:
             cur = conn.execute(
                 "INSERT INTO visits (family_code, place_id, course_id, visited_at,"
-                " source, vehicle_label, party_size, trip_km, stamp_no, created_at)"
-                " VALUES (?,?,?,?,?,?,?,?,?,?)",
+                " source, vehicle_label, party_size, trip_km, course_run, stamp_no, created_at)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     family["code"], payload.place_id, payload.course_id, minute,
                     payload.source, payload.vehicle_label,
                     payload.party_size, payload.trip_km,  # 선택 필드(02문서 10절)
+                    course_run,
                     stamp_no, timeutil.now_iso(),
                 ),
             )

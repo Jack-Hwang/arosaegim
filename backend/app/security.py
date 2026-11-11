@@ -115,6 +115,34 @@ def require_family_allow_locked(
     return _authenticate(x_family_code, x_family_pin, pin_required=True, allow_when_locked=True)
 
 
+def require_owner_auth(
+    x_family_code: str = Header(default=None),
+    x_family_pin: str = Header(default=None),
+) -> dict:
+    """owner(보호자) 전용 엔드포인트용 의존성 (기획서 v10 B1 — 상속자 지정).
+    서버 인증은 가족 단위(코드+PIN)만 있으므로 'owner 인증'은 다음과 같이 판정한다:
+    - 가족 코드 누락·모르는 코드 → 401 / 404 (기존과 동일)
+    - PIN 헤더가 없으면(아직 인증 전) → 401 pin_required
+    - PIN이 틀리면 owner임을 증명하지 못한 것 → **403 not_owner**
+      (401은 '인증되지 않음', 403은 '인증됐으나 권한 없음'으로 앱이 구분한다 — DEV_LOG F59)
+    실패 횟수·잠금 규칙(require_family_auth)과 동일하게 적용된다."""
+    family = get_family(x_family_code)
+    if _is_locked(family):
+        raise AppError(429, "family_locked", "PIN 오류 횟수 초과로 잠겼습니다. 10분 후 재시도하거나 코드를 재발급하세요")
+    if not x_family_pin:
+        raise AppError(401, "pin_required", "X-Family-Pin 헤더가 필요합니다")
+    if not verify_pin(x_family_pin, family["pin_hash"]):
+        _fail_pin(family["code"], family["failed_attempts"])
+        raise AppError(403, "not_owner", "owner(보호자) 권한 확인에 실패했습니다. PIN이 올바른지 확인하세요")
+    if family["failed_attempts"] or family["locked_until"]:
+        with db.connect() as conn:
+            conn.execute(
+                "UPDATE families SET failed_attempts = 0, locked_until = NULL WHERE code = ?",
+                (family["code"],),
+            )
+    return family
+
+
 def _authenticate(x_family_code: str, x_family_pin: str, *, pin_required: bool, allow_when_locked: bool) -> dict:
     family = get_family(x_family_code)
     if _is_locked(family) and not allow_when_locked:
@@ -144,7 +172,11 @@ def rotate_code_and_pin(old_code: str) -> dict:
     pin = generate_pin()
     salt = secrets.token_hex(8)
     now = timeutil.now_iso()
-    tables = ["visits", "memories", "members", "handovers", "food_notes", "receipts", "point_ledger"]
+    # 설정·접기·이름표 테이블도 새 코드로 옮겨 데이터가 유지된다.
+    tables = [
+        "visits", "memories", "members", "handovers", "food_notes", "receipts", "point_ledger",
+        "memory_markers", "folded_places", "family_settings",
+    ]
     with db.connect() as conn:
         for _ in range(20):
             if conn.execute("SELECT 1 FROM families WHERE code = ?", (new_code,)).fetchone() is None:

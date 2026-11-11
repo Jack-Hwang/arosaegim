@@ -20,8 +20,9 @@ keystore.properties
 # 공식 샘플 클론 (라이선스 미확인 — 저장소 제외)
 reference/
 
-# 시연 녹화물 등 대용량 산출물
+# 시연 녹화물 — 중간 산출물(raw)만 제외, 완성 클립(final)은 저장소에 포함
 demo/raw/
+!demo/final/
 
 # OS 잡동사니
 Thumbs.db

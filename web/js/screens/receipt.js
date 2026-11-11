@@ -226,7 +226,13 @@
           App.h('p', { class: 'muted small', text: '예시(시뮬레이션) — 실제 결제·포인트와 연결되지 않아요.' })));
       }
 
+      /* 포인트 내역: 서버는 reason("receipt:{제휴처 id}")만 주고 이름은 없다.
+       * 앱에 캐시한 제휴처 이름으로 바꿔 보여 주고, 매핑에 실패해도 내역 자체는 보여 준다. */
       function loadPoints() {
+        App.loadPartnerNames().then(renderPoints, function () { renderPoints({}); });
+      }
+
+      function renderPoints(partnerNames) {
         Api.get('/v1/families/me/points').then(function (d) {
           pointsBox.innerHTML = '';
           var ledger, total;
@@ -249,13 +255,23 @@
           ledger.forEach(function (l) {
             pointsBox.appendChild(App.h('div', { class: 'ledger-row' },
               App.h('b', { text: '+' + App.fmtNum(l.points) + '점' }),
-              App.h('span', { class: 'muted small grow', text: (l.reason || '') + ' · ' + App.fmtDT(l.created_at) })));
+              App.h('span', { class: 'muted small grow', text: entryLabel(l, partnerNames) + ' · ' + App.fmtDT(l.created_at) })));
           });
         }).catch(function (e) {
           pointsBox.innerHTML = '';
           pointsBox.appendChild(App.h('p', { class: 'muted small', text: '포인트 내역을 불러오지 못했어요.' }));
           App.banner(e.message);
         });
+      }
+
+      /* 내역 한 줄 제목: reason이 "receipt:{제휴처 id}"면 제휴처 이름으로 바꿔 표시한다.
+       * 이름을 못 찾으면 내부 식별자(id)를 그대로 노출하지 않고 '제휴처 영수증'으로 보여 준다.
+       * receipt: 형식이 아닌 사유는 원래 문자열 그대로 표시한다. */
+      function entryLabel(l, partnerNames) {
+        var r = String((l && l.reason) || '');
+        var m = /^receipt:(.+)$/.exec(r);
+        if (!m) return r;
+        return (partnerNames && partnerNames[m[1]]) || '제휴처 영수증';
       }
     }
   };

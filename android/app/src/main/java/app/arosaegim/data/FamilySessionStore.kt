@@ -124,15 +124,16 @@ class FamilySessionStore(context: Context) {
     }
 
     /**
-     * '이 차에서 로그아웃' — 가족 코드 삭제와 함께 세션 PIN 도 해제한다(00문서 10.6:
-     * PIN 은 열람·수정 권한이므로 코드가 사라지면 권한도 끊긴다). 방문 기록(visits.json)·
-     * 전송 대기 큐(visit_queue.json) 파일 삭제는 진단 화면이 파일 경로로 직접 수행한다
-     * (DiagnosticsViewModel.signOutFromCar 주석 참조).
+     * '이 차에서 로그아웃' — 가족 코드 삭제와 함께 세션 자격 증명(PIN·세션 내 코드)을 전부
+     * 해제한다(A8, 2026-11-11: clearPin() → clear() 로 강화 — 코드·PIN 모두 메모리에서 지워
+     * '로그아웃 = 열람 권한 완전 상실'을 보장한다. 00문서 10.6: PIN 은 열람·수정 권한이므로
+     * 코드가 사라지면 권한도 끊긴다). 방문 기록(visits.json)·전송 대기 큐(visit_queue.json)
+     * 파일 삭제는 [SignOutCleanup] 이 수행한다(DiagnosticsViewModel.signOutFromCar 경유).
      */
     fun signOut() {
         prefs.edit().remove(KEY_CODE).apply()
         _familyCode.value = null
-        sessionCredentials.clearPin()
+        sessionCredentials.clear()
     }
 
     /** '가족 없이 둘러보기' — 데모/개인 모드로 전환. 기록은 이 차에만 저장된다. */

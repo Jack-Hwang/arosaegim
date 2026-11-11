@@ -23,6 +23,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -32,15 +33,31 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import app.arosaegim.AppContainer
 import app.arosaegim.R
+import app.arosaegim.data.ApiClient
+import app.arosaegim.data.OwnerRequiredException
 import app.arosaegim.data.SeedContent
 import app.arosaegim.domain.Course
+import app.arosaegim.domain.HeirCandidate
+import app.arosaegim.domain.HeirQuestionInputs
+import app.arosaegim.domain.HeirQuestionPolicy
+import app.arosaegim.domain.HeirStatus
 import app.arosaegim.domain.Place
 import app.arosaegim.domain.QuizItem
 import app.arosaegim.domain.StampBookDef
+import app.arosaegim.domain.ThenNowPlaceState
+import app.arosaegim.domain.formatFamilyTotalTripKm
+import app.arosaegim.domain.isPersonComparisonFolded
+import app.arosaegim.domain.parseFamilyTotalTripKm
+import app.arosaegim.domain.parseHeirCandidates
+import app.arosaegim.domain.parseHeirStatus
+import app.arosaegim.domain.parseThenNowPlaceState
+import app.arosaegim.domain.shouldShowFoldButton
 import app.arosaegim.fallback.ManualDrivingState
 import app.arosaegim.ui.common.AroTextStyles
 import app.arosaegim.ui.common.LargePrimaryButton
 import app.arosaegim.ui.common.aroColors
+import kotlinx.coroutines.launch
+import java.util.Calendar
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.decodeFromJsonElement
@@ -181,6 +198,7 @@ fun ParkedScreen(container: AppContainer, onExitToDriving: () -> Unit) {
 
     // T12+: 그때와 지금 열람 수 — 스텝3(그때와 지금)에 들어올 때마다 +1 한다.
     // 값은 Diagnostics ⑦ 지표 섹션이 SharedPreferences("diagnostics_metrics")에서 읽는다.
+    val scope = rememberCoroutineScope()
     LaunchedEffect(QuizStateHolder.stepIndex) {
         if (QuizStateHolder.stepIndex.coerceIn(0, 3) == 2) {
             DiagnosticsMetrics.increment(context, DiagnosticsMetrics.KEY_THENNOW_VIEWS)
@@ -196,6 +214,145 @@ fun ParkedScreen(container: AppContainer, onExitToDriving: () -> Unit) {
                 DiagnosticsMetrics.increment(context, DiagnosticsMetrics.KEY_STAMPBOOK_COMPLETIONS)
             }
             CourseStartState.showRecord = true
+        }
+    }
+
+    // ───────────── 가족 기록 신규 기능(B1~B4, 2026-11-11) — 모두 정차 화면 전용, 세션(코드+PIN)이
+    // 있을 때만 서버를 호출한다. 응답에 필드가 없거나 조회 실패면 해당 기능을 숨긴다(가짜 금지) ─────────────
+
+    // B1: 이어받을 사람(heir) 상태 — 서버 heir 조회 성공분 / 등록 구성원 / 진행 상태.
+    var heirKnownStatus by remember { mutableStateOf<HeirStatus?>(null) }
+    var heirCandidates by remember { mutableStateOf<List<HeirCandidate>>(emptyList()) }
+    var heirBusy by remember { mutableStateOf(false) }
+    var heirDesignatedName by remember { mutableStateOf<String?>(null) }
+    var heirOwnerGuide by remember { mutableStateOf(false) }
+    var heirPickFailed by remember { mutableStateOf(false) }
+
+    // B2·B4: 이 장소의 then-now 부가 상태(visit_ordinal·folded·fold_person_comparison_all).
+    var thenNowState by remember { mutableStateOf<ThenNowPlaceState?>(null) }
+
+    // B3: 가족 누적 거리(metrics.family_total_trip_km). null = 미조회·실패·필드 없음 → 줄 숨김.
+    var familyTotalKm by remember { mutableStateOf<Double?>(null) }
+
+    // B2·B4: 도착 장소가 바뀔 때 then-now 부가 상태를 조회한다. 세션 없으면 호출하지 않는다.
+    LaunchedEffect(lastArrival?.id) {
+        thenNowState = null
+        val placeId = lastArrival?.id ?: return@LaunchedEffect
+        val code = familyStore.familyCode.value
+        val pin = familyStore.pinOrNull()
+        if (code == null || pin == null) return@LaunchedEffect
+        container.apiClient.getThenNow(code, pin, placeId).fold(
+            onSuccess = { body -> thenNowState = parseThenNowPlaceState(body) },
+            onFailure = { thenNowState = null }, // 실패 = 기능 숨김(기존 동작 유지 — 추측 금지).
+        )
+    }
+
+    // ── E2(2026-11-11): 스텝3(그때와 지금) 서버 과거 기록 조회 ──
+    // ThenNowStep 진입(스텝 지수 2) 시 1회 조회해 serverPast 로 넘긴다. 표시 우선순위(02문서 4절):
+    // 서버 past > 시드 then_now_demo(예시 폴백) > 첫 방문 문구. 조회는 가족 코드·PIN 세션이 있을
+    // 때만 하고, 실패·세션 없음은 serverPast 를 null 로 두어 기존 예시 동작으로 조용히 돌아간다
+    // (진단 lastError 미기록 — 조회 실패가 사용자에게 거슬리지 않게). remember(lastArrival?.id)
+    // 키라 장소가 바뀌면 값도 함께 초기화된다.
+    var serverPast by remember(lastArrival?.id) { mutableStateOf<ServerThenNowInfo?>(null) }
+    // 마지막으로 성공해 본 장소 id. 실패·미조회 장소는 스텝을 다시 열 때 한 번만 재시도한다
+    // (같은 스텝에 머무는 동안은 LaunchedEffect 키가 바뀌지 않아 재요청이 일어나지 않는다).
+    var serverPastPlaceId by remember(lastArrival?.id) { mutableStateOf<String?>(null) }
+    LaunchedEffect(lastArrival?.id, QuizStateHolder.stepIndex) {
+        val placeId = lastArrival?.id ?: return@LaunchedEffect
+        if (QuizStateHolder.stepIndex.coerceIn(0, 3) != 2) return@LaunchedEffect // 스텝3 진입 때만.
+        if (serverPastPlaceId == placeId) return@LaunchedEffect // 같은 장소 성공분 재사용(재조회 금지).
+        val code = familyStore.familyCode.value
+        val pin = familyStore.pinOrNull()
+        if (code == null || pin == null) return@LaunchedEffect // 세션 없음 → 스킵(예시 폴백).
+        fetchThenNowBody(container.apiClient, placeId, code, pin).fold(
+            onSuccess = { body ->
+                serverPast = parseThenNowServerData(body)
+                serverPastPlaceId = placeId // 성공만 기록 — 파싱 실패(null)도 '과거 없음' 응답으로 본다.
+            },
+            onFailure = { serverPast = null }, // 조용히 예시 폴백(기존 동작 유지 — 진단 미기록).
+        )
+    }
+
+    // B1·B3: 코스 완주 직후 1회 — heir 상태·구성원 목록·누적 거리를 조회한다.
+    // 완주가 풀리면(처음으로 → 새 코스) 조회 플래그를 되돌려 다음 완주 때 다시 물을 수 있게 한다.
+    var familyRecordFetched by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(isCompleted) {
+        if (!isCompleted) {
+            familyRecordFetched = false
+            return@LaunchedEffect
+        }
+        if (familyRecordFetched) return@LaunchedEffect
+        familyRecordFetched = true
+        val code = familyStore.familyCode.value
+        val pin = familyStore.pinOrNull()
+        if (code == null || pin == null) return@LaunchedEffect // 세션 없음 → 질문·누적 줄 모두 숨김.
+        container.apiClient.getHeir(code, pin).fold(
+            onSuccess = { body -> heirKnownStatus = parseHeirStatus(body) },
+            onFailure = { heirKnownStatus = null }, // 조회 실패 = 질문하지 않는다(추측 금지).
+        )
+        container.apiClient.getMembers(code, pin).fold(
+            onSuccess = { body -> heirCandidates = parseHeirCandidates(body) },
+            onFailure = { heirCandidates = emptyList() }, // 구성원을 못 읽으면 질문하지 않는다.
+        )
+        container.apiClient.getMetrics(code, pin).fold(
+            onSuccess = { body -> familyTotalKm = parseFamilyTotalTripKm(body) },
+            onFailure = { familyTotalKm = null }, // 누적값 없음 → 줄 숨김(가짜 값 금지).
+        )
+    }
+
+    // B1: 주행 상태 — 주행 중에는 질문하지 않는다(계약). ParkedActivity 는 주행 중 가려지지만
+    // 전환 직후 잠깐 그려질 수 있어 정책 입력으로도 막는다.
+    val drivingStateNow by container.drivingState.state.collectAsState()
+
+    // B1 질문 판정(정책은 순수 도메인 — HeirQuestionPolicy). 계산값이라 상태로 따로 두지 않는다.
+    val heirShouldAsk = HeirQuestionPolicy.shouldAsk(
+        HeirQuestionInputs(
+            courseCompleted = isCompleted,
+            driving = drivingStateNow == app.arosaegim.domain.DrivingState.DRIVING,
+            deferred = HeirQuestionMemory.isDeferred(course.id),
+            heirStatus = heirKnownStatus ?: HeirStatus.Unknown,
+            membersAvailable = heirCandidates.isNotEmpty(),
+        ),
+    )
+
+    // B1: 구성원 선택 → POST heir. 403은 owner 권한 없음(차량 세션의 정상 경로) — 버튼을 숨기지
+    // 않고 안내 한 줄만 추가한다. 성공 시 지정 완료 상태로 바꾸고 진단 KPI(물려주기 지정 수)를 올린다.
+    fun pickHeir(candidate: HeirCandidate) {
+        val code = familyStore.familyCode.value ?: return
+        val pin = familyStore.pinOrNull() ?: return
+        heirBusy = true
+        heirPickFailed = false
+        scope.launch {
+            container.apiClient.postHeir(code, pin, candidate.memberId).fold(
+                onSuccess = {
+                    heirBusy = false
+                    heirOwnerGuide = false
+                    heirKnownStatus = HeirStatus.Known(candidate.memberId) // 재문 금지 조건 갱신.
+                    heirDesignatedName = candidate.nickname
+                    DiagnosticsMetrics.increment(context, DiagnosticsMetrics.KEY_HANDOVER_DESIGNATED)
+                },
+                onFailure = { t ->
+                    heirBusy = false
+                    when (t) {
+                        is OwnerRequiredException -> heirOwnerGuide = true
+                        else -> heirPickFailed = true
+                    }
+                },
+            )
+        }
+    }
+
+    // B4: 접기 → POST folded-places. 성공 시에만 이 장소 문장을 숨긴다(실패 시 기존 동작 유지).
+    fun foldComparison() {
+        val placeId = lastArrival?.id ?: return
+        val current = thenNowState ?: return
+        val code = familyStore.familyCode.value ?: return
+        val pin = familyStore.pinOrNull() ?: return
+        scope.launch {
+            container.apiClient.postFoldedPlace(code, pin, placeId).fold(
+                onSuccess = { thenNowState = current.copy(folded = true) },
+                onFailure = { /* 유지 — 문장·버튼은 그대로(조용히 흡수, 로컬 영속 없음) */ },
+            )
         }
     }
 
@@ -279,6 +436,17 @@ fun ParkedScreen(container: AppContainer, onExitToDriving: () -> Unit) {
                         partySize = partySizeNow,
                         tripKm = tripKm,
                         isCompleted = isCompleted,
+                        // B3: 가족 누적 거리(0 이하·없음은 null — 줄 숨김).
+                        familyTotalKmLabel = familyTotalKm?.let { formatFamilyTotalTripKm(it) },
+                        // B1: 이어받을 사람 질문 카드(가족 배지 다음 1회) — 정책 판정값을 그대로 전달.
+                        heirCardVisible = heirShouldAsk,
+                        heirCardCandidates = heirCandidates,
+                        heirCardBusy = heirBusy,
+                        heirCardDesignatedName = heirDesignatedName,
+                        heirCardOwnerGuide = heirOwnerGuide,
+                        heirCardFailed = heirPickFailed,
+                        heirCardOnPick = { pickHeir(it) },
+                        heirCardOnDefer = { HeirQuestionMemory.defer(course.id) },
                         modifier = Modifier.weight(1f),
                         onBackHome = {
                             // 처음으로: 세션 리셋(스탬프·방문 기록·거리·인원 초기화) 후 스텝0(코스 선택) 복귀.
@@ -307,9 +475,18 @@ fun ParkedScreen(container: AppContainer, onExitToDriving: () -> Unit) {
                                 partySizeNow = partySizeNow,
                                 voiceLetter = voiceLetter,
                                 voiceLetterPlayer = voiceLetterPlayer,
+                                // E2 서버 과거 기록(2026-11-11) — 세션 없음·조회 실패면 null 로
+                                // 예시(시드) 폴백(기존 동작). 서버 값이면 '예시' 태그 없이 그려진다.
+                                serverPast = serverPast,
                                 // T9-3 서버 실데이터(구성원 자리 이름표) — 세션 없음·실패면 null 로 숨김.
                                 seatTags = seatTags,
                                 seatAuthError = seatAuthError,
+                                // B2·B4: then-now 부가 상태 — 조회 실패·필드 없음이면 null 로
+                                // 첫 기록 문구·접기 버튼 없이 기존 동작을 유지한다(가짜 금지).
+                                thenNowState = thenNowState,
+                                comparisonFolded = isPersonComparisonFolded(thenNowState),
+                                showFoldButton = shouldShowFoldButton(thenNowState),
+                                onFoldComparison = { foldComparison() },
                             )
                             else -> BookStep(
                                 seed = seed,
@@ -468,7 +645,14 @@ private data class RecordTile(val value: String, val label: String)
  * 거리(타일로)·혜택 미리보기(offers_demo). 타일은 "안 읽히면 숨김" 원칙 — partySize·tripKm
  * 신호가 없으면 해당 타일 자체를 그리지 않는다(04문서 화면 4).
  *
+ * B1(2026-11-11): 완주 시 가족 배지 다음에 이어받을 사람 질문 카드가 1회 나타난다.
+ * 질문 여부는 HeirQuestionPolicy 판정(ParkedScreen) — 정하지 않아도 배지·완주 기록은 유지된다.
+ * B3(2026-11-11): metrics.family_total_trip_km 를 "우리 가족이 함께 달린 거리 N km"로 표시.
+ * 누적값 없음·0 이면 줄을 숨긴다(FamilyTotalKmLine).
+ *
  * @param isCompleted 완주 여부. true 면 '코스 완주!' 제목과 배지(스탬프북 카드)를 함께 보인다.
+ * @param familyTotalKmLabel 가족 누적 거리 표시 문자열("1,240"). null = 없음/0 → 줄 숨김.
+ * @param heirCard*  이어받을 사람 질문 카드 값(ParkedScreen 이 정책 판정·서버 호출을 담당).
  * @param onBackHome  [처음으로] 버튼 — 세션 resetCourse 후 스텝0(코스 선택)으로 돌아간다.
  */
 @Composable
@@ -482,6 +666,15 @@ private fun RecordContent(
     partySize: Int?,
     tripKm: Double?,
     isCompleted: Boolean,
+    familyTotalKmLabel: String?,
+    heirCardVisible: Boolean,
+    heirCardCandidates: List<HeirCandidate>,
+    heirCardBusy: Boolean,
+    heirCardDesignatedName: String?,
+    heirCardOwnerGuide: Boolean,
+    heirCardFailed: Boolean,
+    heirCardOnPick: (HeirCandidate) -> Unit,
+    heirCardOnDefer: () -> Unit,
     modifier: Modifier = Modifier,
     onBackHome: () -> Unit,
 ) {
@@ -512,12 +705,25 @@ private fun RecordContent(
                 color = MaterialTheme.aroColors.stampPoint,
             )
             StampBookCard(bookDef, stampedIds)
+            // B1: 가족 배지 다음 — 이어받을 사람 질문 카드(1회). 거절해도 배지는 그대로다.
+            HeirQuestionCard(
+                visible = heirCardVisible,
+                candidates = heirCardCandidates,
+                busy = heirCardBusy,
+                designatedName = heirCardDesignatedName,
+                ownerGuide = heirCardOwnerGuide,
+                failed = heirCardFailed,
+                onPick = heirCardOnPick,
+                onDefer = heirCardOnDefer,
+            )
         }
         Text(
             text = stringResource(R.string.parked_record_saved),
             style = AroTextStyles.bodyMedium,
             color = MaterialTheme.aroColors.textPrimary,
         )
+        // B3: 우리 가족이 함께 달린 거리 누적(0·없음이면 줄 숨김).
+        FamilyTotalKmLine(totalKmLabel = familyTotalKmLabel)
 
         // 요약 타일 4개(시안 09): 값이 없는 타일(인원·거리)은 통째로 숨긴다.
         val tiles = buildList {
@@ -667,4 +873,109 @@ private fun isAuthFailure(t: Throwable?): Boolean {
     val message = t?.message ?: return false
     // 숫자 일부 우연 일치(예: 1401)를 막기 위해 코드 앞뒤가 숫자가 아닐 때만 인정한다.
     return Regex("(^|[^0-9])(401|403)([^0-9]|$)").containsMatchIn(message)
+}
+
+// ── E2 then-now 서버 응답 파싱(2026-11-11, kotlinx.serialization 로컬 DTO — 화면에 잠깐 쓰고 저장하지 않는다) ──
+
+/**
+ * ⚠ 병렬 의존 지점(E2, 2026-11-11) — 이 함수가 파일에서 유일하게 신규 ApiClient API 를 부른다.
+ *
+ * 계약: GET /v1/places/{id}/then-now 의 원본 JSON 문자열(Result<String>). 병렬 담당이 추가한
+ * 실제 이름은 [ApiClient.getPlaceThenNow](placeId, familyCode, pin)다 — 계약 초안의 이름
+ * `getThenNow` 는 기존 B2 의 `getThenNow(familyCode, pin, placeId)`(/v1/families/me/then-now/)
+ * 와 같은 이름·비슷한 인자라 오버로드 모호성으로 ui 호출이 깨지므로, 담당이 getPlaceThenNow 로
+ * 바꿔 착지했다. 호출은 이 헬퍼 한 곳에만 둔다(이름이 다시 바뀌면 여기 한 줄만 고치면 된다).
+ *  - 임시 폴백: 신규 메서드가 없는 환경에서는 `api.getThenNow(familyCode, pin, placeId)`(기존
+ *    B2 별칭 경로)로 바꿔도 화면은 같게 동작한다 — 서버가 두 경로(/v1/places/{id}/then-now 와
+ *    /v1/families/me/then-now/{place_id})에서 같은 응답 본문을 돌려주기 때문이다
+ *    (backend routers/places.py `_then_now_response` 공용).
+ */
+private suspend fun fetchThenNowBody(
+    api: ApiClient,
+    placeId: String,
+    familyCode: String?,
+    pin: String?,
+): Result<String> = api.getPlaceThenNow(placeId, familyCode, pin)
+
+/** then-now 응답 파싱 전용 Json(모르는 필드 무시 — 서버 필드 추가에 흔들리지 않게). */
+private val thenNowJson = Json { ignoreUnknownKeys = true }
+
+/**
+ * then-now 응답의 'past' 블록 중 화면에 필요한 필드만 받는 로컬 DTO.
+ * 서버 형태: {"kind":"memory"|"visit", "year":1994, "years_ago":32, "note":"…",
+ * "photo_url":"/uploads/…", "vehicle_label":"…", "party_size":4, "markers":[…]}.
+ * markers(사진 인물 이름표)는 '누가 탔는지' 표시 금지(04문서 화면 4)에 따라 받지도 않는다.
+ */
+@Serializable
+private data class ThenNowPastDto(
+    val kind: String? = null,
+    val year: Int? = null,
+    @SerialName("years_ago") val yearsAgo: Int? = null,
+    val note: String? = null,
+    @SerialName("photo_url") val photoUrl: String? = null,
+    @SerialName("vehicle_label") val vehicleLabel: String? = null,
+    @SerialName("party_size") val partySize: Int? = null,
+)
+
+/** then-now 응답의 'now' 블록 — 이번 방문 기록. 방문 기록이 전무하면 서버가 now 도 null 로 보낸다. */
+@Serializable
+private data class ThenNowNowDto(
+    @SerialName("visited_at") val visitedAt: String? = null,
+    @SerialName("vehicle_label") val vehicleLabel: String? = null,
+    @SerialName("party_size") val partySize: Int? = null,
+    @SerialName("trip_km") val tripKm: Double? = null,
+)
+
+/** then-now 응답의 'heritage' 블록 — 시드의 domain.HeritageInfo 와 이름이 겹치지 않게 별도 명명. */
+@Serializable
+private data class ThenNowHeritageDto(
+    val name: String? = null,
+    val year: Int? = null,
+    val label: String? = null,
+)
+
+/** then-now 응답 전체. 필드가 빠지거나 형태가 달라도 null 기본값으로 흡수한다(방어 — 단일 객체 응답). */
+@Serializable
+private data class ThenNowResponseDto(
+    @SerialName("place_id") val placeId: String? = null,
+    val past: ThenNowPastDto? = null,
+    val now: ThenNowNowDto? = null,
+    val heritage: ThenNowHeritageDto? = null,
+    @SerialName("visit_ordinal") val visitOrdinal: Int? = null,
+    @SerialName("past_kind") val pastKind: String? = null, // 방어: kind 가 최상위 past_kind 로 오는 형태도 흡수.
+)
+
+/**
+ * getThenNow 원본 JSON 을 화면 표시값(ServerThenNowInfo — ThenNowExtras.kt)으로 바꾼다.
+ *  - 파싱 실패는 null — 호출부가 예시(시드) 폴백으로 조용히 돌아간다.
+ *  - past 는 ThenNowResolver 와 같은 방어를 적용한다: 연도가 없거나 0 이하, 현재 연도보다 큰
+ *    '미래 과거'는 과거 기록으로 인정하지 않고 past=null(→ 첫 방문 문구)로 둔다.
+ *  - now.party_size·now.trip_km 는 있을 때만 화면에 나온다(04문서 화면 4 — 없으면 숨김).
+ */
+internal fun parseThenNowServerData(body: String): ServerThenNowInfo? {
+    val dto = runCatching { thenNowJson.decodeFromString<ThenNowResponseDto>(body) }.getOrNull()
+        ?: return null
+    val thisYear = Calendar.getInstance().get(Calendar.YEAR)
+    val past = dto.past?.let { p ->
+        val year = p.year
+        if (year == null || year <= 0 || year > thisYear) {
+            null // 비정상·미래 연도 — 과거 기록으로 인정하지 않는다(ThenNowResolver 규칙과 동일).
+        } else {
+            ThenNowServerPast(
+                year = year,
+                yearsAgo = p.yearsAgo ?: (thisYear - year), // years_ago 서버값 우선, 없으면 직접 계산.
+                note = p.note?.takeIf { it.isNotBlank() },
+                photoUrl = p.photoUrl?.takeIf { it.isNotBlank() },
+                partySize = p.partySize,
+                vehicleLabel = p.vehicleLabel?.takeIf { it.isNotBlank() },
+                kind = p.kind ?: dto.pastKind, // kind 는 past 안, past_kind 는 최상위 — 둘 다 흡수(방어).
+            )
+        }
+    }
+    return ServerThenNowInfo(
+        past = past,
+        nowPartySize = dto.now?.partySize,
+        nowTripKm = dto.now?.tripKm,
+        visitOrdinal = dto.visitOrdinal,
+    )
 }

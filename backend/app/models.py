@@ -23,6 +23,10 @@ class VisitIn(BaseModel):
     vehicle_label: Optional[str] = None
     party_size: Optional[int] = Field(default=None, ge=1, le=50)  # 좌석 신호 기반 인원(02문서 10절)
     trip_km: Optional[float] = Field(default=None, ge=0)          # 코스 주행거리 차이(02문서 10절)
+    # 기획서 v10 B4: '코스 주행 1회' 식별(선택). 같은 코스를 같은 날 두 번 달려도
+    # 클라이언트가 이 값을 다르게 주면 서버가 두 번의 주행으로 구분해 거리를 각각 합산한다.
+    # 없으면 서버가 '<course_id>#<방문 날짜>'로 유도한다(같은 날 = 같은 주행 가정).
+    course_run_id: Optional[str] = Field(default=None, max_length=100)
 
 
 class HeritageBriefOut(BaseModel):
@@ -30,6 +34,13 @@ class HeritageBriefOut(BaseModel):
     name: str
     year: Optional[int] = None
     label: Optional[str] = None
+
+
+class Marker(BaseModel):
+    """그때 기록 사진의 인물 이름표(기획서 v10 B5). x·y는 사진 크기 대비 0..1 비율."""
+    x: float
+    y: float
+    name: str
 
 
 class ThenNowPast(BaseModel):
@@ -40,6 +51,7 @@ class ThenNowPast(BaseModel):
     photo_url: Optional[str] = None
     vehicle_label: Optional[str] = None
     party_size: Optional[int] = None  # 그때 함께 간 인원(02문서 10절)
+    markers: List[Marker] = []        # 과거가 기억(사진)일 때의 인물 이름표(B5), 없으면 []
 
 
 class ThenNowNow(BaseModel):
@@ -54,6 +66,11 @@ class ThenNow(BaseModel):
     past: Optional[ThenNowPast] = None
     now: Optional[ThenNowNow] = None
     heritage: Optional[HeritageBriefOut] = None  # 장소 시드 heritage(없으면 null)
+    # 기획서 v10 B1~B3 확장:
+    visit_ordinal: Optional[int] = None              # 이번 방문이 가족·장소 기준 몇 번째인지(1=첫 방문). 방문 없으면 null
+    past_visit_count: int = 0                        # 이번 방문 이전의 같은 장소 방문 수
+    fold_person_comparison_all: bool = False         # 가족 설정: 사람 비교 전체 접기(B2)
+    folded: bool = False                             # 이 장소를 접어 둔지(B3)
 
 
 class VisitOut(BaseModel):
@@ -125,6 +142,10 @@ class TimelineEntry(BaseModel):
     source: Optional[Literal["fused", "navi", "manual"]] = None
     stamp_no: Optional[int] = None
     food_notes: List[FoodNoteOut] = []
+    # 기획서 v10 B1·B4·B5 확장: 방문에는 순번·주행거리, 기억에는 인물 이름표.
+    visit_ordinal: Optional[int] = None   # visit 전용: 가족·장소 기준 몇 번째 방문인지
+    trip_km: Optional[float] = None       # visit 전용: 이 방문의 코스 주행거리
+    markers: List[Marker] = []            # memory 전용: 사진 인물 이름표(없으면 [])
 
 
 class MemberOut(BaseModel):
@@ -156,6 +177,42 @@ class MemberIn(BaseModel):
 class HeirIn(BaseModel):
     model_config = Input
     member_id: int
+
+
+class HeirOut(BaseModel):
+    """GET /v1/families/me/heir (기획서 v10 B1). 지정된 상속자가 없으면 member_id는 null."""
+    member_id: Optional[int] = None
+
+
+class HeirSet(BaseModel):
+    """PUT·POST /v1/families/me/heir 성공 응답(기획서 v10 B1): 지정된 상속자 id."""
+    member_id: int
+
+
+class SettingsIn(BaseModel):
+    """PUT /v1/families/me/settings (기획서 v10 B2)."""
+    model_config = Input
+    fold_person_comparison_all: bool
+
+
+class SettingsOut(BaseModel):
+    fold_person_comparison_all: bool
+
+
+class SettingsReadOut(BaseModel):
+    """GET /v1/families/me/settings (기획서 v10 B2·B3). 저장된 설정과 접은 장소 목록을 함께 돌려준다."""
+    fold_person_comparison_all: bool
+    folded_place_ids: List[str] = []
+
+
+class FoldedIn(BaseModel):
+    """POST /v1/families/me/folded-places (기획서 v10 B3)."""
+    model_config = Input
+    place_id: str
+
+
+class FoldedOut(BaseModel):
+    folded_place_ids: List[str] = []
 
 
 class HandoverIn(BaseModel):
@@ -231,6 +288,28 @@ class ThenNowResponse(BaseModel):
     past: Optional[ThenNowPast] = None
     now: Optional[ThenNowNow] = None
     heritage: Optional[HeritageBriefOut] = None
+    # 기획서 v10 B1~B3 확장(ThenNow와 동일 필드)
+    visit_ordinal: Optional[int] = None
+    past_visit_count: int = 0
+    fold_person_comparison_all: bool = False
+    folded: bool = False
+
+
+class MarkerIn(BaseModel):
+    model_config = Input
+    x: float = Field(ge=0.0, le=1.0)
+    y: float = Field(ge=0.0, le=1.0)
+    name: str = Field(min_length=1, max_length=50)
+
+
+class MarkersIn(BaseModel):
+    """PUT /v1/families/me/memories/{id}/markers (기획서 v10 B5 수정 경로)."""
+    model_config = Input
+    markers: List[MarkerIn] = Field(default_factory=list)
+
+
+class MarkersOut(BaseModel):
+    markers: List[Marker] = []
 
 
 class MemoryCreated(BaseModel):

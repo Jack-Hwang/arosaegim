@@ -17,7 +17,7 @@ from .. import config, db, ratelimit, timeutil
 from ..errors import AppError
 from ..models import Deleted, FamilyCreated, FoodNoteCreated, RotatedCode, TimelineEntry
 from ..security import create_family, require_family_allow_locked, require_family_auth, rotate_code_and_pin
-from ..services import album, photos
+from ..services import album, photos, summary
 
 router = APIRouter()
 
@@ -39,16 +39,19 @@ def post_families(
 
 def build_timeline(family_code: str) -> list[dict]:
     """방문(visit)·기억(memory)을 한 목록으로 합치고 최신순으로 정렬한다.
-    방문 항목에는 그 방문에 달린 맛집 기록(food_notes)을 함께 실어 앱이 바로 표시하게 한다."""
+    방문 항목에는 그 방문에 달린 맛집 기록(food_notes)을 함께 실어 앱이 바로 표시하게 한다.
+    기획서 v10 B1·B4·B5: 방문에는 visit_ordinal(가족·장소 기준 순번)·trip_km,
+    기억에는 인물 이름표(markers)를 함께 실어 내보내기·앨범이 그대로 쓰게 한다."""
     with db.connect() as conn:
         place_names = {
             r["id"]: r["name"] for r in conn.execute("SELECT id, name FROM places").fetchall()
         }
-        visits = [
+        # 순번 계산을 위해 (장소, 시각, id) 오름차순으로 읽는다 — 표시 정렬은 마지막에 최신순.
+        visit_rows = [
             dict(r)
             for r in conn.execute(
-                "SELECT id, place_id, visited_at, source, vehicle_label, stamp_no FROM visits"
-                " WHERE family_code = ? ORDER BY visited_at DESC",
+                "SELECT id, place_id, visited_at, source, vehicle_label, stamp_no, trip_km"
+                " FROM visits WHERE family_code = ? ORDER BY place_id, visited_at, id",
                 (family_code,),
             ).fetchall()
         ]
@@ -65,6 +68,7 @@ def build_timeline(family_code: str) -> list[dict]:
             " WHERE family_code = ? ORDER BY created_at ASC",
             (family_code,),
         ).fetchall()
+        marks = summary.markers_by_memory(conn, family_code)
 
     food_by_visit: dict[int, list[dict]] = {}
     for f in food_rows:
@@ -80,8 +84,10 @@ def build_timeline(family_code: str) -> list[dict]:
             }
         )
 
+    ordinal_by_place: dict[str, int] = {}
     entries: list[dict] = []
-    for v in visits:
+    for v in visit_rows:  # 시간순으로 훑으며 같은 장소의 방문 순번(1부터)을 센다
+        ordinal_by_place[v["place_id"]] = ordinal_by_place.get(v["place_id"], 0) + 1
         entries.append(
             {
                 "kind": "visit",
@@ -93,6 +99,8 @@ def build_timeline(family_code: str) -> list[dict]:
                 "vehicle_label": v["vehicle_label"],
                 "stamp_no": v["stamp_no"],
                 "food_notes": food_by_visit.get(v["id"], []),
+                "visit_ordinal": ordinal_by_place[v["place_id"]],
+                "trip_km": v["trip_km"],
             }
         )
     for m in memories:
@@ -108,6 +116,7 @@ def build_timeline(family_code: str) -> list[dict]:
                 "note": m["note"],
                 "photo_url": f"/uploads/{m['photo_path']}" if m["photo_path"] else None,
                 "vehicle_label": m["vehicle_label"],
+                "markers": marks.get(m["id"], []),
             }
         )
     entries.sort(key=lambda e: e["visited_at"], reverse=True)
@@ -135,7 +144,11 @@ def _family_files(family_code: str) -> list[str]:
 
 
 def _delete_family_rows(family_code: str) -> None:
-    tables = ["visits", "memories", "members", "handovers", "food_notes", "receipts", "point_ledger"]
+    # 기획서 v10 신설 테이블(설정·접기·이름표)도 함께 지워 흔적을 남기지 않는다.
+    tables = [
+        "visits", "memories", "members", "handovers", "food_notes", "receipts", "point_ledger",
+        "memory_markers", "folded_places", "family_settings",
+    ]
     with db.connect() as conn:
         for table in tables:
             conn.execute(f"DELETE FROM {table} WHERE family_code = ?", (family_code,))
@@ -174,12 +187,26 @@ def _album_photo_files(entries: list[dict]) -> list[str]:
 @router.get("/v1/families/me/export")
 def export_family(family: dict = Depends(require_family_auth)):
     """가족 데이터 내보내기 ZIP:
-    timeline.json(방문·기억·맛집) + photos/(사진) + README.html(연도순 앨범).
+    timeline.json(방문·기억·맛집 + 기획서 v10 B1·B4·B5 확장) + photos/(사진) + README.html(연도순 앨범).
+    timeline.json에는 방문마다 visit_ordinal·trip_km, 가족 누적 family_total_trip_km,
+    상속자 정보(heir), 기억마다 인물 이름표(markers)가 포함된다.
     README.html은 외부 리소스 없이 열리는 정적 HTML이다(서버 없이도 열람 가능)."""
     entries = build_timeline(family["code"])
     exported_at = timeutil.now_iso()
+    with db.connect() as conn:
+        heir_row = summary.heir_of(conn, family["code"])
+        trip_total = summary.total_trip_km(conn, family["code"])
+    heir_info = (
+        {"member_id": heir_row["id"], "nickname": heir_row["nickname"]} if heir_row else None
+    )
     timeline_json = json.dumps(
-        {"family_code": family["code"], "exported_at": exported_at, "entries": entries},
+        {
+            "family_code": family["code"],
+            "exported_at": exported_at,
+            "family_total_trip_km": trip_total,
+            "heir": heir_info,
+            "entries": entries,
+        },
         ensure_ascii=False, indent=2,
     )
     readme_html = album.build_album_html(entries, family["code"], exported_at)

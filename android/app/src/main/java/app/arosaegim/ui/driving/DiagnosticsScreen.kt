@@ -61,6 +61,10 @@ fun DiagnosticsScreen(vm: DiagnosticsViewModel) {
     val metricSources by vm.metricSources.collectAsState()
     val metricsNote by vm.metricsNote.collectAsState()
     val serverLastError by vm.serverLastError.collectAsState()
+    // 내비 재전환 상태(조치 8) — 전환 사실을 실시간으로 반영하기 위해 StateFlow 를 구독한다.
+    val routeSwitchNote by vm.routeSwitchNote.collectAsState()
+    // 안내 음성 전환 상태(콜드 스타트 교착 수정) — onReady 늦은 성공 시 Pleos 전환을 실시간 표시.
+    val narratorSwitchNote by vm.narratorSwitchNote.collectAsState()
     val context = LocalContext.current
     var showSignOutDialog by remember { mutableStateOf(false) }
 
@@ -84,6 +88,24 @@ fun DiagnosticsScreen(vm: DiagnosticsViewModel) {
                 results.any { it.id == row.verifyTestId && it.status == SmokeResult.Status.PASS }
             Text("• ${row.port}", fontSize = 18.sp)
             ImplVerifyTags(impl = row.impl, verified = verified, fallback = "실측 전")
+            // 조치 8(계획 문서): RouteService 행 아래에 재전환 상태를 함께 보여 준다. 늦게라도
+            // NaviHelper 초기화가 성공하면 Fake → Pleos 로 일방향 전환하며 그 사실을 이 행이
+            // 표시한다("내비 재전환: 3000ms 후 성공 → Pleos 사용"). Fake 로 머무는 경우 위
+            // '구현: FakeRouteService …'(대체) 표기가 그대로 유지된다.
+            if (row.port == "RouteService") {
+                Text(
+                    text = "　↳ 내비 재전환: ${routeSwitchNote ?: "해당 없음(초기 동기 확인에서 Pleos 선택)"}",
+                    fontSize = 18.sp,
+                )
+            }
+            // 콜드 스타트 교착 수정(2026-11-11): 안내 음성은 Android TTS에서 시작해 onReady 지연
+            // 확인 시 Pleos 로 일방향 전환한다 — 전환 대기 중이라는 사실을 거짓 없이 표시한다.
+            if (row.port == "Narrator") {
+                Text(
+                    text = "　↳ 음성 전환: ${narratorSwitchNote ?: "해당 없음(초기 동기 확인에서 Pleos 선택)"}",
+                    fontSize = 18.sp,
+                )
+            }
         }
 
         // ② 수동 제어 — 선택된 제공자가 Manual(대체)일 때만 주행 토글이 실제로 반영된다.
@@ -230,16 +252,17 @@ fun DiagnosticsScreen(vm: DiagnosticsViewModel) {
         Text("• 저장된 이동 경로: 0건", fontSize = 18.sp)
         Text("• VIN 저장: 없음", fontSize = 18.sp)
 
-        // ⑨ 보조 신호 메모 — 기어 병합과 '사용 안 함' 범위 고정 항목의 안내(01문서 10절·00문서 11-2).
+        // ⑨ 보조 신호 메모 — 기어 병합(A2 구현 완료)과 '사용 안 함' 범위 고정 항목의 안내(01문서 10절·00문서 11-2).
         SectionHeader("⑨ 보조 신호 메모")
         ImplVerifyTags(
-            impl = "주행 state 담당(병렬 작업) — 이 화면은 안내 표시만",
+            impl = "CombinedDrivingState — UxRestrictions(DO, OFFICIAL) 1차 + 기어 보조 2초 폴링",
             verified = false,
             verifiedText = "확인함",
-            fallback = "실측 전(병합 후 재확인)",
+            fallback = "실측 전(D→P 전환 재확인)",
         )
-        Text("• Gear 보조: 병합 예정 — CarUxRestrictions 와 Gear 가 어긋나면 주행(더 제한적) 우선", fontSize = 18.sp)
+        Text("• Gear 보조: 병합됨(A2) — CarUxRestrictions 와 Gear 가 어긋나면 주행(더 제한적) 우선. D→P 에서 DO 해제 콜백이 늦거나 없어도 기어가 정차로 병합 판정한다", fontSize = 18.sp)
         Text("• U12 문 · U14 배터리: 참고 — 사용 안 함(로드맵, 조회·수신 실행 없음)", fontSize = 18.sp)
+        Text("• D1 연료 · D2 EV 배터리: 실측 전용 — capability 성공/실패만 기록·표시(값 미읽음, 기능 구현 없음)", fontSize = 18.sp)
 
         // ── 테마(개발) — 주간/야간 토큰 전환(00문서 12절 T6, 시안 10 다크 확인용 D5 도구).
         //

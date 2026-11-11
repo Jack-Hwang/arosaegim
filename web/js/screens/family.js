@@ -4,6 +4,10 @@
  * T9-3 오늘의 자리 이름표: 구성원마다 seat_role(driver/navigator/explorer)을 골라 저장한다.
  *   저장은 PATCH /v1/families/me/members/{id} 우선, 없으면 POST .../{id}/seat-role 폴백(README 가정 12).
  *   차량 정차 화면이 이 값을 이름표로 쓴다(표기 이름은 시드 seat_roles).
+ * B4 인원 비교 문장 접기 되돌리기: '그때와 지금' 카드의 인원 비교 문장을 접어 둔 기록을
+ *   여기서 되돌린다(07문서 B4). GET /v1/families/me/settings로 조회하고
+ *   PUT /v1/families/me/settings(전체 접기 스위치), DELETE /v1/families/me/folded-places/{place_id}(장소별 해제).
+ *   서버가 두 필드를 주지 않으면(미대응) 이 UI를 아예 숨긴다(가짜 동작 금지).
  * 내려받기·코드 재발급·삭제·맛집 기록은 screens/data.js가 이 화면 아래에 붙는다. */
 (function () {
   'use strict';
@@ -30,6 +34,11 @@
       var membersBox = App.h('div');
       wrap.appendChild(membersBox);
       loadMembers();
+
+      /* B4: 인원 비교 문장 접기 설정(전체 스위치 + 장소별 되돌리기). 서버 미대응이면 숨긴다. */
+      var foldBox = App.h('div');
+      wrap.appendChild(foldBox);
+      loadFoldSettings();
 
       var dataBox = App.h('div');
       wrap.appendChild(dataBox);
@@ -182,14 +191,18 @@
           } }));
       }
 
+      /* 선택 목록: 관리자(owner, 화면을 쓰는 본인)는 후보에서 뺀다.
+       * 이어받을 사람 지정·관리 권한 이전 모두 서버가 owner 대상을 400 already_owner로 거부하므로
+       * 처음부터 목록에 보이지 않게 한다(README 가정 참조). */
       function pickMember(members) {
         var sel = App.h('select', { class: 'input' });
         var any = false;
         (members || []).forEach(function (m) {
+          if (m && m.role === 'owner') return; // 본인(관리자) 제외
           any = true;
           sel.appendChild(App.h('option', { value: String(m.id), text: (m.nickname || '구성원') + ' (' + App.genLabel(m.generation) + ')' }));
         });
-        if (!any) sel.appendChild(App.h('option', { value: '', text: '구성원이 없어요' }));
+        if (!any) sel.appendChild(App.h('option', { value: '', text: '관리자를 제외한 구성원이 없어요' }));
         sel.disabled = !any;
         return sel;
       }
@@ -201,6 +214,7 @@
         return App.h('div', { class: 'card' },
           App.h('h2', { text: '이어받을 사람 지정' }),
           App.h('p', { class: 'muted small', text: '지금 이어받을 사람: ' + (heir ? heir.nickname : '아직 미지정') }),
+          App.h('p', { class: 'muted small', text: '관리자(나)는 후보에서 제외돼요.' }),
           App.h('label', { class: 'field' }, App.h('span', { text: '구성원 선택' }), sel),
           App.h('button', { class: 'btn primary', type: 'button', text: '이어받을 사람으로 지정', onclick: function () {
             if (!sel.value) return App.banner('구성원을 선택해 주세요.');
@@ -226,7 +240,7 @@
         var sel = pickMember(members);
         return App.h('div', { class: 'card' },
           App.h('h2', { text: '관리 권한 이전' }),
-          App.h('p', { class: 'muted small', text: '관리 권한을 다른 구성원에게 넘겨요. 기록은 하나도 지워지지 않아요.' }),
+          App.h('p', { class: 'muted small', text: '관리 권한을 다른 구성원에게 넘겨요. 기록은 하나도 지워지지 않아요. 관리자(나)는 후보에서 제외돼요.' }),
           App.h('label', { class: 'field' }, App.h('span', { text: '넘길 구성원' }), sel),
           App.h('button', { class: 'btn danger', type: 'button', text: '관리 권한 넘기기', onclick: function () {
             if (!sel.value) return App.banner('구성원을 선택해 주세요.');
@@ -242,6 +256,83 @@
                 loadMembers();
               }).catch(function (e) { App.banner(e.message); });
             });
+          } }));
+      }
+
+      /* ── B4: 인원 비교 문장 접어 두기(되돌리기) ─────────────────────
+       * 차량 정차 화면의 '그때와 지금' 카드에서 장소 단위로 접어 둔 기록과
+       * '모든 장소에서 접어 두기' 설정을 여기서 되돌린다(07문서 B4).
+       * 계약: GET  /v1/families/me/settings → { fold_person_comparison_all: bool, folded_place_ids: [...] }
+       *       PUT  /v1/families/me/settings { fold_person_comparison_all }
+       *       DELETE /v1/families/me/folded-places/{place_id}
+       * 서버가 GET에서 두 필드를 주지 않으면(미대응) 이 UI를 통째로 숨긴다(가짜 동작 금지).
+       * 초기 조회 실패는 배너 없이 조용히 숨겨 기존 화면 흐름을 해치지 않는다. */
+      function loadFoldSettings() {
+        Api.get('/v1/families/me/settings').then(function (s) {
+          foldBox.innerHTML = '';
+          if (!s || typeof s.fold_person_comparison_all !== 'boolean' ||
+              !Array.isArray(s.folded_place_ids)) return; // 미대응 → 숨김
+          buildFoldCard(s);
+        }).catch(function () {
+          foldBox.innerHTML = ''; // 미대응·오류 모두 조용히 숨김
+        });
+      }
+
+      function buildFoldCard(s) {
+        var allChk = App.h('input', { type: 'checkbox' });
+        allChk.checked = s.fold_person_comparison_all;
+        allChk.addEventListener('change', function () {
+          var on = allChk.checked;
+          Api.put('/v1/families/me/settings', { fold_person_comparison_all: on }).then(function () {
+            App.banner(on ? '모든 장소에서 인원 비교 문장을 접어 둬요.' : '장소마다 접어 둔 것만 적용해요.');
+            loadFoldSettings();
+          }).catch(function (e) {
+            allChk.checked = !on; // 실패하면 화면 값을 원래대로 되돌린다
+            App.banner(e.message);
+          });
+        });
+
+        var listWrap = App.h('div');
+        renderFoldList(listWrap, s.folded_place_ids);
+
+        foldBox.appendChild(App.h('div', { class: 'card' },
+          App.h('h2', { text: '인원 비교 문장 접어 두기' }),
+          App.h('p', { class: 'muted small', text: '“그때와 지금” 카드의 인원 비교 문장(그때는 N명, 오늘은 N명)을 접어 둘 수 있어요. 차량 화면에도 적용돼요.' }),
+          App.h('label', { class: 'check-row' }, allChk, App.h('span', { text: '인원 비교 문장을 모든 장소에서 접어 두기' })),
+          App.h('p', { class: 'muted small fold-list-title' }, App.h('b', { text: '접어 둔 장소 되돌리기' })),
+          listWrap));
+      }
+
+      function renderFoldList(listWrap, ids) {
+        listWrap.innerHTML = '';
+        if (!ids.length) {
+          listWrap.appendChild(App.h('p', { class: 'muted small', text: '접어 둔 장소가 없어요. 차량 화면의 카드에서 장소를 접어 둘 수 있어요.' }));
+          return;
+        }
+        App.loadPlaces().then(function (groups) {
+          var nameMap = {};
+          (groups || []).forEach(function (g) {
+            (g.places || []).forEach(function (p) { nameMap[String(p.id)] = g.title + ' · ' + p.name; });
+          });
+          listWrap.innerHTML = '';
+          ids.forEach(function (id) { listWrap.appendChild(foldRow(id, nameMap[String(id)])); });
+        }).catch(function () {
+          // 장소 이름을 못 가져오면 번호로라도 보여 준다(되돌리기는 항상 가능해야 한다)
+          listWrap.innerHTML = '';
+          ids.forEach(function (id) { listWrap.appendChild(foldRow(id, null)); });
+        });
+      }
+
+      function foldRow(id, label) {
+        return App.h('div', { class: 'fold-row' },
+          App.h('div', { class: 'grow' },
+            App.h('b', { text: label || ('장소 ' + id) }),
+            label ? null : App.h('span', { class: 'muted small', text: ' (이름을 못 가져왔어요)' })),
+          App.h('button', { class: 'btn small outline', type: 'button', text: '되돌리기', onclick: function () {
+            Api.del('/v1/families/me/folded-places/' + encodeURIComponent(String(id))).then(function () {
+              App.banner('이 장소에서 인원 비교 문장을 다시 보여 줘요.');
+              loadFoldSettings();
+            }).catch(function (e) { App.banner(e.message); });
           } }));
       }
     }

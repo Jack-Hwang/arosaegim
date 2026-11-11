@@ -10,6 +10,7 @@ from typing import Optional
 
 from .. import db
 from ..security import require_family_auth
+from ..services import summary
 
 router = APIRouter()
 
@@ -49,6 +50,9 @@ class FamilyMetrics(BaseModel):
     revisit_gap_days: RevisitGapMetric
     receipts_accepted: ReceiptsAcceptedMetric
     heir: HeirMetric
+    # 기획서 v10 B4: 가족 누적 주행거리(km). 같은 코스 주행(course_run)의 거리는
+    # 방문마다 중복으로 더하지 않고 1회만 합산한다. 기록이 없으면 0.
+    family_total_trip_km: float = 0.0
 
 
 @router.get("/v1/families/me/metrics", response_model=FamilyMetrics)
@@ -59,7 +63,9 @@ def get_metrics(family: dict = Depends(require_family_auth)):
       방문 수(=visits 수)'로 근사한다(주석 명시 — 정확한 열람 통계는 로드맵)
     - 재방문 간격: 같은 장소에 다시 방문한 경우, 연속 방문 간 일 차이의 평균(재방문 없으면 null)
     - 영수증 인증 수: status='accepted' 영수증 수(pending·rejected 제외)
-    - 물려주기 지정 여부: role='heir' 구성원이 있는지"""
+    - 물려주기 지정 여부: role='heir' 구성원이 있는지
+    - 가족 누적 주행거리(기획서 v10 B4): visits.trip_km의 합. 같은 코스 주행(course_run)은
+      1번만 합산(MAX)해 방문마다의 중복을 막는다. trip_km 기록이 없는 visit은 0 취급."""
     with db.connect() as conn:
         books = conn.execute("SELECT id FROM stamp_books ORDER BY id").fetchall()
         visited = {
@@ -101,6 +107,8 @@ def get_metrics(family: dict = Depends(require_family_auth)):
             (family["code"],),
         ).fetchone() is not None
 
+        trip_total = summary.total_trip_km(conn, family["code"])
+
     gaps = []
     prev = None  # (place_id, date)
     for r in visit_rows:
@@ -139,6 +147,7 @@ def get_metrics(family: dict = Depends(require_family_auth)):
             designated=heir,
             source="members(role='heir')",
         ),
+        family_total_trip_km=trip_total,
     )
 
 

@@ -49,12 +49,19 @@ def build_album_html(entries: List[Dict], family_code: str, exported_at: str) ->
             kind = e["kind"]
             kind_label = {"visit": "방문", "memory": "기억", "food": "맛집"}.get(kind, kind)
             stamp = f" · 스탬프 #{e['stamp_no']}" if e.get("stamp_no") else ""
+            if e.get("visit_ordinal"):
+                stamp += f" · {e['visit_ordinal']}번째 방문"
+            if e.get("trip_km") is not None:
+                stamp += f" · {e['trip_km']}km"
             parts.append('<div class="entry">')
             parts.append(
                 f'<span class="kind {html.escape(kind)}">{html.escape(kind_label)}</span>'
                 f"<strong>{html.escape(e['place_name'])}</strong>"
                 f'<span class="meta"> {html.escape(e["visited_at"])}{html.escape(stamp)}</span>'
             )
+            if e.get("markers"):
+                names = ", ".join(html.escape(m["name"]) for m in e["markers"])
+                parts.append(f'<div class="meta">함께한 사람: {names}</div>')
             if e.get("vehicle_label"):
                 parts.append(f'<div class="meta">차량: {html.escape(e["vehicle_label"])}</div>')
             if e.get("note"):

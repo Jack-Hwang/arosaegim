@@ -8,6 +8,8 @@
 # - now는 '지금' 방문 1건.
 # - 10절 추가: past.party_size / now.party_size / now.trip_km / heritage {name, year, label}
 #   (heritage는 장소 시드 값. 호출부가 넘겨주지 않으면 null — 없는 장소도 카드는 만든다).
+# - 기획서 v10 B1~B3·B5 추가: visit_ordinal·past_visit_count·fold_person_comparison_all·folded는
+#   호출부가 넘겨준 값을 그대로 실어 보낸다. past가 기억(사진)이면 인물 이름표(markers)를 함께 실는다.
 
 from typing import Dict, List, Optional
 
@@ -55,11 +57,18 @@ def resolve_then_now(
     now_visit: Dict,
     current_year: int,
     heritage: Optional[Dict] = None,
+    visit_ordinal: Optional[int] = None,
+    past_visit_count: int = 0,
+    fold_person_comparison_all: bool = False,
+    folded: bool = False,
 ) -> Dict:
     """then_now 응답 본문을 만든다.
     memories/earlier_visits는 같은 (family_code, place_id) 범위의 dict 목록.
+    memories의 각 항목은 'markers' 키(인물 이름표 목록)를 갖고 있을 수 있다(기획서 v10 B5).
     earlier_visits는 now_visit보다 이전 방문만 담겨 있다고 가정한다(호출부 책임).
-    heritage는 places 테이블의 유산 정보 dict(heritage_name 등) 또는 None."""
+    heritage는 places 테이블의 유산 정보 dict(heritage_name 등) 또는 None.
+    기획서 v10 B1~B3: visit_ordinal(몇 번째 방문)·past_visit_count·fold 설정은
+    호출부가 계산해 넘겨준다 — 이 함수는 그 값을 그대로 실어 보낼 뿐 만들어내지 않는다."""
     now = {
         "visited_at": now_visit["visited_at"],
         "vehicle_label": now_visit.get("vehicle_label"),
@@ -78,6 +87,7 @@ def resolve_then_now(
             "photo_url": _photo_url(mem.get("photo_path")),
             "vehicle_label": mem.get("vehicle_label"),
             "party_size": mem.get("party_size"),
+            "markers": list(mem.get("markers") or []),
         }
     else:
         visit = pick_earliest_visit(earlier_visits)
@@ -91,6 +101,7 @@ def resolve_then_now(
                 "photo_url": None,
                 "vehicle_label": visit.get("vehicle_label"),
                 "party_size": visit.get("party_size"),
+                "markers": [],
             }
 
     return {
@@ -98,4 +109,8 @@ def resolve_then_now(
         "past": past,
         "now": now,
         "heritage": _heritage_brief(heritage),
+        "visit_ordinal": visit_ordinal,
+        "past_visit_count": past_visit_count,
+        "fold_person_comparison_all": fold_person_comparison_all,
+        "folded": folded,
     }

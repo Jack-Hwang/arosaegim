@@ -78,6 +78,50 @@ class FusedArrivalDetector(context: Context) : ArrivalDetector {
     private var currentAlertId: String? = null
     private var insideArea = false
 
+    // ── A3 진단 관찰(스모크 U3) 전용 수명주기(2026-11-11) ──
+    // 기존엔 U3 가 watch()/stop() 을 그대로 써서 관찰을 끄면 여정 감시(도착 판정 근접 알림)까지
+    // 함께 해제됐다. 여정 감시는 TripSession 이 [watch] 로 등록하고 [stop] 으로만 끊는다.
+    // 진단 관찰은 아래 [startObservation]/[stopObservation] 으로 완전히 분리한다 — 별도 근접
+    // 알림(alertId 별도), 별도 리스너, 별도 표시 흐름. 관찰을 꺼도 여정 감시와 다음 장소
+    // 도착 판정은 그대로 유지된다. 관찰은 관찰일 뿐 도착 이벤트(arrivals)를 발행하지 않는다
+    // (도착·스탬프는 여정 감시의 본역 — 이중 발행 방지).
+    private val _observationTransitions = MutableSharedFlow<String>(extraBufferCapacity = 16)
+
+    /** 진단 관찰 전용 진입/이탈 문자열("ENTER"/"EXIT") — U3 가 실시간 표시한다. */
+    val observationTransitions: SharedFlow<String> = _observationTransitions.asSharedFlow()
+
+    /** 진단 관찰 전용 모드: "idle" | "proximity". 여정 감시의 [mode] 와 별개다. */
+    private val _observationMode = MutableStateFlow("idle")
+    val observationMode: StateFlow<String> = _observationMode.asStateFlow()
+
+    /** 진단 관찰 전용 마지막 오류(여정 감시의 [lastError] 와 섞지 않는다). */
+    private val _observationLastError = MutableStateFlow<String?>(null)
+    val observationLastError: StateFlow<String?> = _observationLastError.asStateFlow()
+
+    private var observationAlertId: String? = null
+
+    /** 진단 관찰 전용 근접 알림 리스너 — 등록/전이/오류만 관찰 흐름에 흘리고 끝난다. */
+    private val observationListener = object : ProximityAlertListener {
+        override fun onRegistered(alertId: String) {
+            observationAlertId = alertId
+            _observationMode.value = "proximity"
+        }
+
+        override fun onTransition(event: ProximityAlertEvent) {
+            // 이전 관찰의 alertId 로 온 알림은 무시한다(stopObservation 직후 늦게 온 콜백 방지).
+            if (event.alertId != observationAlertId) return
+            val enter = event.transition == ProximityTransition.ENTER
+            _observationTransitions.tryEmit(if (enter) "ENTER" else "EXIT")
+        }
+
+        override fun onError(exception: Exception) {
+            // 관찰 실패는 여정 감시에 영향을 주지 않는다(폴백 전환 없음 — A3 분리 원칙).
+            _observationLastError.value =
+                "관찰 근접알림 onError: ${exception.javaClass.simpleName}: ${exception.message ?: ""}"
+            _observationMode.value = "idle"
+        }
+    }
+
     /** 위치 콜백이 SDK 에 등록되어 있는지(거리 표시 + 폴백 판정 공용). */
     private var locationRegistered = false
 
@@ -192,6 +236,70 @@ class FusedArrivalDetector(context: Context) : ArrivalDetector {
     }
 
     /**
+     * 진단 관찰 전용 근접 알림 등록(A3) — 여정 감시([watch])와 독립이다.
+     *
+     * - 별도 alertId·별도 리스너로 등록하므로 [stopObservation] 은 여정 감시의 근접 알림을
+     *   건드리지 않는다. 관찰 중에도 여정 감시의 도착 판정(ENTER → arrivals 발행)은 계속 된다.
+     * - 관찰은 도착 이벤트를 발행하지 않는다 — 관찰의 목적은 U3 의 ENTER/EXIT 수신 확인이다.
+     * - 근접 알림 등록이 실패해도 Haversine 폴백으로 전환하지 않는다(여정 감시 전용 로직).
+     *
+     * @return 등록 결과 문자열("등록 요청", "미지원" 등) — U3 상세 로그용. 상태 자체는
+     *         [observationMode]·[observationLastError] 흐름으로 확인한다.
+     */
+    fun startObservation(target: Place): String {
+        stopObservation() // 이전 관찰이 있으면 먼저 해제한다(여정 감시는 그대로).
+        if (!supported) {
+            _observationLastError.value = "U4: FusedLocation isSupported=false — 관찰 등록 불가"
+            _observationMode.value = "idle"
+            return "미지원"
+        }
+        if (!initialized) {
+            try {
+                fused.initialize() // 동기 초기화(1회) — 여정 감시와 같은 인스턴스를 재사용한다.
+                initialized = true
+            } catch (t: Throwable) {
+                _observationLastError.value =
+                    "관찰 initialize 실패: ${t.javaClass.simpleName}: ${t.message ?: ""}"
+                _observationMode.value = "idle"
+                return "초기화 실패"
+            }
+        }
+        _observationMode.value = "idle" // onRegistered 수신 전까지 대기 상태.
+        val request = ProximityAlertRequest(
+            latitude = target.lat,
+            longitude = target.lon,
+            radiusMeters = target.arriveRadiusM.toFloat(),
+            transitionTypes = setOf(ProximityTransition.ENTER, ProximityTransition.EXIT),
+        )
+        return try {
+            fused.addProximityAlert(request, observationListener)
+            _observationLastError.value = null
+            "등록 요청"
+        } catch (t: Throwable) {
+            _observationLastError.value =
+                "관찰 addProximityAlert 예외: ${t.javaClass.simpleName}: ${t.message ?: ""}"
+            _observationMode.value = "idle"
+            "등록 실패"
+        }
+    }
+
+    /**
+     * 진단 관찰 중단(A3) — 관찰 근접 알림만 해제하고 여정 감시는 그대로 둔다.
+     * 이것이 '관찰을 꺼도 다음 장소 도착 판정이 계속 된다'의 구현 지점이다.
+     */
+    fun stopObservation() {
+        val id = observationAlertId ?: return
+        try {
+            fused.removeProximityAlert(id)
+        } catch (t: Throwable) {
+            _observationLastError.value =
+                "관찰 removeProximityAlert 실패: ${t.javaClass.simpleName}"
+        }
+        observationAlertId = null
+        _observationMode.value = "idle"
+    }
+
+    /**
      * 감시 중단. 규칙: removeProximityAlert/unregister 까지만 하고 fused.release() 는 하지
      * 않는다(재사용). 전체 해제는 [release] 로 분리했다(AppContainer.closeAll 전용).
      */
@@ -203,11 +311,13 @@ class FusedArrivalDetector(context: Context) : ArrivalDetector {
         haversineActive = false
         _mode.value = "idle"
         _latestLocation.value = null // 마지막 위치는 감시 종료와 함께 버린다(저장 금지 규칙).
+        // A3: 여정 감시 중단이어도 진단 관찰은 건드리지 않는다(수명주기 분리).
     }
 
-    /** closeAll 전용 전체 해제 — 리스너 해제를 먼저 하고 release 한다. */
+    /** closeAll 전용 전체 해제 — 리스너 해제를 먼저 하고 release 한다(관찰 포함 전부). */
     fun release() {
         stop()
+        stopObservation() // A3 관찰 근접 알림도 함께 해제한다.
         try {
             fused.release()
         } catch (t: Throwable) {

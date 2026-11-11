@@ -32,6 +32,24 @@ class AndroidTtsNarrator(context: Context) : Narrator {
     private val pending = AtomicReference<kotlinx.coroutines.CancellableContinuation<Boolean>?>(null)
     private var focusRequest: AudioFocusRequest? = null
 
+    /**
+     * 오디오 포커스 변화 수신(01문서 규칙 — 포커스를 잃으면 즉시 멈춘다).
+     * LOSS(전체 상실)·LOSS_TRANSIENT(일시 상실) 수신 시 tts.stop() 으로 재생을 끊고 대기 중인
+     * speak 를 '중단'으로 푼다(기존 finishSpeak 경로 재사용 — speak 는 실패로 마무리된다).
+     * LOSS_TRANSIENT_CAN_DUCK 은 MAY_DUCK 으로 요청했으므로 낮추며 계속 재생한다(멈추지 않는다).
+     */
+    private val focusListener = AudioManager.OnAudioFocusChangeListener { change ->
+        when (change) {
+            AudioManager.AUDIOFOCUS_LOSS,
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
+            -> {
+                runCatching { engineRef.get()?.stop() }
+                finishSpeak(false)
+            }
+            // LOSS_TRANSIENT_CAN_DUCK: 계속 재생(볼륨 낮춤은 시스템이 처리한다).
+        }
+    }
+
     override val isAvailable: Boolean
         get() = engineReady.get()
 
@@ -143,6 +161,7 @@ class AndroidTtsNarrator(context: Context) : Narrator {
                     .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                     .build(),
             )
+            .setOnAudioFocusChangeListener(focusListener) // 상실 시 즉시 stop(F54 규칙)
             .build()
             .also { focusRequest = it }
         return runCatching {

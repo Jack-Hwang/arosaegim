@@ -13,23 +13,32 @@
       var bookBox = App.h('div');
       wrap.appendChild(list);
       wrap.appendChild(bookBox);
+      load();
 
-      Promise.all([Api.get('/v1/courses'), Api.get('/v1/families/me/timeline')]).then(function (res) {
-        var visited = {};
-        (res[1] || []).forEach(function (t) {
-          if (t && t.place_id) visited[t.place_id] = true;
+      /* 다시 시도도 같은 목록 컨테이너만 다시 채운다 — 페이지를 새로 붙이면 화면이 중복된다 */
+      function load() {
+        list.innerHTML = '';
+        list.className = 'loading';
+        list.textContent = '코스를 불러오는 중...';
+        Promise.all([Api.get('/v1/courses'), Api.get('/v1/families/me/timeline')]).then(function (res) {
+          var visited = {};
+          (res[1] || []).forEach(function (t) {
+            if (t && t.place_id) visited[t.place_id] = true;
+          });
+          list.innerHTML = '';
+          list.className = '';
+          var courses = res[0] || [];
+          if (!courses.length) list.appendChild(App.h('p', { class: 'muted', text: '등록된 코스가 아직 없어요.' }));
+          courses.forEach(function (c) { list.appendChild(courseCard(c, visited)); });
+          loadStampBooks();
+        }).catch(function (e) {
+          list.innerHTML = '';
+          list.className = '';
+          list.appendChild(App.h('button', { class: 'btn outline', type: 'button', text: '다시 시도',
+            onclick: load }));
+          App.banner(e.message);
         });
-        list.innerHTML = '';
-        var courses = res[0] || [];
-        if (!courses.length) list.appendChild(App.h('p', { class: 'muted', text: '등록된 코스가 아직 없어요.' }));
-        courses.forEach(function (c) { list.appendChild(courseCard(c, visited)); });
-        loadStampBooks();
-      }).catch(function (e) {
-        list.innerHTML = '';
-        list.appendChild(App.h('button', { class: 'btn outline', type: 'button', text: '다시 시도',
-          onclick: function () { Screens.courses.render(root); } }));
-        App.banner(e.message);
-      });
+      }
 
       function courseCard(c, visited) {
         var det = App.h('div', { class: 'course-places' });

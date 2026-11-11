@@ -152,6 +152,34 @@
 
 ---
 
+## 2026-11-11 (심야) — 07문서(기획서 v10) 통합: A1~A8·D·B1~B5 구현 + 콜드 스타트 P0 해소 + A4 실측
+
+- 배경: `기획서/고도화_가점_후보_2026-11-11.md`의 조치를 병렬 에이전트로 구현(안드로이드 A1~A3·A8·D스모크·B1~B4 / 백엔드 B1~B5 서버 / 웹 B4 되돌리기·B5 사진 이름표). 섹션 6 규칙 준수 — 기획서 원본(`제출용/_work/`·`기획서/`)은 건드리지 않고 맨 아래 "기획서 반영 요청"으로 기록한다.
+- 확인된 사실(F-번호):
+  - **F61 콜드 스타트 교착(P0) 발견·해소**: release APK 첫 실행이 `AppContainer.selectRouteService()`의 `runBlocking { withTimeoutOrNull(3s) … }`에서 영구 파킹(타임아웃 미발화) → 시스템이 "failed to complete startup"으로 강제 종료(dropbox data_app_anr 스택 3건, main park @selectRouteService — /data/anr 은 production 빌드라 비루트 읽기 불가, dumpsys dropbox로 확보). 아침 스모크 세션에도 동일 ANR 흔적 — 재시도 성공으로 마스킹돼 있었다. **수정**: 포트 선택을 동기 즉시 판정으로 바꾸고 늦은 초기화 성공 시 일방향 업그레이드(SwitchableRouteService 패턴을 Narrator로 일반화). **실측**: `-no-snapshot` 콜드 부팅 직후 첫 실행 2회 연속 `Status: ok, TotalTime 8.1~8.5s`, ANR 0.
+  - **F62 A2 정차 자동 전환(기어 병합)**: `CombinedDrivingState`(1차 CarUxRestrictions + 기어 보조 2초 폴링, 어긋나면 더 제한적(주행) 우선). 실측: 앱 로그캣에서 `VENDOR_GEAR_SELECTION` 2초 주기 조회 확인(23:12~23:13 구간). D→P 자동 복귀의 시각 증명은 미확보(에뮬레이터 불안정 — Q19).
+  - **F63 A3 진단 관찰 분리**: `FusedArrivalDetector.startObservation/stopObservation` 신설 — 관찰이 도착 이벤트를 만들지 않고 여정 감시(watch)와 수명주기 분리. 관찰을 꺼도 다음 장소 도착 판정 유지가 설계 목표(실측 대기).
+  - **F64 A1 사전 제작 오디오**: `assets/voice/letter_demo.wav` 신설(Windows SAPI Microsoft Heami Desktop — 데모용 일반 합성 음성, 고인 목소리 합성 금지 원칙과 무관). 파일이 없으면 재생 생략(가짜 금지). Pleos TTS는 onReady 확인 후에만 fallback 사용(A1 계약 유지).
+  - **F65 A8 로그아웃 삭제**: `SignOutCleanup`(visits.json·visit_queue.json 삭제, 결과 줄 반환) + `FamilySessionStore.signOut()`이 코드·PIN 모두 해제 + `HeirQuestionMemory.clearAll()`. 단위 테스트 4건으로 삭제 검증.
+  - **F66 D1·D2 실측 전용 스모크**: 진단 화면에 Fuel.checkFuelPercentCapabilities·EvBattery.checkEvBatteryStateOfChargeCapabilities의 capability 성공/실패만 기록하는 카드 신설(값은 미읽음 — 3절 "실측만, 구현 보류" 준수). CAR_ENERGY는 매니페스트에 있어 실행 가능.
+  - **F67 CAR_SEATS 권한 누락 발견·수정 — U11의 진짜 원인**: 매니페스트에 `pleos.car.permission.CAR_SEATS`가 없어 `checkSeatOccupancyCapabilities`가 로그캣에 "need Permission"으로 실패하고 있었다(01문서 231행 "Seat·Odometer 권한 CAR_SEATS·CAR_DRIVE"와 일치, U11 FAIL의 표면 원인은 null이었지만 근원은 권한 누락). 매니페스트에 추가(+pm grant) 후 재실측: **SEAT_OCCUPANCY capability 성공 + 좌석별 값 수신**(areaId 1/4/16/32/64, eventValue 1=점유·2=빈칸으로 보임 — 의미 대응은 재확인 권장). release APK 재빌드·apk/ 재복사(40.3MB) 완료.
+  - **F68 A4 실측 — 기어 D 주행 상태의 도착 기록**: Virtual Console로 기어 D + 속도 40km/h(`/vehicle/controls?speed=40`)를 만든 뒤 gj-museum 반경(120m) 안으로 geo fix 진입 → **도착 판정·스탬프·다음 목표(대릉원) 경로 요청 발생 확인**(NaviHelper requestRoute → 내비 앱에 대릉원 검색 팝업 + 로그캣). 그 동안 앱 화면은 시스템이 가림("주행 중에는 사용할 수 없습니다" — A4의 '화면은 시스템이 가려도 된다' 조건과 일치). 증거: `.pleos-download/a4_36(주행중 가려짐)·a4_51·a4_52(도착 후 대릉원 팝업·클러스터 D·40km/h).png`. **주의**: 근접 알림 등록이 끝나기 전에 위치가 이미 반경 안에 있으면 ENTER가 발화하지 않는다(첫 시도 실패 원인 — 반경 밖에서 코스를 시작한 뒤 진입할 것).
+  - **F69 Virtual Console 스크립트 조작 노하우**: 활성화 조건은 브라우저 세션(8088 페이지 로드 + 1초 하트비트). `503 {"error":"emulator_inactive"}`가 나오면 페이지를 새로 고침해 재활성화하고, 활성 윈도우(수 분) 안에 PUT을 몰아서 실행한다: `/vehicle/gear?gear=Drive|Park`, `/vehicle/seat?kind=occupied&area=driver|passenger|rear_left|rear_right&value=true|false`, `/vehicle/odometer?traveled_distance_km=N`, `/vehicle/controls?speed=N&accelerator=..&brake=..`. 무입성으로 수 분 경과하면 다시 비활성화된다. 이 방법으로 좌석 3명·주행거리 12500km·기어 D·속도 40 주입에 성공(200).
+  - **F70 에뮬레이터 불안정 기록**: 콜드 부팅 인스턴스에서 system_server 사망 1회("Can't find service: activity"), QEMU 프로세스 사망 2회(exit 2816 — 유휴 무입 상태에서 발생). 재부팅 절차: taskkill qemu+adb → AVD lock 삭제 → `-no-snapshot` 기동(부팅 40~120초).
+- 열린 질문(Q-번호):
+  - **Q19** 기어 D→P 전환 시 CarUxRestrictions(DO)가 주행 유지를 보고하는가 — CombinedDrivingState의 "더 제한적 우선" 규칙이 정차 자동 복귀를 막지 않는지 실측 필요(A2 완결 기준).
+  - **Q20** B1 heir POST가 차량 세션(PIN 없음)에서 항상 403으로 답하는지 — "스마트폰의 가족 관리에서 정해 주세요" 안내 경로 확인 대기.
+  - **Q21** letter_demo.wav 말미 묵음(약 12초) 재생 체감 — 길면 트리밍.
+- 테스트·산출물: 백엔드 pytest 76/76 통과. 앱은 android 정비 작업이 겹쳐 최종 수치는 다음 섹션에서 확정한다. 웹 node --check 10파일 통과.
+- **기획서 반영 요청**(섹션 6 — 기획서 담당이 content.py 등에 적용):
+  1. 본문의 단위 테스트·서버 테스트 수치를 최신 값으로(앱·서버 수치는 다음 섹션의 최종 확인값 사용).
+  2. BOX5 '[미확인] 기어 D 상태의 도착 기록' → '[확인: 기어 D·40km/h 주행 상태에서 반경에 들어서면 도착·스탬프가 기록되고 다음 목표로 진행된다. 그동안 화면은 시스템이 가린다(F68)]' 제안.
+  3. BOX3 '좌석 점유' — 근원이 권한 누락이었음이 확인됐고 수정으로 조회 성공(F67). '값을 바꿔 넣어 문장이 나오는 것' 실측 후 갱신.
+  4. BOX7 APK 크기 39.6MB → 40.3MB(현재 빌드 기준, 최종 빌드 후 재확인).
+  5. captions.json의 시안5 캡션 수정분은 `기획서/화면시안/make_mockups.py`에도 반영 필요(재생성 시 덮인다).
+
+---
+
 ## 스모크 테스트 결과표 (U1~U14)
 
 | # | 확인 항목 | 결과 | 에뮬레이터 | SDK 버전 | 비고/스크린샷 |
@@ -162,13 +190,13 @@
 | U4 | FusedLocation isSupported() | **PASS** — `FusedLocation.isSupported = true`, mode: proximity, lastError 없음 | v2.1.0 실측 | 1.1.3 | .pleos-download/u4_r.png |
 | U5 | Vehicle capability/기어 | **PASS** — VIN capability AccessType=**READ**(확인만·값 미읽음 ✓규정), **기어 상태 GEAR_PARK 실수신**(클러스터 P와 일치), Odometer 값은 스코프 밖 | v2.1.0 실측 | 2.3.2 | .pleos-download/u5_r2.png — 진단 '기어 상태(Vehicle·Gear)' 행 |
 | U6 | TTS ON_DEVICE speak | **FAIL(원인 2건 확정)** — ①AndroidTtsNarrator: Android TTS 초기화 미완료/실패(0ms — 에뮬레이터 TTS 엔진·한국어 데이터 부재 가능성) ②PleosTtsNarrator 재시도: onReady 미수신 상태(초기화는 성공) | v2.1.0 실측 | 3.3.1 | F54·Q13·Q16·Q17 — 초기화 후 여유 두고 재탭 권장 |
-| U7 | 주행 규제 전환 | **부분** — CarUxRestrictionsManager 획득·리스너 등록 **성공**(OFFICIAL 경로). restrict 수신은 기어 P→D 필요(Virtual Console) | v2.1.0 실측 | - | F29 — 사용자 세션에서 완결 예정 |
+| U7 | 주행 규제 전환 | **부분 → 진전** — CarUxRestrictions 획득·등록 성공에 더해, A2 병합(CombinedDrivingState)로 기어 보조 2초 폴링이 실측 확인됨(F62 — VENDOR_GEAR_SELECTION 주기 조회 로그). 기어 D 진입 시 주행 모드 전환·화면 가려짐도 확인(F68). restrict 수신 세부는 여전히 Q19 | v2.1.0 실측 | 2.3.2 | .pleos-download/a4_36.png |
 | U8 | 에뮬레이터→호스트 서버 | **PASS** — GET 10.0.2.2:8000/health → **200 {"ok":true}**(cleartext 포함)·재확인 | v2.1.0 실측 | - | 백엔드 uvicorn 구동 중 — .pleos-download/u8_r.png |
 | U9 | Activity 전환 반복 | **PASS** — Driving↔Parked 3회 전환(REORDER_TO_FRONT) 완료·복귀·상태 유지 | v2.1.0 실측 | - | .pleos-download/u9_r.png |
 | U10 | 도착 이벤트 관찰 | **관찰 중 — geo fix 3회 이동 후에도 onDestinationArrived 미발생**([REPORTED]와 일치 — 이것이 정상 결과). 관찰 카드 유지 | v2.1.0 실측 | 3.0.5 | 도착 판정 본역은 FusedLocation(U3 PASS) — 설계 정당화 근거 |
-| U11 | 좌석 점유 → 인원(partySize) | **FAIL=설계 동작** — partySize()=null → **문장 숨김**(가짜 금지 원칙). Virtual Console 'Seat Occupancy' 조작 후 재실행 필요 | v2.1.0 실측 | 2.3.2 | .pleos-download/u11_r3.png |
+| U11 | 좌석 점유 → 인원(partySize) | **원인 발견·수정 → 조회 성공** — 근원은 매니페스트 CAR_SEATS 권한 누락("need Permission", F67). 추가 후 Virtual Console 좌석 3명 주입 재실측에서 SEAT_OCCUPANCY capability 성공·좌석별 값 수신. '문장 표시'까지의 화면 확인은 Q19과 함께 대기 | v2.1.0 실측 | 2.3.2 | .pleos-download/a4_51.png — u11_r3.png(구 실패 기록) |
 | U12 | 문 상태(참고 — 사용 안 함) | **해당 없음(고정)** — 문장 안 함(로드맵)·좌석·수신음 실행하지 않음 | - | - | 진단 카드 고정 안내 렌더링 확인 |
-| U13 | 주행거리계(odometerKm) | **PASS** — odometerKm()=**0.0 km 수신**(판정 PASS). '현재(트립) 거리' 채널로 보임 — **T5-1 계산에 적합**. 단위 km 가정(Virtual Console 조작 후 재확인 권장) | v2.1.0 실측 | 2.3.2 | .pleos-download/u13_r.png |
+| U13 | 주행거리계(odometerKm) | **PASS** — odometerKm()=**0.0 km 수신**(판정 PASS). '현재(트립) 거리' 채널로 보임 — **T5-1 계산에 적합**. 2026-11-11 심야: Virtual Console odometer 12500km 주입 성공(F69) — 클러스터에 반영 확인. 앱 화면 문장 반영 확인은 대기 | v2.1.0 실측 | 2.3.2 | .pleos-download/u13_r.png |
 | U14 | 배터리(참고 — 사용 안 함) | **해당 없음(고정)** — 사용 안 함(로드맵) | - | - | 진단 카드 고정 안내 렌더링 확인 |
 
 > 실측 방법: 진단 화면을 `input tap`으로 직접 조작(좌표는 스크린샷 측정). U3·U10의 위치 주입은 `adb emu geo fix`. U7·U11·U13 완결은 Virtual Console(adb forward tcp:8088 → 127.0.0.1:8088) 필요.

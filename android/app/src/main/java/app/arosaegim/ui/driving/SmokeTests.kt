@@ -85,25 +85,36 @@ object SmokeTests {
         return Outcome(container.naviRoute.initError.value == null)
     }
 
-    /** U3(관찰형): 근접 알림 등록 후 ENTER/EXIT 전이를 취소될 때까지 수신한다. */
+    /**
+     * U3(관찰형): 근접 알림 등록 후 ENTER/EXIT 전이를 취소될 때까지 수신한다.
+     * A3(2026-11-11): 관찰은 [FusedArrivalDetector.startObservation] 전용 수명주기를 쓴다 —
+     * 관찰 중단(stopObservation)은 여정 감시(TripSession 이 watch 한 근접 알림)를 건드리지
+     * 않아 관찰을 꺼도 다음 장소 도착 판정이 계속 된다. 관찰은 도착 이벤트를 발행하지 않고,
+     * 여정 감시(모드·transitions 흐름)의 상태를 함께 표시해 두 판정이 분리됐음을 보여 준다.
+     */
     suspend fun runU3(container: AppContainer, place: Place, onDetail: (String) -> Unit) {
-        onDetail("근접 알림 등록: ${place.name} 반경 ${place.arriveRadiusM}m(단위 실측이 U3 과제)")
+        onDetail("진단 관찰 등록(여정 감시와 분리): ${place.name} 반경 ${place.arriveRadiusM}m")
         onDetail(GEO_FIX_GUIDE)
-        container.fusedArrival.watch(place)
-        onDetail("등록 직후 모드: ${container.fusedArrival.mode.value} — haversine 이면 근접등록 실패 폴백")
-        // coroutineScope 로 모드/전이 두 스트림을 병렬 수집하고, 취소 시 finally 에서 정리한다.
+        val result = container.fusedArrival.startObservation(place)
+        onDetail(
+            "관찰 등록: $result / 관찰 모드: ${container.fusedArrival.observationMode.value} — " +
+                "여정 감시 모드(${container.fusedArrival.mode.value})는 그대로 유지",
+        )
+        // coroutineScope 로 관찰 모드/전이 두 스트림을 병렬 수집하고, 취소 시 finally 에서 정리한다.
         coroutineScope {
             launch {
-                container.fusedArrival.mode.collect { onDetail("모드 → $it") }
+                container.fusedArrival.observationMode.collect { onDetail("관찰 모드 → $it") }
             }
             try {
-                container.fusedArrival.transitions.collect { transition ->
-                    val tag = if (transition == "ENTER") " → 도착 이벤트 발행" else ""
-                    onDetail("transition 수신: $transition$tag")
+                container.fusedArrival.observationTransitions.collect { transition ->
+                    onDetail("관찰 transition 수신: $transition (도착 판정은 여정 감시가 담당)")
                 }
             } finally {
-                container.fusedArrival.stop()
-                onDetail("감시 중단 — watch 해제")
+                container.fusedArrival.stopObservation()
+                onDetail(
+                    "관찰 중단 — 여정 감시(${container.fusedArrival.mode.value})는 유지, " +
+                        "다음 장소 도착 판정 계속",
+                )
             }
         }
     }

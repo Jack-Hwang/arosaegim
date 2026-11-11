@@ -45,6 +45,32 @@ def test_then_now_heritage_and_party_size(client, auth):
     assert h is not None and h["name"] and isinstance(h["year"], int)  # 시드 heritage
 
 
+def test_then_now_heritage_for_daereungwon_and_cheomseongdae(client, auth):
+    """감사 지적 S3 보강: 대릉원·첨성대에도 시드 heritage가 있어 then-now 응답에
+    {name, year, label} 요약이 실린다(국립경주박물관과 같은 구조).
+    학설이 갈리는 표현은 단정하지 않게 쓰고 reviewed=false(초안)를 유지한다."""
+    dae = {"place_id": "gj-daereungwon", "course_id": "gyeongju-silla-01",
+           "visited_at": "2026-11-10T11:00:00", "source": "manual"}
+    cheom = {**dae, "place_id": "gj-cheomseongdae", "visited_at": "2026-11-10T12:00:00"}
+
+    client.post("/v1/visits", json=dae, headers=auth)
+    client.post("/v1/visits", json=cheom, headers=auth)
+
+    body = client.get("/v1/places/gj-daereungwon/then-now", headers=auth).json()
+    h = body["heritage"]
+    assert h == {"name": "천마총", "year": 650, "label": "1,300여 년"}
+
+    body = client.get("/v1/places/gj-cheomseongdae/then-now", headers=auth).json()
+    h = body["heritage"]
+    assert h == {"name": "첨성대", "year": 632, "label": "1,350여 년"}
+
+    # 장소 상세 응답에서도 같은 유산 정보가 note·reviewed=false(초안 표시 대상)로 나온다
+    detail = client.get("/v1/places/gj-cheomseongdae", headers=auth).json()
+    dh = detail["heritage"]
+    assert dh["name"] == "첨성대" and dh["year"] == 632 and dh["reviewed"] is False
+    assert "학설이 갈린다" in dh["note"]
+
+
 def test_then_now_heritage_null_for_place_without_heritage():
     """유산 정보가 없는 장소는 heritage가 null이어야 한다(순수 함수 단위)."""
     from app.services import then_now as svc

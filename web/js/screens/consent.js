@@ -13,7 +13,7 @@
         App.h('p', { class: 'muted', text: '아로새김이 저장하는 정보를 알려 드려요. 동의해야 가족 기록을 시작할 수 있어요.' }),
         App.h('div', { class: 'card' },
           App.h('ul', { class: 'consent-list' },
-            App.h('li', null, App.h('b', { text: '가족 코드' }), App.h('span', { text: ' — 가족을 식별하는 6자리 번호예요. 실명·연락처는 받지 않아요.' })),
+            App.h('li', null, App.h('b', { text: '가족 코드' }), App.h('span', { text: ' — 8자리 영문·숫자로 된 가족 코드예요. 실명·연락처는 받지 않아요.' })),
             App.h('li', null, App.h('b', { text: '방문 장소·시각' }), App.h('span', { text: ' — 어디를 언제 방문했는지(스탬프) 기록해요. 실시간 위치는 저장하지 않아요.' })),
             App.h('li', null, App.h('b', { text: '올린 사진·메모' }), App.h('span', { text: ' — 그때 기록과 맛집 기록의 사진·메모는 가족만 볼 수 있어요.' })),
             App.h('li', null, App.h('b', { text: '영수증 인증 기록' }), App.h('span', { text: ' — 예시(시뮬레이션) 적립 내역이에요.' })),

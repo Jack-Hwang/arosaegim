@@ -1,8 +1,11 @@
 package app.arosaegim.data
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import app.arosaegim.domain.foldedPlaceRequestBody
+import app.arosaegim.domain.heirRequestBody
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
@@ -10,28 +13,45 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * 방문 기록 1건의 서버 전송 몸체(T8).
+ * 방문 기록 1건의 서버 전송 몸체(T8, E1 재정합 — 2026-11-11 서버 실측 계약).
  *
- * @property placeId      방문한 장소 id(시드의 place id — 좌표는 절대 보내지 않는다).
- * @property courseId     어느 코스에서 찍었는지.
- * @property visitedAtIso 방문 시각(ISO-8601 문자열, UTC).
- * @property source       도착 출처: "fused" | "navi" | "manual".
- * @property vehicleLabel 차종 표시용 라벨(선택). VIN 은 규정상 전송하지 않는다(00문서 9절).
+ * 서버 POST /v1/visits 는 스네이크 케이스 필드만 받고(extra=forbid — 모르는 필드는 400),
+ * 그래서 프로퍼티 이름은 캐멀케이스로 두고 @SerialName 으로 전송 키만 맞춘다.
+ *
+ * @property placeId      방문한 장소 id → 전송 키 place_id(시드의 place id — 좌표는 절대 보내지 않는다).
+ * @property courseId     어느 코스에서 찍었는지 → course_id.
+ * @property visitedAtIso 방문 시각(ISO-8601 문자열, UTC) → visited_at.
+ * @property vehicleLabel 차종 표시용 라벨(선택) → vehicle_label. VIN 은 규정상 전송 금지(00문서 9절).
+ * @property partySize    함께 온 인원(선택) → party_size. 아직 연동 전 — null 로 두면 몸체에서 생략된다.
+ * @property tripKm       이 방문까지의 거리(선택) → trip_km. 여정 완주 전 값은 null 로 둔다(가짜 값 금지).
+ * @property courseRunId  같은 코스 주행 1회의 식별자(선택) → course_run_id. 서버가 '같은 주행의
+ *                        거리를 한 번만 합산'하는 기준키다(TripSession 이 start() 때 1회 발급).
+ *
+ * 참고: 기존에 실어 보내던 source("fused"|"navi"|"manual")는 서버 계약에 없는 필드라 400의
+ * 원인이 된다 — 몸체에서 완전히 뺐다(도착 출처는 LocalVisit 에만 남긴다).
  */
 @Serializable
 data class VisitPayload(
-    val placeId: String,
-    val courseId: String,
-    val visitedAtIso: String,
-    val source: String,
-    val vehicleLabel: String? = null,
+    @SerialName("place_id") val placeId: String,
+    @SerialName("course_id") val courseId: String,
+    @SerialName("visited_at") val visitedAtIso: String,
+    @SerialName("vehicle_label") val vehicleLabel: String? = null,
+    @SerialName("party_size") val partySize: Int? = null,
+    @SerialName("trip_km") val tripKm: Double? = null,
+    @SerialName("course_run_id") val courseRunId: String? = null,
 )
 
-/** POST /v1/visits 성공 응답. stampNo 는 서버가 부여한 스탬프 번호다. */
+/**
+ * POST /v1/visits 성공 응답(E1 재정합 — 서버 실측 계약).
+ *
+ * 서버는 {"visit_id": 3, "stamp_no": 2, ...} 로 정수 visit_id 와 스네이크 키로 답하고,
+ * then_now·party_size 등의 추가 필드를 함께 보낼 수 있다. then_now 는 E2 UI 담당이
+ * 소비하므로 여기서는 파싱하지 않고 무시한다(ApiClient 의 wireJson 이 ignoreUnknownKeys).
+ */
 @Serializable
 data class VisitResponse(
-    val visitId: String,
-    val stampNo: Int,
+    @SerialName("visit_id") val visitId: Int,
+    @SerialName("stamp_no") val stampNo: Int,
 )
 
 /**
@@ -44,6 +64,16 @@ data class VisitResponse(
  * 메시지에 가족 코드·PIN 은 절대 담지 않는다(00문서 9절 로깅 규칙과 같은 취지).
  */
 class AuthException(message: String) : Exception(message)
+
+/**
+ * owner 권한 부족(403) 전용 예외(B1 heir 지정, 2026-11-11).
+ *
+ * '이어받을 사람 지정'은 owner 만 가능하다. 차량 세션에는 PIN 만 있고 owner 권한이 없으므로
+ * 403이 예상되는 정상 경로다 — 호출부는 이 예외를 보고 버튼을 숨기지 말고
+ * '스마트폰의 가족 관리에서 정해 주세요' 안내를 표시한다(계약). AuthException 과 구별되는
+ * 별도 타입인 이유: 403이 '권한 없음' 안내(정상 경로)인지 '재입력 필요'인지 화면 행동이 다르다.
+ */
+class OwnerRequiredException(message: String) : Exception(message)
 
 /**
  * 아로새김 백엔드 클라이언트(T8) — java.net.HttpURLConnection 기반.
@@ -63,10 +93,8 @@ class AuthException(message: String) : Exception(message)
  */
 open class ApiClient(private val baseUrl: String = "http://10.0.2.2:8000") {
 
-    private val json = Json {
-        ignoreUnknownKeys = true
-        encodeDefaults = true
-    }
+    /** 전송용 Json — 계약 테스트(VisitPayloadContractTest)도 같은 설정으로 검증한다. */
+    private val json = wireJson
 
     /** GET /health — 서버 생존 확인. 2xx 가 아니면 실패로 본다(3초 타임아웃). */
     suspend fun health(): Result<Unit> = withContext(Dispatchers.IO) {
@@ -85,15 +113,21 @@ open class ApiClient(private val baseUrl: String = "http://10.0.2.2:8000") {
     }
 
     /**
-     * POST /v1/visits — 방문 기록 1건 전송.
+     * POST /v1/visits — 방문 기록 1건 전송(E1 재정합).
      *
-     * @param familyCode 가족 코드(T9-1 로그인 연동 시 채움). 있으면 X-Family-Code 헤더로 실어 보낸다.
+     * 서버는 X-Family-Code 와 X-Family-Pin 을 모두 요구한다(실측: 하나만 보내면 401 pin_required).
+     *
+     * @param familyCode 가족 코드. 있으면 X-Family-Code 헤더로 실어 보낸다.
      *                   헤더 값은 요청에만 쓰고 저장·로그하지 않는다.
-     * @return 2xx 면 VisitResponse, 그 외·예외는 전부 Result.failure.
+     * @param pin        세션 PIN(00문서 10.6 — 메모리 값만 전달, 저장·로그 금지). 있으면
+     *                   X-Family-Pin 헤더로 실어 보낸다. 둘 중 하나라도 없으면 서버 401.
+     * @return 2xx 면 VisitResponse(visit_id·stamp_no), 그 외·예외는 전부 Result.failure.
+     *         401·403 은 [AuthException](PIN 재입력 신호), 그 외 4xx·5xx 는 IOException.
      */
     open suspend fun postVisit(
         v: VisitPayload,
         familyCode: String? = null,
+        pin: String? = null,
     ): Result<VisitResponse> = withContext(Dispatchers.IO) {
         runCatching {
             val conn = newConnection("POST", "/v1/visits")
@@ -105,12 +139,18 @@ open class ApiClient(private val baseUrl: String = "http://10.0.2.2:8000") {
                 familyCode?.takeIf { it.isNotBlank() }?.let {
                     conn.setRequestProperty("X-Family-Code", it)
                 }
+                pin?.takeIf { it.isNotBlank() }?.let {
+                    conn.setRequestProperty("X-Family-Pin", it)
+                }
                 // 요청 몸체는 직렬화해 한 번에 쓴다. 실패 시 예외가 runCatching 으로 흡수된다.
                 conn.outputStream.use { out ->
                     out.write(json.encodeToString(v).toByteArray(Charsets.UTF_8))
                     out.flush()
                 }
                 val code = conn.responseCode
+                if (code == 401 || code == 403) {
+                    throw AuthException("가족 인증 실패(HTTP $code)")
+                }
                 if (code !in 200..299) {
                     // 에러 몸체는 읽지 않고 버린다(값을 남기지 않기 위함 — 코드만 실패 사유).
                     runCatching { conn.errorStream?.close() }
@@ -153,12 +193,91 @@ open class ApiClient(private val baseUrl: String = "http://10.0.2.2:8000") {
      *     "heir":          {"designated":false,"source":"…"} }
      * 각 지표에 source(출처) 문자열이 함께 온다 — 화면·문서 표기는 이 값을 그대로 쓴다
      * (서버 값이 없으면 호출부가 로컬 카운터로 대체하고 출처 표기를 바꾼다).
+     * B3(2026-11-11): 응답에 family_total_trip_km 가 함께 오면 완주 화면·오늘의 기록에서
+     * '우리 가족이 함께 달린 거리 N km'로 쓴다(파싱은 domain.parseFamilyTotalTripKm).
      *
      * @param familyCode X-Family-Code 헤더(getMembers 와 동일 규칙).
      * @param pin        X-Family-Pin 헤더 — 세션 메모리 값만 전달, 저장·로그 금지(00문서 10.6).
      */
     open suspend fun getMetrics(familyCode: String?, pin: String?): Result<String> =
         getJson("/v1/families/me/metrics", familyCode, pin)
+
+    // ── 가족 기록 신규 API(B1~B4, 2026-11-11) — 응답은 원본 JSON 문자열, 파싱은 호출부(domain 파서) ──
+
+    /**
+     * GET /v1/families/me/heir — 이어받을 사람 조회(B1).
+     * 계약 응답: {"member_id": "<id>" | null}. 필드가 없으면 호출부는 기능을 숨긴다(추측 금지).
+     * 401·403 은 AuthException(기존 getJson 관례).
+     */
+    open suspend fun getHeir(familyCode: String?, pin: String?): Result<String> =
+        getJson("/v1/families/me/heir", familyCode, pin)
+
+    /**
+     * POST /v1/families/me/heir — 이어받을 사람 지정(B1). 몸체 {"member_id": "<id>"}
+     * (domain.heirRequestBody). 이 호출은 owner 인증이 필요하며 차량 세션에는 owner 권한이
+     * 없으므로 403이 예상된다 — 403은 [OwnerRequiredException] 으로 구별해 답하고, 호출부는
+     * 버튼을 숨기지 말고 '스마트폰의 가족 관리에서 정해 주세요' 안내를 표시한다(계약).
+     * 200 {"member_id": "<id>"} 성공 / 404 멤버 없음은 일반 실패(IOException).
+     */
+    open suspend fun postHeir(
+        familyCode: String?,
+        pin: String?,
+        memberId: String,
+    ): Result<String> =
+        postJson("/v1/families/me/heir", familyCode, pin, heirRequestBody(memberId), ownerOnly = true)
+
+    /**
+     * GET /v1/families/me/then-now/{place_id} — 장소별 then-now 부가 상태(B2·B4).
+     * 계약 응답 필드: {"visit_ordinal": 1부터, "past_visit_count": 0부터,
+     * "fold_person_comparison_all": bool, "folded": bool}.
+     * 필드가 없거나 조회 실패하면 호출부가 해당 기능을 숨기고 기존 동작을 유지한다.
+     * (기존 then-now 응답에 같은 필드가 합쳐져 오면 그 응답에도 같은 파서가 그대로 적용된다.)
+     */
+    open suspend fun getThenNow(
+        familyCode: String?,
+        pin: String?,
+        placeId: String,
+    ): Result<String> =
+        getJson("/v1/families/me/then-now/${encodedSegment(placeId)}", familyCode, pin)
+
+    /**
+     * POST /v1/families/me/folded-places — 이 장소의 인원 비교 문장 접기(B4).
+     * 몸체 {"place_id": "<id>"}(domain.foldedPlaceRequestBody). 성공 응답
+     * {"folded_place_ids": [...]}. 실패 시 호출부는 문장을 그대로 둔다(기존 동작 유지).
+     */
+    open suspend fun postFoldedPlace(
+        familyCode: String?,
+        pin: String?,
+        placeId: String,
+    ): Result<String> =
+        postJson("/v1/families/me/folded-places", familyCode, pin, foldedPlaceRequestBody(placeId))
+
+    /**
+     * GET /v1/places/{id}/then-now — 장소 단위 그때와 지금 원본(E2·2026-11-11 신규).
+     *
+     * 원본 JSON 문자열을 그대로 돌려준다(파싱은 소비자 몫 — 이 파일은 전송 계층만 담당).
+     * 서버 실측 응답 형태(계약 — 소비자는 이 키로만 읽고, 없으면 해당 기능을 숨긴다):
+     *   { "place_id": "gj-museum",
+     *     "past":     { "year": 1987, "note": "…", "photo_url": "…",
+     *                   "party_size": null, "vehicle_label": null, "markers": [...] },
+     *     "now":      { "year": 2026, "note": "…", "photo_url": "…",
+     *                   "party_size": 4, "vehicle_label": "…", "markers": [...] },
+     *     "heritage": { … } }
+     * POST /v1/visits 성공 응답의 then_now 필드도 같은 모양이다(방문 직후 화면이 소비).
+     *
+     * 이름이 getThenNow 가 아닌 이유: 기존 B2 의 getThenNow(familyCode, pin, placeId)는
+     * /v1/families/me/then-now/{place_id} 용으로 이미 ui 에서 위치 인자로 호출 중이라,
+     * 같은 이름·비슷한 인자의 오버로드를 두면 그 호출이 모호해져 컴파일이 깨진다.
+     *
+     * @param placeId    장소 id(경로 조각 — encodedSegment 로 감싼다).
+     * @param familyCode X-Family-Code 헤더. null·빈값이면 헤더 없이 보낸다(서버 401).
+     * @param pin        X-Family-Pin 헤더(열람 권한 — 00문서 10.6). 401·403 은 AuthException.
+     */
+    open suspend fun getPlaceThenNow(
+        placeId: String,
+        familyCode: String?,
+        pin: String?,
+    ): Result<String> = getJson("/v1/places/${encodedSegment(placeId)}/then-now", familyCode, pin)
 
     /**
      * GET /v1/places/{id}/voice-letters — 장소의 예시 음성 편지 목록(T9-2 계열, 공개).
@@ -208,6 +327,56 @@ open class ApiClient(private val baseUrl: String = "http://10.0.2.2:8000") {
         }
     }
 
+    /**
+     * POST 공용 도우미(2026-11-11 신규 — heir·folded-places). JSON 몸체를 실어 보내고
+     * 2xx 면 원본 응답 문자열을 돌려준다.
+     *  - 401 → AuthException(PIN 재입력 신호 — getJson 과 동일 관례).
+     *  - 403 → [ownerOnly] 가 true 면 [OwnerRequiredException](heir 지정은 owner 전용),
+     *           false 면 AuthException.
+     *  - 그 외 → IOException. 에러 몸체는 읽지 않고 버린다(값 미보존 규칙).
+     */
+    private suspend fun postJson(
+        path: String,
+        familyCode: String?,
+        pin: String?,
+        body: String,
+        ownerOnly: Boolean = false,
+    ): Result<String> = withContext(Dispatchers.IO) {
+        runCatching {
+            val conn = newConnection("POST", path)
+            try {
+                conn.connectTimeout = CONNECT_TIMEOUT_MS
+                conn.readTimeout = POST_TIMEOUT_MS
+                conn.doOutput = true
+                conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                familyCode?.takeIf { it.isNotBlank() }?.let {
+                    conn.setRequestProperty("X-Family-Code", it)
+                }
+                pin?.takeIf { it.isNotBlank() }?.let {
+                    conn.setRequestProperty("X-Family-Pin", it)
+                }
+                conn.outputStream.use { out ->
+                    out.write(body.toByteArray(Charsets.UTF_8))
+                    out.flush()
+                }
+                val code = conn.responseCode
+                if (code == 403 && ownerOnly) {
+                    throw OwnerRequiredException("owner 권한 필요(HTTP 403)")
+                }
+                if (code == 401 || code == 403) {
+                    throw AuthException("가족 인증 실패(HTTP $code)")
+                }
+                if (code !in 200..299) {
+                    runCatching { conn.errorStream?.close() }
+                    throw IOException("POST $path HTTP $code")
+                }
+                conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+            } finally {
+                conn.disconnect()
+            }
+        }
+    }
+
     /** 경로 조각용 인코딩 — 장소 id 는 slug 지만 URL 조립 안전을 위해 한 번 더 감싼다. */
     private fun encodedSegment(segment: String): String =
         java.net.URLEncoder.encode(segment, "UTF-8")
@@ -220,8 +389,21 @@ open class ApiClient(private val baseUrl: String = "http://10.0.2.2:8000") {
         return conn
     }
 
-    private companion object {
-        const val CONNECT_TIMEOUT_MS = 3_000
+    companion object {
+        /**
+         * 전송용 Json(E1 재정합 — 2026-11-11 서버 실측). 이 설정은 서버 계약의 일부라
+         * 바꾸지 않는다: 요청 몸체의 null 필드는 전송에서 빠지고(encodeDefaults=false +
+         * explicitNulls=false), 서버가 응답에 추가로 주는 키(then_now 등)는 무시한다
+         * (ignoreUnknownKeys). internal 로 공개한 이유 — 계약 테스트(VisitPayloadContractTest·
+         * VisitQueueTest)가 같은 인스턴스로 와이어 계약을 검증한다(설정 흔들림까지 잡는다).
+         */
+        internal val wireJson: Json = Json {
+            ignoreUnknownKeys = true
+            encodeDefaults = false
+            explicitNulls = false
+        }
+
+        private const val CONNECT_TIMEOUT_MS = 3_000
 
         /** health 는 생존 확인이 목적 — 짧게 끊는다(3초). */
         const val HEALTH_TIMEOUT_MS = 3_000

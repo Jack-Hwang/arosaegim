@@ -21,10 +21,19 @@ import kotlin.coroutines.resume
  * '해당 장소에 도착해 정차했을 때만 재생 버튼으로 연다'). 다만 포트가 PARKED 를 강제할 수는
  * 없으므로, 실제 게이트는 호출부(UI)가 DrivingState 로 맡는다. 이 클래스는 강제하지 않는다.
  *
- * 동작: 시드의 예시 편지 목록에서 letterId 를 찾아 audioAsset(assets/... 경로)을 재생한다.
- * assets 에 실제 오디오 파일이 없으면 Result.failure("예시 음성 준비 중") — 가짜 재생은 만들지
- * 않는다(03문서: 대체 구현 사용을 숨기지 않는다). UI 는 이 경우 텍스트 편지를 보여준다.
+ * 재생 경로(A1, 2026-11-11): **사전 제작 오디오가 기본 경로다.** Pleos TTS 합성은 쓰지 않고,
+ * 에셋에 준비된 오디오 파일을 MediaPlayer 로 재생한다. 파일 탐색 순서:
+ *  1. 시드 편지의 audioAsset("assets/seed/letter_demo.ogg" 등)에 실제 파일이 있으면 그것.
+ *  2. 없으면 사전 제작 데모 오디오 [PREBUILT_AUDIO_CANDIDATES] 를 순서대로 확인해
+ *     처음 존재하는 파일(assets/voice/letter_demo.wav)을 쓴다.
+ *     — seed.json 은 수정 금지라 시드 audio 경로와 실제 파일 위치가 어긋날 수 있어,
+ *       재생 경로만 사전 제작 파일로 돌린다(시드 데이터 자체는 그대로다).
+ * 어느 파일도 없으면 [isAvailable]=false 로 '조용히 사용 불가' 처리하고 play 는 실패로 답한다
+ * (가짜 재생 금지 — 03문서: 대체 구현 사용을 숨기지 않는다). UI 는 이 경우 텍스트 편지를 보여준다.
+ *
  * 오디오 포커스는 Narrator(AndroidTtsNarrator) 패턴과 같은 GAIN_TRANSIENT_MAY_DUCK 을 쓴다.
+ * 고인의 목소리 재현 원칙: 이 재생은 사전 제작된 일반 음성(데모용)이며 음성 합성으로 어떤
+ * 사람의 목소리도 만들지 않는다(00문서 voice_letter_demo 규정 준수).
  */
 class PleosVoiceLetterPlayer(
     context: Context,
@@ -43,19 +52,35 @@ class PleosVoiceLetterPlayer(
     private val pending = AtomicReference<kotlinx.coroutines.CancellableContinuation<Boolean>?>(null)
     private var focusRequest: AudioFocusRequest? = null
 
-    /** 오디오 파일이 하나라도 준비돼 있어야 '사용 가능'이다(없으면 UI 는 텍스트 편지로 대체). */
-    override val isAvailable: Boolean by lazy {
-        letters.any { letter ->
-            letter.audioAsset?.let { runCatching { assetFd(it).close() }.isSuccess } == true
+    /**
+     * 오디오 포커스 변화 수신(01문서 규칙 — 포커스를 잃으면 즉시 멈춘다).
+     * LOSS(전체 상실)·LOSS_TRANSIENT(일시 상실) 수신 시 [stop] 으로 즉시 멈춘다 — 진행 중 play 는
+     * '중단'으로 풀리고 MediaPlayer 는 release 된다. LOSS_TRANSIENT_CAN_DUCK 은 MAY_DUCK 으로
+     * 요청했으므로 낮추며 계속 재생한다(멈추지 않는다).
+     */
+    private val focusListener = AudioManager.OnAudioFocusChangeListener { change ->
+        when (change) {
+            AudioManager.AUDIOFOCUS_LOSS,
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
+            -> stop()
+            // LOSS_TRANSIENT_CAN_DUCK: 계속 재생(볼륨 낮춤은 시스템이 처리한다).
         }
+    }
+
+    /**
+     * 사전 제작 오디오가 하나라도 준비돼 있어야 '사용 가능'이다(없으면 UI 는 텍스트 편지로 대체).
+     * 재생 경로와 같은 [resolveAsset] 규칙을 쓴다 — 시드 audioAsset 파일이 없어도 사전 제작
+     * 데모 오디오가 있으면 사용 가능이다.
+     */
+    override val isAvailable: Boolean by lazy {
+        letters.any { letter -> resolveAsset(letter) != null }
     }
 
     /** 예시 편지 1건 재생. 완료(onCompletion)를 기다렸다가 성공으로 답한다. */
     override suspend fun play(letterId: String): Result<Unit> {
         val letter = letters.firstOrNull { it.id == letterId }
             ?: return Result.failure(IllegalStateException(NOT_READY_MESSAGE))
-        val assetPath = letter.audioAsset
-            ?.takeIf { it.isNotBlank() && runCatching { assetFd(it).close() }.isSuccess }
+        val assetPath = resolveAsset(letter)
             ?: return Result.failure(IllegalStateException(NOT_READY_MESSAGE))
 
         if (!requestFocus()) {
@@ -92,6 +117,22 @@ class PleosVoiceLetterPlayer(
         stop()
         runCatching { playerRef.getAndSet(null)?.release() }
     }
+
+    /**
+     * 편지 1건의 재생 파일을 고른다(A1 사전 제작 오디오 우선).
+     * ① 시드 audioAsset 에 실제 파일이 있으면 그것 ② 없으면 사전 제작 데모 오디오 후보 중
+     * 처음 존재하는 것 ③ 둘 다 없으면 null(사용 불가 — 재생 생략).
+     */
+    private fun resolveAsset(letter: VoiceLetter): String? {
+        letter.audioAsset
+            ?.takeIf { it.isNotBlank() && assetExists(it.removePrefix("assets/")) }
+            ?.let { return it.removePrefix("assets/") }
+        return PREBUILT_AUDIO_CANDIDATES.firstOrNull { assetExists(it) }
+    }
+
+    /** assets 에 상대 경로 파일이 실제로 존재하는지 확인한다(열어 보고 닫는다). */
+    private fun assetExists(relativePath: String): Boolean =
+        runCatching { appContext.assets.openFd(relativePath).close() }.isSuccess
 
     /**
      * MediaPlayer 생성 → assets 재생 → onCompletion 대기.
@@ -137,8 +178,8 @@ class PleosVoiceLetterPlayer(
         } catch (t: IllegalStateException) { /* 이미 취소·완료된 continuation */ }
     }
 
-    /** "assets/seed/letter_demo.ogg" 형태를 AssetManager 경로("seed/letter_demo.ogg")로 바꾼다. */
-    private fun assetFd(assetRef: String) = appContext.assets.openFd(assetRef.removePrefix(ASSETS_PREFIX))
+    /** AssetManager 상대 경로("voice/letter_demo.wav")를 열기 위한 AssetFileDescriptor. */
+    private fun assetFd(relativePath: String) = appContext.assets.openFd(relativePath)
 
     private fun requestFocus(): Boolean {
         val req = focusRequest ?: AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
@@ -148,6 +189,7 @@ class PleosVoiceLetterPlayer(
                     .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                     .build(),
             )
+            .setOnAudioFocusChangeListener(focusListener) // 상실 시 즉시 stop(F54 규칙)
             .build()
             .also { focusRequest = it }
         return runCatching {
@@ -161,13 +203,21 @@ class PleosVoiceLetterPlayer(
     }
 
     private companion object {
-        /** 시드 audio 경로의 접두어. AssetManager 는 "assets/" 를 떼고 연다(ThenNowDemo 와 같은 규약). */
-        const val ASSETS_PREFIX = "assets/"
+        /**
+         * 사전 제작 데모 오디오 탐색 후보(AssetManager 상대 경로, 앞에서부터 첫 존재 파일).
+         * 1순위는 A1 지시대로 만든 assets/voice/letter_demo.wav. 뒤쪽은 발주자가 시드 경로
+         * 그대로(assets/seed/letter_demo.ogg·wav) 파일을 넣는 경우를 위한 호환 후보다.
+         */
+        val PREBUILT_AUDIO_CANDIDATES = listOf(
+            "voice/letter_demo.wav",
+            "seed/letter_demo.ogg",
+            "seed/letter_demo.wav",
+        )
 
         /** 편지 1건 최대 재생 대기. 음성 파일 길이를 모르므로 넉넉히 잡는다(초과 시 중단 처리). */
         const val PLAY_TIMEOUT_MS = 120_000L
 
-        /** assets 에 파일이 없거나 편지가 없을 때의 안내 문구 — 가짜 재생 없이 실패로 답한다. */
-        const val NOT_READY_MESSAGE = "예시 음성 준비 중"
+        /** assets 에 사전 제작 오디오가 없을 때의 안내 문구 — 재생을 생략하고 실패로 답한다. */
+        const val NOT_READY_MESSAGE = "사전 제작 오디오 없음 — 재생 생략"
     }
 }

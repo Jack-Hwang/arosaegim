@@ -4,14 +4,17 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import app.arosaegim.AppContainer
 import app.arosaegim.R
+import app.arosaegim.SwitchableNarrator
+import app.arosaegim.SwitchableRouteService
 import app.arosaegim.data.FamilySessionStore
 import app.arosaegim.data.SeedRepository
+import app.arosaegim.data.SignOutCleanup
 import app.arosaegim.domain.DrivingState
 import app.arosaegim.domain.Place
 import app.arosaegim.fallback.ManualDrivingState
 import app.arosaegim.ui.ModeRouter
 import app.arosaegim.ui.parked.DiagnosticsMetrics
-import java.io.File
+import app.arosaegim.ui.parked.HeirQuestionMemory
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -26,6 +29,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.coroutines.resume
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -74,27 +80,75 @@ class DiagnosticsViewModel(
         AdapterRow(port, note, verifyTestByPort[port])
     }
 
+    /**
+     * 내비 재전환 상태(조치 8) — AppContainer 가 갱신하는 StateFlow 를 그대로 노출한다.
+     * 늦은 NaviHelper 초기화 성공 시 Fake → Pleos 재전환 사실을 화면이 실시간으로 보여 준다.
+     * null = 재전환 대상 아님(초기 동기 확인에서 Pleos 를 직접 선택).
+     */
+    val routeSwitchNote: StateFlow<String?> = container.routeSwitchNote
+
+    /**
+     * 안내 음성 전환 상태(콜드 스타트 교착 수정, 2026-11-11) — Android TTS에서 시작해 Pleos
+     * onReady 지연 확인 시 일방향 전환하는 사실을 실시간으로 보여 준다.
+     * null = 전환 대상 아님(초기 동기 확인에서 Pleos 를 직접 선택).
+     */
+    val narratorSwitchNote: StateFlow<String?> = container.narratorSwitchNote
+
     /** ③ 스모크 카드의 '구현:' 줄 텍스트(id → 선택된 어댑터/구현 한 줄). 생성 시점 스냅샷. */
     val smokeImplNotes: Map<String, String> = mapOf(
-        "U1" to "${container.routeService.javaClass.simpleName} (RouteService)",
+        "U1" to u1ImplLine(),
         "U2" to "${container.naviRoute.javaClass.simpleName} (NaviHelper 어댑터 직접)",
-        "U3" to "${container.fusedArrival.javaClass.simpleName} (ArrivalDetector)",
+        // A3: 관찰은 startObservation 전용 수명주기 — 중단해도 여정 감시(도착 판정)는 유지된다.
+        "U3" to "FusedArrivalDetector.startObservation (진단 관찰 — 여정 감시와 분리)",
         "U4" to "${container.fusedArrival.javaClass.simpleName} (FusedLocation 지원 확인)",
         "U5" to "PleosVehicleInfoProvider (Vehicle capability·기어 조회 전용)",
-        "U6" to "${container.narrator.javaClass.simpleName} (Narrator)",
+        "U6" to u6ImplLine(),
         "U7" to "${container.drivingState.javaClass.simpleName} (DrivingStateProvider)",
         "U8" to "ApiClient (java.net HttpURLConnection)",
-        "U9" to "ModeRouter (FLAG_ACTIVITY_REORDER_TO_FRONT)",
+        "U9" to "ModeRouter (FLAG_ACTIVITY_NEW_TASK + FLAG_ACTIVITY_REORDER_TO_FRONT)",
         "U10" to "${container.naviRoute.javaClass.simpleName} (내비 도착 이벤트 관찰)",
         // U11·U13: TripSession 이 받아 둔 TripSignalProvider 를 경유해 조회한다(고정 API).
         "U11" to "TripSignalProvider.partySize() (TripSession.tripSignals 경유)",
         "U12" to "사용 안 함(로드맵 — 조회·수신 실행 없음)",
         "U13" to "TripSignalProvider.odometerKm() (TripSession.tripSignals 경유)",
         "U14" to "사용 안 함(로드맵 — 조회·수신 실행 없음)",
+        // D 실측 전용(2026-11-11): capability 확인만 하고 값은 읽지 않는다. 화면 문장 생성 등
+        // 기능 구현은 보류 범위다 — 성공/실패 기록·표시만 한다.
+        "D1" to "PleosVehicleInfoProvider.checkFuelCapabilityOnly (capability 확인만·값 미읽음)",
+        "D2" to "PleosVehicleInfoProvider.checkEvBatteryCapabilityOnly (capability 확인만·값 미읽음)",
     )
 
     /** 현재 주행 상태 제공자 이름(수동 토글이 실제 반영되는지 확인용). */
     val drivingProviderName: String = container.drivingState.javaClass.simpleName
+
+    /**
+     * U1 카드의 '구현:' 줄. 재전환 래퍼(SwitchableRouteService)가 선택된 경우엔 현재 위임자까지
+     * 붙여 거짓 표기를 막는다(예: "SwitchableRouteService(현재: FakeRouteService)").
+     */
+    private fun u1ImplLine(): String {
+        val service = container.routeService
+        return if (service is SwitchableRouteService) {
+            "${service.javaClass.simpleName}(현재: ${service.activeName.value}) (RouteService)"
+        } else {
+            "${service.javaClass.simpleName} (RouteService)"
+        }
+    }
+
+    /**
+     * U6 카드의 '구현:' 줄. 콜드 스타트 교착 수정(2026-11-11)으로 Narrator 는 SwitchableNarrator
+     * (Android TTS 시작 → Pleos onReady 확인 시 일방향 전환)일 수 있다 — 현재 활성 위임자를
+     * 함께 표시해 거짓 표기를 막는다. E4(2026-11-11): 3단 사전 제작 오디오 사슬이 끼워져 있으면
+     * 표시명(사전 제작 오디오(예시 문장))까지 덧붙인다(AppContainer.narratorAssetNote).
+     */
+    private fun u6ImplLine(): String {
+        val narrator = container.narrator
+        val base = if (narrator is SwitchableNarrator) {
+            "${narrator.javaClass.simpleName}(현재: ${narrator.activeName.value}) (Narrator)"
+        } else {
+            "${narrator.javaClass.simpleName} (Narrator)"
+        }
+        return container.narratorAssetNote?.let { "$base + $it" } ?: base
+    }
 
     /** 목표 장소 후보 — 시드 3곳(gj-museum 등). 시드 로드 실패 시 내장 최소 후보로 대체. */
     val places: List<Place>
@@ -330,34 +384,29 @@ class DiagnosticsViewModel(
     }
 
     /**
-     * '이 차에서 로그아웃'(T9-1) — 가족 코드·캐시·큐 삭제.
+     * '이 차에서 로그아웃'(T9-1) — 가족 코드·세션 PIN·캐시·큐 삭제(A8 검증 대상 경로).
      *
-     * VisitStore/VisitQueue 인스턴스를 만들지 않고 파일 경로로 직접 삭제한다.
-     * 이유: (1) AppContainer 는 다른 작업과 병렬 수정 중이라 수정할 수 없고, (2) 인스턴스를
-     * 새로 만들면 메모리에 캐시된 목록과 파일 상태가 어긋날 수 있다. 파일만 지우면 다음
-     * append 가 새 파일을 만들므로 기존 파이프라인 동작에 영향이 없다.
-     *
-     * 삭제 대상 파일(모두 filesDir 아래 앱 전용 영역):
-     *  - visits.json      — VisitStore 의 로컬 방문 기록(개인 기록, 차에 오래 두지 않는다).
-     *  - visit_queue.json — Sync 전송 대기 큐(VisitQueue 캐시).
-     * 가족 코드는 FamilySessionStore.signOut() 이 SharedPreferences("family_session")에서 지운다.
+     * 삭제 대상 3가지(00문서 2-2·10.6):
+     *  1. 가족 코드 — FamilySessionStore.signOut() 이 SharedPreferences("family_session")에서 지운다.
+     *     (A8 강화: 같은 signOut() 이 세션 메모리 자격 증명(SessionCredentials 의 PIN·세션 내 코드)을
+     *      전부 해제한다 — '로그아웃 = 열람 권한 완전 상실'.)
+     *  2. 방문 기록 파일(visits.json)·전송 대기 큐(visit_queue.json) — [SignOutCleanup] 이
+     *     filesDir 아래에서 직접 지운다. VisitStore/VisitQueue 인스턴스를 만들지 않는다 —
+     *     인스턴스를 새로 만들면 메모리 캐시와 파일 상태가 어긋날 수 있기 때문이다. 파일만 지우면
+     *     다음 append 가 새 파일을 만들므로 기존 파이프라인 동작에 영향이 없다.
+     *  3. 세션 메모리(B1 '나중에 정하기' 플래그 등) — [HeirQuestionMemory.clearAll()] 로 소멸시킨다.
+     *     재방문 시 다시 물어도 되는 계약(세션 메모리만, 영속 금지)에 맞는 정리다.
      *
      * 완료 확인 절차(주석): 로그아웃 후 '파일 목록으로 확인' —
      *   adb shell run-as app.arosaegim ls files/
      * 완료 기준: 앱 데이터에 가족 코드(family_session)·방문 기록(visits.json)·큐가 남지 않는다.
+     * 삭제 로직 자체는 JVM 단위 테스트로 검증한다(SignOutCleanupTest).
      */
     fun signOutFromCar() {
         sessionStore.signOut()
-        val lines = mutableListOf("가족 코드 삭제 완료")
-        listOf(VISITS_FILE_NAME, VISIT_QUEUE_FILE_NAME).forEach { name ->
-            val file = File(appCtx.filesDir, name)
-            val outcome = when {
-                !file.exists() -> "없음(삭제할 파일 없음)"
-                file.delete() -> "삭제됨"
-                else -> "삭제 실패"
-            }
-            lines.add("$name: $outcome")
-        }
+        val lines = mutableListOf("가족 코드 삭제 완료") // PIN·세션 코드 해제는 signOut() 내부에서 함께 끝난다.
+        lines.addAll(SignOutCleanup.deleteFiles(appCtx.filesDir))
+        HeirQuestionMemory.clearAll()
         _sessionResult.value = lines
         refreshSessionState()
     }
@@ -384,10 +433,40 @@ class DiagnosticsViewModel(
         // U11·U13은 SmokeTests.kt(공유 파일)를 만지지 않기 위해 이 ViewModel 안에서 실행한다.
         "U11" -> runU11(onDetail)
         "U13" -> runU13(onDetail)
+        // D 실측 전용(2026-11-11): capability 확인만 하고 값은 절대 읽지 않는다.
+        // 결과(성공/실패)를 기록·표시하는 것까지가 범위다(기어 상태 카드 같은 기존 스타일).
+        "D1" -> runCapabilityCheck("D1", "Fuel.checkFuelPercentCapabilities", onDetail) {
+            container.pleosVehicle.checkFuelCapabilityOnly(it)
+        }
+        "D2" -> runCapabilityCheck("D2", "EvBattery.checkEvBatteryStateOfChargeCapabilities", onDetail) {
+            container.pleosVehicle.checkEvBatteryCapabilityOnly(it)
+        }
         else -> {
             onDetail("알 수 없는 테스트 id: $id")
             Outcome(passed = false)
         }
+    }
+
+    /**
+     * D 실측 전용 capability 확인(D1·D2). 결과 문자열이 capability AccessType(NONE/READ/…)이면
+     * 성공 — 실측 PASS 로 기록한다. FAILED·타임아웃·NOT_INITIALIZED 는 실패로 기록한다.
+     * 값(getFuelPercent 등)은 읽지 않고, 화면 문장 생성 등 기능 구현도 하지 않는다(범위 고정).
+     */
+    private suspend fun runCapabilityCheck(
+        id: String,
+        apiName: String,
+        onDetail: (String) -> Unit,
+        check: ((String) -> Unit) -> Unit,
+    ): Outcome {
+        onDetail("capability 확인만 실행(값 미읽음·기능 구현 없음 — 실측 전용): $apiName")
+        val result = askOrNull(3_000L, check) ?: "타임아웃"
+        onDetail("capability 결과 = $result")
+        val passed = result in setOf("NONE", "READ", "WRITE", "READ_WRITE")
+        onDetail(
+            if (passed) "판정: PASS(capability 확인 성공 — 실측 기록만 남긴다)"
+            else "판정: FAIL(capability 확인 실패/미응답 — 결과만 기록한다)",
+        )
+        return Outcome(passed)
     }
 
     // --- U11·U13(TripSignalProvider 경유 조회 — 01문서 8절) ---
@@ -432,6 +511,18 @@ class DiagnosticsViewModel(
     }
 
     // --- 상태 갱신 도구 ---
+
+    /** SDK 콜백 1회 대기(SmokeTests.askOrNull 과 같은 보호 방식 — 타임아웃 후 늦은 콜백 무시). */
+    private suspend fun askOrNull(
+        timeoutMs: Long,
+        ask: ((String) -> Unit) -> Unit,
+    ): String? = withTimeoutOrNull(timeoutMs) {
+        suspendCancellableCoroutine { cont ->
+            ask { answer ->
+                cont.resume(answer) { /* 취소로 값 폐기 — 무시 */ }
+            }
+        }
+    }
 
     private fun appendDetail(id: String, line: String) {
         update(id) { result ->
@@ -502,14 +593,14 @@ class DiagnosticsViewModel(
             "배터리(참고 — 사용 안 함)",
             detail = listOf("참고 — 사용 안 함(로드맵). 조회·수신을 실행하지 않는다"),
         ),
+        // D 실측 전용(2026-11-11): Fuel·EvBattery capability 성공/실패 기록·표시만 한다.
+        // 기어 상태 카드와 같은 기존 스타일. 값 읽기·문장 생성 등 기능 구현은 보류다.
+        SmokeResult("D1", "연료 capability 실측(기능 구현 없음)"),
+        SmokeResult("D2", "EV 배터리 capability 실측(기능 구현 없음)"),
     )
 
     private companion object {
-        /** VisitStore 가 쓰는 방문 기록 파일명 — VisitStore.FILE_NAME("visits.json")과 동일해야 한다. */
-        const val VISITS_FILE_NAME = "visits.json"
-
-        /** Sync 전송 대기 큐 파일명 — VisitQueue 는 filesDir/visit_queue.json 을 쓴다(병렬 작업). */
-        const val VISIT_QUEUE_FILE_NAME = "visit_queue.json"
+        // 로그아웃 삭제 파일명은 SignOutCleanup.FILES_TO_DELETE 로 한 곳에서 관리한다(A8).
     }
 }
 

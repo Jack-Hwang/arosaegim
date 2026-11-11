@@ -128,7 +128,34 @@
       });
       return App._placesPromise;
     },
-    invalidatePlaces: function () { App._placesPromise = null; }
+
+    /* 제휴처 이름 캐시: 포인트 내역의 reason("receipt:{제휴처 id}")을 제휴처 이름으로
+     * 바꿔 표시할 때 쓴다(서버 points 내역에는 partner_name이 없다 — README 가정 참조).
+     * partners는 장소별로만 조회할 수 있어(GET /v1/places/{id}/partners)
+     * 전체 장소를 훑어 모은다. 개별 장소 실패는 무시하고, 전체 실패 시 다음 호출에서 다시 읽는다. */
+    _partnersPromise: null,
+    loadPartnerNames: function () {
+      if (App._partnersPromise) return App._partnersPromise;
+      var map = {};
+      App._partnersPromise = App.loadPlaces().then(function (groups) {
+        var jobs = [];
+        (groups || []).forEach(function (g) {
+          (g.places || []).forEach(function (pl) {
+            jobs.push(Api.get('/v1/places/' + encodeURIComponent(pl.id) + '/partners').then(function (ps) {
+              (ps || []).forEach(function (p) {
+                if (p && p.id) map[String(p.id)] = p.name || String(p.id);
+              });
+            }, function () { /* 이 장소의 제휴처를 못 읽어도 나머지로 진행한다 */ }));
+          });
+        });
+        return Promise.all(jobs).then(function () { return map; });
+      }, function (e) {
+        App._partnersPromise = null; // 전체 실패 — 다음 호출에서 다시 시도한다
+        throw e;
+      });
+      return App._partnersPromise;
+    },
+    invalidatePlaces: function () { App._placesPromise = null; App._partnersPromise = null; }
   };
 
   /* ── 라우터 ─────────────────────────────────────────────── */

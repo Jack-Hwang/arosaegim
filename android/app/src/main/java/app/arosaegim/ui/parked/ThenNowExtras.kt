@@ -2,18 +2,27 @@ package app.arosaegim.ui.parked
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.graphics.BitmapFactory
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -21,8 +30,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -30,11 +43,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.arosaegim.R
 import app.arosaegim.domain.HeritageInfo
+import app.arosaegim.domain.Place
 import app.arosaegim.domain.VoiceLetter
 import app.arosaegim.ports.VoiceLetterPlayer
 import app.arosaegim.ui.common.AroTextStyles
 import app.arosaegim.ui.common.aroColors
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.net.HttpURLConnection
+import java.net.URL
 
 /*
  * 점수 보강(T6-1·T6-2·T9-2·T9-3)용 정차 화면 확장 컴포저블 모음(00문서 11절).
@@ -114,19 +132,59 @@ private fun DashedLine(modifier: Modifier = Modifier) {
  * 좌석 점유 신호(TripSignalProvider.partySize)를 인원 수로만 쓴다. 좌석별·누가 탔는지 표시 금지
  * (04문서 화면 4 금지 항목). N 이 null 이면 문장 전체를 숨긴다(안 읽히면 숨김 원칙).
  *
+ * B4(2026-11-11): 문장 옆 작은 '접어 두기' 버튼(정차 화면 전용). 누르면 [onFold] →
+ * POST /v1/families/me/folded-places 가 호출되고 이 장소에서만 문장이 다시 나오지 않는다
+ * (다른 장소 무영향 — 서버 folded_place_ids 가 보장). [comparisonFolded]=true(이 장소 접힘 또는
+ * 가족 설정 fold_person_comparison_all)면 문장 자체를 그리지 않는다. then-now 조회 실패면
+ * 호출부가 showFoldButton=false 로 넘겨 버튼만 숨기고 문장은 기존대로(계약).
+ *
  * @param todayCount 좌석 점유에서 환산한 오늘 인원. null = 신호 없음 → 숨김.
  * @param thenCount  시드 party_size(예: 5). null 이면 비교 대상이 없어 문장을 숨긴다.
+ * @param comparisonFolded 이 장소(또는 전역 설정)로 문장이 접혀 있으면 true → 문장·버튼 모두 숨김.
+ * @param showFoldButton 접기 버튼 표시(then-now 조회 성공 + 전역 설정 아님). 기본 false —
+ *                       상태를 못 읽은 기존 호출부는 버튼 없이 기존 동작 그대로다.
+ * @param onFold     접기 버튼 처리(POST folded-places → 로컬 상태 갱신은 ParkedScreen 이 담당).
  */
 @Composable
-internal fun PartySizeLine(todayCount: Int?, thenCount: Int?, modifier: Modifier = Modifier) {
-    if (todayCount == null || thenCount == null) return // 문장 숨김
-    Text(
-        text = stringResource(R.string.parked_party_line, todayCount, thenCount),
+internal fun PartySizeLine(
+    todayCount: Int?,
+    thenCount: Int?,
+    comparisonFolded: Boolean = false,
+    showFoldButton: Boolean = false,
+    onFold: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
+) {
+    if (todayCount == null || thenCount == null) return // 문장 숨김(안 읽히면 숨김)
+    if (comparisonFolded) return // B4: 접힘 — 이 장소에서 문장 다시 안 나옴(전역 설정 포함)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
         modifier = modifier.fillMaxWidth(),
-        style = AroTextStyles.bodySmall,
-        color = MaterialTheme.aroColors.textPrimary,
-        maxLines = 2,
-    )
+    ) {
+        Text(
+            text = stringResource(R.string.parked_party_line, todayCount, thenCount),
+            modifier = Modifier.weight(1f),
+            style = AroTextStyles.bodySmall,
+            color = MaterialTheme.aroColors.textPrimary,
+            maxLines = 2,
+        )
+        if (showFoldButton && onFold != null) {
+            // 작은 보조 버튼 — 정차 화면 전용. 주요 버튼(76dp+)이 아닌 보조 조작 칸(탭 내비와 같은 높이).
+            androidx.compose.foundation.layout.Box(
+                modifier = Modifier
+                    .heightIn(min = 48.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { onFold() }
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.party_fold_button),
+                    style = AroTextStyles.label,
+                    color = MaterialTheme.aroColors.textSecondary,
+                    maxLines = 1,
+                )
+            }
+        }
+    }
 }
 
 /**
@@ -317,4 +375,167 @@ object DiagnosticsMetrics {
     /** 마지막 서버 조회 오류 1줄. 없으면 null — '오류 없음'으로 표시한다. */
     fun lastError(context: Context): String? =
         runCatching { prefs(context).getString(KEY_LAST_ERROR, null) }.getOrNull()
+}
+
+// ── E2(2026-11-11): '그때와 지금' 서버 실데이터 표시(GET /v1/places/{id}/then-now) ──
+// ParkedScreen 이 apiClient.getPlaceThenNow 원본 JSON 을 파싱해 [ServerThenNowInfo] 로 만들어
+// 넘기면, 이 파일은 그 값을 그리는 일만 한다(조회·파싱은 ParkedScreen, 표시는 이 파일 — 역할 분리).
+
+/**
+ * 서버 then-now 응답에서 화면에 필요한 값만 뽑아 담는 표시 모델.
+ * ParkedScreen.parseThenNowServerData 가 만들고 ThenNowStep 이 그린다. 어디에도 저장하지 않는다.
+ *
+ * @property past 서버의 과거 기록. null = 서버가 '과거 없음'(첫 방문)이라 답한 것 —
+ *                예시(시드) 대신 첫 방문 문구를 보인다(02문서 4절 우선순위: 서버 past > 시드 예시 > 첫 방문).
+ * @property nowPartySize 이번 방문 기록의 인원(now.party_size). 없으면 null → 줄 숨김(04문서 화면 4).
+ * @property nowTripKm 이번 방문(코스) 주행거리(now.trip_km). 없으면 null → 줄 숨김.
+ * @property visitOrdinal 이번 방문이 가족·장소 기준 몇 번째인지(1=첫 방문). 없으면 null.
+ */
+internal data class ServerThenNowInfo(
+    val past: ThenNowServerPast?,
+    val nowPartySize: Int?,
+    val nowTripKm: Double?,
+    val visitOrdinal: Int?,
+)
+
+/** 서버 과거 기록 표시값 묶음('그때' 카드 한 장분). 연도는 서버 year 가 진짜(00문서 10.4). */
+internal data class ThenNowServerPast(
+    val year: Int,
+    val yearsAgo: Int,
+    val note: String?,
+    /** /uploads/... 상대경로 또는 절대 URL. null·빈값이면 사진 칸 없이 글만 표시한다. */
+    val photoUrl: String?,
+    val partySize: Int?,
+    val vehicleLabel: String?,
+    /** memory(가족이 남긴 기억) | visit(앱 자동 기록). 화면 표기에는 아직 쓰지 않고 보관만 한다. */
+    val kind: String?,
+)
+
+/**
+ * 서버 사진·요청에 쓰는 서버 주소. ApiClient 의 baseUrl 은 private 라 읽을 수 없어 같은 기본값을
+ * 상수로 둔다(에뮬레이터에서 호스트 머신 루프백). photo_url 이 /uploads/... 상대경로로 올 때만
+ * 이 주소와 합치고, http(s) 로 시작하는 절대 URL 이면 그 값을 그대로 쓴다(방어).
+ */
+internal const val THEN_NOW_SERVER_BASE = "http://10.0.2.2:8000"
+
+/** photo_url(상대경로 또는 절대 URL)을 이미지 로드용 절대 URL 로 바꾼다. */
+internal fun resolveServerPhotoUrl(photoUrl: String): String {
+    if (photoUrl.startsWith("http://") || photoUrl.startsWith("https://")) return photoUrl
+    val base = THEN_NOW_SERVER_BASE.trimEnd('/')
+    return if (photoUrl.startsWith("/")) base + photoUrl else "$base/$photoUrl"
+}
+
+/**
+ * E2: 서버 사진 한 장(photo_url — /uploads/... 상대경로)을 네트워크로 내려 그린다.
+ * 이미지 라이브러리(Coil 등)를 쓰지 않는다 — ApiClient 와 같은 표준 HttpURLConnection.
+ *  - 로드 중: 기존 '사진 자리' 박스(예시 경로의 then_placeholder 자리와 같은 모양).
+ *  - 실패: 사진 칸을 통째로 그리지 않고 글만 남긴다(계약 — 조용히 흡수, Log 없음).
+ *  - 서버가 5MB 를 넘는 업로드를 검증하므로, 클라이언트는 알려진 크기 10MB 초과만 거부한다(방어).
+ * 애니메이션 없음.
+ */
+@Composable
+internal fun ThenNetworkPhoto(photoUrl: String, modifier: Modifier = Modifier) {
+    var bitmap by remember(photoUrl) { mutableStateOf<ImageBitmap?>(null) }
+    var failed by remember(photoUrl) { mutableStateOf(false) }
+    LaunchedEffect(photoUrl) {
+        val bmp = runCatching {
+            withContext(Dispatchers.IO) { downloadBitmap(resolveServerPhotoUrl(photoUrl)) }
+        }.getOrNull()
+        if (bmp != null) bitmap = bmp else failed = true
+    }
+    val loaded = bitmap
+    when {
+        loaded != null -> Image(
+            bitmap = loaded,
+            contentDescription = null,
+            modifier = modifier
+                .fillMaxWidth()
+                .height(140.dp)
+                .clip(RoundedCornerShape(8.dp)),
+            contentScale = ContentScale.Crop,
+        )
+        // 실패 확정 전(로드 중)은 자리표시자 박스 — 실패 확정 후엔 아무것도 그리지 않는다(글만).
+        !failed -> Box(
+            modifier = modifier
+                .fillMaxWidth()
+                .height(140.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(MaterialTheme.aroColors.surfaceLow),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = stringResource(R.string.parked_photo_placeholder),
+                style = AroTextStyles.label,
+                color = MaterialTheme.aroColors.textQuaternary,
+            )
+        }
+    }
+}
+
+/** HttpURLConnection 으로 이미지를 내려받아 디코딩한다. 실패는 null — 호출측 runCatching 이 흡수. */
+private fun downloadBitmap(url: String): ImageBitmap? {
+    val conn = URL(url).openConnection() as HttpURLConnection
+    try {
+        conn.connectTimeout = 3_000 // 조회 규정과 같은 3초(00문서 — 서버 조회 타임아웃).
+        conn.readTimeout = 3_000
+        conn.useCaches = true
+        if (conn.responseCode !in 200..299) return null
+        // 서버가 알려 주는 크기가 10MB 를 넘으면 읽지 않는다(모르면 -1 → 통과).
+        if (conn.contentLengthLong > 10_000_000L) return null
+        val bytes = conn.inputStream.use { it.readBytes() }
+        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+    } finally {
+        conn.disconnect()
+    }
+}
+
+/**
+ * '그때와 지금' 카드 아래 점선 보강 묶음(T6-1·T6-2·T9-2·T9-3) — 예시(시드) 경로와 서버 경로가
+ * 같은 구성을 공유한다. 각 줄은 값이 없으면 스스로 숨는다("안 읽히면 숨김" 원칙).
+ *
+ * @param familyYear 우리 가족의 '그때' 연도(서버 past.year 또는 시드 demo.year). null 이면 유물 쪽만 표시.
+ * @param thenCount  그때 인원(서버 party_size 또는 시드 partySize). null 이면 인원 문장을 숨긴다.
+ * @param todayCount 좌석 점유에서 환산한 오늘 인원(TripSession). null 이면 인원 문장을 숨긴다.
+ */
+@Composable
+internal fun ThenNowExtrasColumn(
+    place: Place?,
+    familyYear: Int?,
+    thenCount: Int?,
+    todayCount: Int?,
+    comparisonFolded: Boolean,
+    showFoldButton: Boolean,
+    onFold: () -> Unit,
+    voiceLetter: VoiceLetter?,
+    voiceLetterPlayer: VoiceLetterPlayer?,
+    seatTags: Map<String, String>?,
+    seatAuthError: Boolean,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        // ① 유물×가족 타임라인 한 줄(정적). heritage 가 파싱되지 않은 장소면 숨는다.
+        HeritageTimelineLine(heritage = place?.heritage, familyYear = familyYear)
+        // ② 인원 문장 — 인원 수만(좌석별·누가 탔는지 표시 금지). 옆 작은 '접어 두기' 버튼(B4).
+        PartySizeLine(
+            todayCount = todayCount,
+            thenCount = thenCount,
+            comparisonFolded = comparisonFolded,
+            showFoldButton = showFoldButton,
+            onFold = onFold,
+        )
+        // ③ 음성 편지(예시) — 정차 화면 전용. 주행 전환 시 ParkedActivity.onPause 에서 재생 중단.
+        SectionCard { VoiceLetterCard(letter = voiceLetter, player = voiceLetterPlayer) }
+        // ④ 자리 이름표(T9-3) — 세션 없음·조회 실패면 숨김, 401/403 만 작은 안내 한 줄.
+        if (seatAuthError && seatTags.isNullOrEmpty()) {
+            SectionCard {
+                Text(
+                    text = stringResource(R.string.parked_seat_names_auth_error),
+                    style = AroTextStyles.bodySmall,
+                    color = MaterialTheme.aroColors.textTertiary,
+                    maxLines = 1,
+                )
+            }
+        } else {
+            SeatNameTags(seatTags = seatTags)
+        }
+    }
 }

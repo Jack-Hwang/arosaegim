@@ -27,13 +27,14 @@ app.add_middleware(
 
 install_error_handlers(app)
 
-# 라우터 등록 (02문서 8절 파일 구조)
+# 라우터 등록 (02문서 8절 파일 구조 + 기획서 v10 B2·B3 preferences)
 from .routers import (  # noqa: E402
-    courses, families, members, memories, metrics, places, points, rewards, stamps, visits,
+    courses, families, members, memories, metrics, places, points, preferences, rewards, stamps, visits,
 )
 
 for r in (families.router, courses.router, places.router, visits.router, memories.router,
-          rewards.router, members.router, stamps.router, points.router, metrics.router):
+          rewards.router, members.router, stamps.router, points.router, metrics.router,
+          preferences.router):
     app.include_router(r)
 
 

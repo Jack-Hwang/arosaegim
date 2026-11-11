@@ -18,7 +18,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 /**
  * 여행 세션(T5) — 도착 → 스탬프 → 기록 → 음성 → 다음 목표 감시의 한 바퀴를 묶는다.
@@ -49,6 +51,12 @@ import kotlinx.coroutines.launch
  *  - start() 시 partySize() 도 조회해 노출하고(T6-2), 매 도착 시점에 다시 조회해 갱신한다 —
  *    좌석 점유는 여정 중 변할 수 있다(중간 탑승·하차). 재조회 실패 시 기존 값을 유지한다.
  *    (좌석 점유 합계 — 사람 식별 정보 없음.)
+ *
+ * E1 재정합(2026-11-11 서버 실측): 도착 기록을 서버에 보낼 때 PIN([pinProvider])과 코스 주행
+ * 식별자([courseRunId])를 함께 넘긴다. PIN 은 세션 메모리에서만 읽고 어디에도 저장하지 않는다
+ * (00문서 10.6). courseRunId 는 start() 때 1회 발급해 도착마다 course_run_id 로 실린다 —
+ * 서버가 '같은 코스 주행의 거리를 한 번만 합산'하는 기준키이며, 세션 재시작(새 start)마다
+ * 새 값이 되어 재시작 앞뒤 주행이 한 주행으로 뭉개지지 않는다.
  */
 class TripSession(
     val course: Course,
@@ -62,6 +70,12 @@ class TripSession(
     // T5-1·T6-2: 차량 신호(없으면 null). public val — 진단 화면(DiagnosticsViewModel)이
     // tripSignals?.partySize() / tripSignals?.odometerKm() 로 U11·U13 스모크 조회를 한다.
     val tripSignals: TripSignalProvider? = null,
+    // E1: 전송 시점의 세션 PIN 공급자(예: { familySessionStore.pinOrNull() }). 메모리 전용 —
+    // 저장·로그 금지(00문서 10.6). 기본 null 공급자라 기존 호출부는 그대로 컴파일된다.
+    private val pinProvider: () -> String? = { null },
+    // A7: 늦은 초기화 전환 신호 — SwitchableRouteService 가 Fake→Pleos 로 갈아끼워졌을 때
+    // true 가 되는 StateFlow(없으면 null). true 로 바뀌는 순간 현재 목표의 경로를 다시 요청한다.
+    private val routeBecameReady: StateFlow<Boolean>? = null,
 ) {
 
     /** 진행 상태 계산(다음 목표·완주)과 스탬프 규칙(장소당 1회·순서)은 도메인에 위임한다. */
@@ -95,6 +109,13 @@ class TripSession(
     /** T5-1 스냅샷: 코스 시작 시점의 주행거리계 값. null 이면 아직 읽지 못한(또는 미지원) 상태다. */
     private var startOdometerKm: Double? = null
 
+    /**
+     * E1: 이 코스 주행(start 1회)의 식별자. start() 가 실제로 시작될 때마다 새로 발급하므로
+     * 세션 재시작(resetCourse·재진입) 시 새 값이 된다 — 서버가 같은 주행의 거리를 한 번만
+     * 합산하는 기준키다. 도착마다 큐 enqueue 를 통해 course_run_id 로 전송된다.
+     */
+    private var courseRunId: String = UUID.randomUUID().toString()
+
     /** arrivals 수집 Job 묶음. stop() 시 취소하고, start() 로 다시 만든다. */
     private var collectJobs: List<Job> = emptyList()
 
@@ -112,6 +133,8 @@ class TripSession(
     /** 세션 시작: arrivals 수집을 시작하고 현재 목표 감시를 등록한다. 중복 호출은 무시한다. */
     fun start() {
         if (collectJobs.isNotEmpty()) return // 이미 수집 중
+        // E1: 실제로 새로 시작하는 시작마다 새 주행 식별자를 발급한다(재시작 = 새 주행).
+        courseRunId = UUID.randomUUID().toString()
         collectJobs = buildList {
             add(scope.launch { fusedArrival.arrivals.collect { onArrival(it) } })
             manualArrival?.let { manual ->
@@ -131,9 +154,29 @@ class TripSession(
                     },
                 )
             }
+            // A7: 늦은 초기화 전환 감시 — SwitchableRouteService 가 Fake→Pleos 로 전환되어
+            // routeBecameReady 가 false→true 가 되는 순간, 진행 중인 현재 목표의 경로를 다시
+            // 요청한다. 시작 요청(E5)이 Fake 로 갔다면 실제 내비는 그 목표를 모르므로, 실제
+            // 구현이 준비된 시점에 한 번 더 요청해야 첫 구간 안내가 이어진다. 이미 준비 상태로
+            // 시작했다면 E5 의 시작 요청 1회로 충분 — 중복 재요청하지 않는다.
+            routeBecameReady?.let { ready ->
+                add(
+                    scope.launch {
+                        if (!ready.value) {
+                            ready.first { it }
+                            _currentTarget.value?.let { requestRouteFor(it) }
+                        }
+                    },
+                )
+            }
         }
         // 코스 완주 전이면 지금 목표부터 감시한다(재시작·재진입 모두 커버).
         progress.currentTarget?.let { fusedArrival.watch(it) }
+
+        // E5: 첫 목표에도 내비 경로를 요청한다. 기존에는 목표가 '바뀔 때'만 요청해서 시작 직후의
+        // 첫 구간 안내가 빠졌다. 재시작·중간 재진입으로 이미 진행 중인 목표도 여기서 1회 요청되고
+        // (요청이 겹쳐도 내비가 같은 목적지를 재계산할 뿐 — 무해), 완주 상태(목표 null)면 생략한다.
+        progress.currentTarget?.let { requestRouteFor(it) }
 
         // T5-1: 코스 시작 시 주행거리계를 한 번 기억한다. 스냅샷이 이미 있으면(중간 재진입)
         // 다시 읽지 않는다 — 중간에 읽으면 완주 차이가 잘못 나온다.
@@ -210,9 +253,16 @@ class TripSession(
         visitStore.append(visit)
 
         // (4b) T8: 같은 기록을 오프라인 큐에 적재하고 즉시 전송을 시도한다(offline-first).
-        // flush 실패(서버 없음·네트워크 오류)는 조용히 — 기록은 큐에 남아 다음 flush 기회에
-        // 재전송된다(02문서 4절). 화면에는 안내 한 줄만 남긴다. familyCode 는 T9-1 연동 전까지 null.
-        visitQueue?.enqueue(visit, familyCode = null)
+        // flush 실패(서버 없음·네트워크 오류·PIN 미입력)는 조용히 — 기록은 큐에 남아 다음 flush
+        // 기회에 재전송된다(02문서 4절). 화면에는 안내 한 줄만 남긴다.
+        // E1: 서버 계약에 맞춘 코스 주행 식별자(course_run_id)와 세션 PIN(메모리 전용 — 저장
+        // 금지, 00문서 10.6)을 함께 넘긴다. PIN 은 전송(flush) 순간에만 쓰이고 파일에 남지 않는다.
+        visitQueue?.enqueue(
+            visit,
+            familyCode = null,
+            courseRunId = courseRunId,
+            pin = pinProvider(),
+        )
         scope.launch {
             val sent = visitQueue?.flush()
             if (sent?.isFailure == true) {

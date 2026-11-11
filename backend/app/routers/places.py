@@ -1,6 +1,7 @@
-# 장소 API (02문서 3·6-2·10절).
+# 장소 API (02문서 3·6-2·10절 + 기획서 v10 B1~B3·B5).
 # - GET /v1/places/{id}      : 장소 상세(퀴즈·유산 정보 포함) — 공개
 # - GET /v1/places/{id}/then-now : 그때와 지금 — 가족 코드만 필요(PIN 목록 밖의 GET)
+# - GET /v1/families/me/then-now/{place_id} : 위와 동일 응답의 계약 별칭 경로(기획서 v10)
 # - GET /v1/places/{id}/partners : 제휴처(적립률) — 공개(가족 데이터 아님)
 # - GET /v1/places/{id}/voice-letters : 예시 음성 편지 메타데이터(시드) — 공개
 from datetime import datetime
@@ -11,7 +12,7 @@ from .. import config, db
 from ..errors import AppError
 from ..models import HeritageOut, PlaceOut, QuizOut, ThenNowResponse
 from ..security import require_family_code_only
-from ..services import then_now as then_now_svc
+from ..services import family_prefs, summary, then_now as then_now_svc
 
 router = APIRouter()
 
@@ -71,52 +72,59 @@ def get_place(place_id: str):
     return place
 
 
-@router.get("/v1/places/{place_id}/then-now", response_model=ThenNowResponse)
-def get_then_now(place_id: str, family: dict = Depends(require_family_code_only)):
-    """그때와 지금. past는 같은 가족·같은 장소의 가장 오래된 기억(memory),
-    없으면 이전 방문(visit). years_ago는 서버가 계산한다(02문서 6-2).
-    02문서 10절: party_size·trip_km·heritage를 함께 돌려준다(없으면 null)."""
+def _then_now_response(family_code: str, place_id: str) -> ThenNowResponse:
+    """then-now 응답 조립 (기획서 v10 B1~B3·B5 필드 포함).
+    GET /v1/places/{place_id}/then-now 와 계약 별칭
+    GET /v1/families/me/then-now/{place_id} 가 함께 쓴다."""
     with db.connect() as conn:
         place_row = conn.execute("SELECT * FROM places WHERE id = ?", (place_id,)).fetchone()
         if place_row is None:
             raise AppError(404, "place_not_found", "존재하지 않는 장소입니다")
         place = dict(place_row)
-        memories = [
-            dict(r)
-            for r in conn.execute(
-                "SELECT year, note, photo_path, party_size, vehicle_label, created_at FROM memories"
-                " WHERE family_code = ? AND place_id = ?",
-                (family["code"], place_id),
-            ).fetchall()
-        ]
         visits = [
             dict(r)
             for r in conn.execute(
-                "SELECT place_id, visited_at, vehicle_label, party_size, trip_km FROM visits"
-                " WHERE family_code = ? AND place_id = ? ORDER BY visited_at DESC",
-                (family["code"], place_id),
+                "SELECT id, place_id, visited_at, vehicle_label, party_size, trip_km FROM visits"
+                " WHERE family_code = ? AND place_id = ? ORDER BY visited_at DESC, id DESC",
+                (family_code, place_id),
             ).fetchall()
         ]
-    if not visits:
-        # 방문 기록이 없으면 '지금'도 없다.
-        return ThenNowResponse(place_id=place_id, past=None, now=None, heritage=None)
-    now_visit = visits[0]  # 최신 방문
-    earlier = [v for v in visits[1:]]
-    heritage = None
-    if place.get("heritage_name"):
-        heritage = {
-            "name": place["heritage_name"],
-            "year": place.get("heritage_year"),
-            "label": place.get("heritage_label"),
+        extras = summary.then_now_body(conn, family_code, place, visits[0]) if visits else {
+            # 방문 기록이 없으면 '지금'도 없다 — 설정·접기만 정직하게 실어 보낸다.
+            "fold_person_comparison_all": family_prefs.get_fold_person_all(conn, family_code),
+            "folded": place_id in family_prefs.folded_place_ids(conn, family_code),
         }
+    if not visits:
+        return ThenNowResponse(
+            place_id=place_id, past=None, now=None, heritage=None,
+            visit_ordinal=None, past_visit_count=0, **extras,
+        )
     body = then_now_svc.resolve_then_now(
-        memories=memories,
-        earlier_visits=earlier,
-        now_visit=now_visit,
+        memories=extras.pop("memories"),
+        earlier_visits=extras.pop("earlier_visits"),
+        heritage=extras.pop("heritage"),
+        now_visit=visits[0],  # 최신 방문
         current_year=datetime.now().year,
-        heritage=heritage,
+        **extras,
     )
     return ThenNowResponse(**body)
+
+
+@router.get("/v1/places/{place_id}/then-now", response_model=ThenNowResponse)
+def get_then_now(place_id: str, family: dict = Depends(require_family_code_only)):
+    """그때와 지금. past는 같은 가족·같은 장소의 가장 오래된 기억(memory),
+    없으면 이전 방문(visit). years_ago는 서버가 계산한다(02문서 6-2).
+    02문서 10절: party_size·trip_km·heritage를 함께 돌려준다(없으면 null).
+    기획서 v10 B1~B3: visit_ordinal·past_visit_count·fold_person_comparison_all·folded,
+    B5: 과거가 기억(사진)이면 인물 이름표(markers)를 실어 보낸다."""
+    return _then_now_response(family["code"], place_id)
+
+
+@router.get("/v1/families/me/then-now/{place_id}", response_model=ThenNowResponse)
+def get_then_now_family_alias(place_id: str, family: dict = Depends(require_family_code_only)):
+    """그때와 지금 — 기획서 v10 계약 별칭 경로. /v1/places/{place_id}/then-now 와
+    완전히 같은 응답 본문을 돌려준다(then-now 계열 GET은 PIN 없이 가족 코드만 확인한다)."""
+    return _then_now_response(family["code"], place_id)
 
 
 def _voice_letter_demo(conn, place_id: str) -> list[dict]:

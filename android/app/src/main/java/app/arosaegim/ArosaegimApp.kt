@@ -20,7 +20,9 @@ class ArosaegimApp : Application() {
     override fun onCreate() {
         super.onCreate()
         // AppContainer 생성은 메인 스레드 규약(UxRestrictions start, SDK 초기화)을 지키기 위해
-        // 여기서 수행한다. 포트당 최대 1.5초의 초기화 대기가 발생할 수 있다(AppContainer 주석 참조).
+        // 여기서 수행한다. 콜드 스타트 교착 수정(2026-11-11): SDK 초기화 콜백에 대한 runBlocking
+        // 대기는 더 이상 없다 — onCreate 는 SDK 응답과 무관하게 즉시 끝나고, 늦은 초기화 성공은
+        // 일방향 업그레이드(SwitchableRouteService·SwitchableNarrator)가 뒤따라 처리한다.
         container = AppContainer(this)
         modeRouter = ModeRouter(this)
         // PARKED/DRIVING 상태 변화 → 해당 화면을 REORDER_TO_FRONT 로 최상단화(앱 수명 동안 1회 묶음).

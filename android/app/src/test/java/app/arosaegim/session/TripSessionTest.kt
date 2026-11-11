@@ -124,13 +124,24 @@ class TripSessionTest {
     private class RecordingVisitQueue :
         VisitQueue(newTempFile(), ApiClient(baseUrl = "http://localhost:0")) {
         val enqueued = mutableListOf<LocalVisit>()
+
+        /** E1: 세션이 enqueue 에 건네준 course_run_id·pin 기록(공백 여부만 검증한다). */
+        val courseRunIds = mutableListOf<String?>()
+        val pins = mutableListOf<String?>()
         var flushCalls = 0
 
         private val _pending = MutableStateFlow(0)
         override val pendingCount: StateFlow<Int> = _pending.asStateFlow()
 
-        override fun enqueue(visit: LocalVisit, familyCode: String?) {
+        override fun enqueue(
+            visit: LocalVisit,
+            familyCode: String?,
+            courseRunId: String?,
+            pin: String?,
+        ) {
             enqueued.add(visit)
+            courseRunIds.add(courseRunId)
+            pins.add(pin)
             _pending.value = enqueued.size
         }
 
@@ -185,6 +196,7 @@ class TripSessionTest {
         val route: RouteService? = null,
         val queue: VisitQueue? = null,
         val signals: TripSignalProvider? = null,
+        routeReady: StateFlow<Boolean>? = null, // A7: 늦은 초기화 전환 신호(없으면 null).
     ) {
         val fused = FakeArrivalDetector()
         val manual = FakeArrivalDetector()
@@ -200,6 +212,7 @@ class TripSessionTest {
             routeService = route, // T7 — null 이면 기존 동작만 한다.
             visitQueue = queue, // T8 — null 이면 기존 동작만 한다.
             tripSignals = signals, // T5-1·T6-2 — null 이면 기존 동작만 한다(기존 테스트 호환).
+            routeBecameReady = routeReady, // A7 — null 이면 기존 동작만 한다.
         )
 
         init {
@@ -321,6 +334,11 @@ class TripSessionTest {
         assertEquals("p1", queue.enqueued[0].placeId)
         assertEquals("course-test", queue.enqueued[0].courseId)
         assertEquals("fused", queue.enqueued[0].source)
+        // E1: 코스 주행 식별자(course_run_id)는 매 start 마다 새로 발급되어 도착마다 실린다.
+        assertTrue(
+            "코스 주행 식별자가 enqueue 로 전달된다",
+            !queue.courseRunIds[0].isNullOrBlank(),
+        )
         assertTrue("전송(flush) 시도가 있었다", queue.flushCalls >= 1)
         // offline-first: flush 실패(서버 없음 가정)여도 기록은 큐에 남아 재전송 대기한다.
         assertEquals("전송 실패 시 큐에 유지", 1, queue.pendingCount.value)
@@ -329,23 +347,24 @@ class TripSessionTest {
     }
 
     @Test
-    fun `7_routeService_주입시 목표가 바뀔 때마다 startRoute를 호출한다`() = runBlocking {
+    fun `7_routeService_주입시 시작 목표와 바뀐 목표마다 startRoute를 호출한다`() = runBlocking {
         val route = RecordingRouteService()
         val f = Fixture(course(), route = route)
 
-        assertEquals("세션 시작 직후엔 목표 변화가 없어 호출 없음", 0, route.requested.size)
+        // E5: 세션 시작 — 첫 목표 p1 로 1회 호출된다(기존에는 시작 직후 호출이 없었다).
+        assertEquals("시작하면 첫 목표 1회 호출", listOf("p1"), route.requested)
 
         f.fused.emit("p1")
-        awaitUntil { route.requested.size == 1 }
-        assertEquals("p1 → p2 변경 — 새 목표로 요청", listOf("p2"), route.requested)
+        awaitUntil { route.requested.size == 2 }
+        assertEquals("p1 → p2 변경 — 새 목표로 요청", listOf("p1", "p2"), route.requested)
 
         f.fused.emit("p2")
-        awaitUntil { route.requested.size == 2 }
-        assertEquals("p2 → p3 변경", listOf("p2", "p3"), route.requested)
+        awaitUntil { route.requested.size == 3 }
+        assertEquals("p2 → p3 변경", listOf("p1", "p2", "p3"), route.requested)
 
         f.fused.emit("p3")
         awaitUntil { f.session.isCompleted.value }
-        assertEquals("완주 후 목표 null — 추가 요청 없음", 2, route.requested.size)
+        assertEquals("완주 후 목표 null — 추가 요청 없음", 3, route.requested.size)
     }
 
     @Test
@@ -403,6 +422,31 @@ class TripSessionTest {
         assertNull("인원을 못 읽으면 null", f2.session.partySize.value)
         completeAll(f2)
         assertNull("완주 조회가 null 이면 tripKm 도 null", f2.session.tripKm.value)
+    }
+
+    @Test
+    fun `11_경로가 늦게 준비되면 전환 시점에 현재 목표를 다시 요청한다`() = runBlocking {
+        // (a) 준비 안 된 상태로 시작 → 늦은 전환(false→true) 시 현재 목표(p2) 재요청.
+        val route = RecordingRouteService()
+        val ready = MutableStateFlow(false)
+        val f = Fixture(course(), route = route, routeReady = ready)
+
+        assertEquals("시작 요청(E5) 1회", listOf("p1"), route.requested)
+
+        f.fused.emit("p1")
+        awaitUntil { route.requested.size == 2 } // p1 도착 → 목표 p2 로 변경 요청.
+        assertEquals(listOf("p1", "p2"), route.requested)
+
+        ready.value = true // A7: 늦은 초기화 전환 — 진행 중인 현재 목표(p2)를 다시 요청한다.
+        awaitUntil { route.requested.size == 3 }
+        assertEquals("전환 시 현재 목표 p2 재요청", listOf("p1", "p2", "p2"), route.requested)
+        assertEquals("주행 진행은 영향 없음", 1, f.session.stampedCount.value)
+
+        // (b) 이미 준비 상태(true)로 시작 — 시작 요청 1회로 충분, 중복 재요청이 없어야 한다.
+        val route2 = RecordingRouteService()
+        val f2 = Fixture(course(), route = route2, routeReady = MutableStateFlow(true))
+        delay(50)
+        assertEquals("준비 상태로 시작 — 시작 요청 1회만", listOf("p1"), route2.requested)
     }
 }
 
