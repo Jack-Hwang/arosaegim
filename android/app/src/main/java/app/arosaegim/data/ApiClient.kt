@@ -76,6 +76,19 @@ class AuthException(message: String) : Exception(message)
 class OwnerRequiredException(message: String) : Exception(message)
 
 /**
+ * PUT /v1/families/me/prefs 요청 몸체(B4 — 인원 비교 문장 접어 두기, 2026-11-11).
+ *
+ * 서버 계약(PUT 은 '전체 교체'): 보내지 않은 필드는 서버 초기값(빈 목록·false)으로 저장되므로
+ * 항상 두 필드를 모두 실어 보낸다. 그래서 기본값을 두지 않는다 — wireJson(encodeDefaults=false)
+ * 로도 빈 목록·false 가 몸체에서 빠지지 않게 한다.
+ */
+@Serializable
+private data class PartyLinePrefsBody(
+    @SerialName("party_line_hidden_places") val hiddenPlaceIds: List<String>,
+    @SerialName("party_line_all_hidden") val allHidden: Boolean,
+)
+
+/**
  * 아로새김 백엔드 클라이언트(T8) — java.net.HttpURLConnection 기반.
  *
  * 설계 의도(02문서 4절 offline-first):
@@ -253,6 +266,39 @@ open class ApiClient(private val baseUrl: String = "http://10.0.2.2:8000") {
         postJson("/v1/families/me/folded-places", familyCode, pin, foldedPlaceRequestBody(placeId))
 
     /**
+     * GET /v1/families/me/prefs — 인원 비교 문장 접기 설정 조회(B4, PIN 필요).
+     * 계약 응답: {"party_line_hidden_places": ["gj-museum", …], "party_line_all_hidden": false}.
+     * 저장 행이 없어도 서버가 이 초기값(빈 목록·false)으로 답한다. 파싱은 호출부 몫
+     * (ui.parked.parsePartyLinePrefs). 호출 실패(백엔드 미착지·네트워크)면 호출부가
+     * 로컬 SharedPreferences 폴백으로 전환한다(계약 — ui.parked.PartyFoldLocalStore).
+     */
+    open suspend fun getPrefs(familyCode: String?, pin: String?): Result<String> =
+        getJson("/v1/families/me/prefs", familyCode, pin)
+
+    /**
+     * PUT /v1/families/me/prefs — 인원 비교 문장 접기 설정 저장(B4, PIN 필요).
+     * PUT 은 '전체 교체'다 — 현재 값 전체(접힌 장소 목록 + 전체 끄기 플래그)를 항상 두 필드에
+     * 담아 보낸다([PartyLinePrefsBody]). 서버가 같은 동작의 POST 별칭(/v1/families/me/prefs)도
+     * 제공하지만 계약 이름은 PUT 이다. 401·403 은 AuthException(가족 인증 — owner 전용 아님).
+     *
+     * @param hiddenPlaceIds 문장을 접어 둔 장소 id 전체(이 장소를 합친 목록 — 호출부 조립).
+     * @param allHidden      모든 장소에서 문장을 끄는 가족 설정(웹 가족 관리의 스위치 값).
+     */
+    open suspend fun putPrefs(
+        familyCode: String?,
+        pin: String?,
+        hiddenPlaceIds: List<String>,
+        allHidden: Boolean,
+    ): Result<String> =
+        bodyJson(
+            "PUT",
+            "/v1/families/me/prefs",
+            familyCode,
+            pin,
+            json.encodeToString(PartyLinePrefsBody(hiddenPlaceIds, allHidden)),
+        )
+
+    /**
      * GET /v1/places/{id}/then-now — 장소 단위 그때와 지금 원본(E2·2026-11-11 신규).
      *
      * 원본 JSON 문자열을 그대로 돌려준다(파싱은 소비자 몫 — 이 파일은 전송 계층만 담당).
@@ -328,14 +374,15 @@ open class ApiClient(private val baseUrl: String = "http://10.0.2.2:8000") {
     }
 
     /**
-     * POST 공용 도우미(2026-11-11 신규 — heir·folded-places). JSON 몸체를 실어 보내고
-     * 2xx 면 원본 응답 문자열을 돌려준다.
+     * 몸체 실어 보내는 공용 도우미(2026-11-11 신규 — heir·folded-places·prefs). JSON 몸체를
+     * 실어 보내고 2xx 면 원본 응답 문자열을 돌려준다. POST(postJson)와 PUT(putPrefs)이 함께 쓴다.
      *  - 401 → AuthException(PIN 재입력 신호 — getJson 과 동일 관례).
      *  - 403 → [ownerOnly] 가 true 면 [OwnerRequiredException](heir 지정은 owner 전용),
      *           false 면 AuthException.
      *  - 그 외 → IOException. 에러 몸체는 읽지 않고 버린다(값 미보존 규칙).
      */
-    private suspend fun postJson(
+    private suspend fun bodyJson(
+        method: String,
         path: String,
         familyCode: String?,
         pin: String?,
@@ -343,7 +390,7 @@ open class ApiClient(private val baseUrl: String = "http://10.0.2.2:8000") {
         ownerOnly: Boolean = false,
     ): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
-            val conn = newConnection("POST", path)
+            val conn = newConnection(method, path)
             try {
                 conn.connectTimeout = CONNECT_TIMEOUT_MS
                 conn.readTimeout = POST_TIMEOUT_MS
@@ -368,7 +415,7 @@ open class ApiClient(private val baseUrl: String = "http://10.0.2.2:8000") {
                 }
                 if (code !in 200..299) {
                     runCatching { conn.errorStream?.close() }
-                    throw IOException("POST $path HTTP $code")
+                    throw IOException("$method $path HTTP $code")
                 }
                 conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
             } finally {
@@ -376,6 +423,15 @@ open class ApiClient(private val baseUrl: String = "http://10.0.2.2:8000") {
             }
         }
     }
+
+    /** POST 몸체 도우미 — [bodyJson] 의 POST 위임(heir·folded-places 기존 호출부 유지용). */
+    private suspend fun postJson(
+        path: String,
+        familyCode: String?,
+        pin: String?,
+        body: String,
+        ownerOnly: Boolean = false,
+    ): Result<String> = bodyJson("POST", path, familyCode, pin, body, ownerOnly)
 
     /** 경로 조각용 인코딩 — 장소 id 는 slug 지만 URL 조립 안전을 위해 한 번 더 감싼다. */
     private fun encodedSegment(segment: String): String =

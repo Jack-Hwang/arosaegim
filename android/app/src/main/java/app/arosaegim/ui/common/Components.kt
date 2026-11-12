@@ -33,7 +33,7 @@ import androidx.compose.ui.unit.sp
  * 안전 규칙(주행 중 사용성, 04문서 2절):
  *  - 버튼 최소 높이는 76dp(04문서 7절 [설계]: 시안 기준 버튼 높이 76 이상).
  *    시선 이동과 오터치를 줄이기 위해 접촉 면적을 넓게 유지한다.
- *  - 본문 기본 글자 크기는 24sp(AroTextStyles.bodySmall 이 본문 하한).
+ *  - 본문 기본 글자 크기는 26sp(AroTextStyles.bodySmall 이 본문 하한).
  *  - 파라미터 텍스트는 maxLines=3 으로 강제 절단한다.
  *    주행 중 긴 텍스트 표시는 금지 — 긴 내용은 정차 화면에서만 노출한다.
  *  - 애니메이션 없음. 색은 MaterialTheme.aroColors 토큰으로만 쓴다(16진수 직접 사용 금지).
@@ -78,7 +78,7 @@ fun LargePrimaryButton(
     }
 }
 
-/** 본문 텍스트(기본 24sp). 한두 줄 안에 읽히는 짧은 문구 전용. */
+/** 본문 텍스트(기본 26sp). 한두 줄 안에 읽히는 짧은 문구 전용. */
 @Composable
 fun BodyText(
     text: String,

@@ -18,23 +18,24 @@ import androidx.compose.ui.graphics.Color
  *  - ⚠ D5 확인 과제(04문서 8절): 에뮬레이터 테마 전환 후 두 테마의
  *    텍스트·아이콘 대비 4.5:1 을 캡처로 실측할 것. 아래 주석의 대비비는 계산값이다.
  *
- * 야간 전환 상태(00문서 12절 T6 — 시안 10 '세로창·야간'):
+ * 야간 전환 상태(00문서 12절 T6 — 시안 10 '세로창·야간'; 2026-11-12 09문서 6번 정정 반영):
  *  - 전환 값은 [ThemeState].isDark(object 홀더 — ThemeState.kt)가 가진다.
- *  - 권장 호출 패턴(각 Activity setContent 안에서):
+ *  - 현재 호출부(DiagnosticsActivity·ParkedActivity·DrivingActivity·StartActivity)는 네 곳 모두
  *        ArosaegimTheme(isDark = ThemeState.isDark) { … }
- *    이렇게 쓰면 ThemeState.isDark 가 바뀔 때 그 Activity 의 전체 토큰이 즉시
- *    다크로 다시 그려진다(Compose 상태 구독).
- *  - ⚠ 현재 호출부(DiagnosticsActivity·ParkedActivity·DrivingActivity·StartActivity)는
- *    별도 통합 작업 소유라 이번 판에 고정 값(false 주간)을 유지한다. 따라서 진단 화면의
- *    "테마(개발)" 토글이 ThemeState.isDark 만 바꿔도 실제 토큰 적용은 호출부가 위 패턴으로
- *    바뀐 뒤, 또는 그 전에는 다음 앱 재시작 때부터다(D5 실측 절차에 이 제한을 기록할 것).
+ *    로 이 상태를 구독한다. 그래서 진단 화면의 "테마(개발)" 토글이 isDark 를 바꾸면 해당
+ *    Activity 의 전체 토큰이 앱 재시작 없이 즉시 다크/주간으로 다시 그려진다(Compose 상태 구독).
+ *  - 자동 전환 정책(09문서 6번·기록 Q12 확정): ThemeState.autoByClock = true 면
+ *    ThemeState.refreshByClock(LocalTime) 이 시간대(밤 19:00~아침 07:00)로 isDark 를 갱신하고
+ *    수동 토글보다 우선한다. 호출부가 refreshByClock 을 주기적으로 불러야 즉시 반영된다 —
+ *    계약·연결 위치는 ThemeState.kt 주석 3~4번을 따른다.
  *
  * 안전 규칙: 동적 컬러(Material You)와 애니메이션을 사용하지 않는다.
  */
 
 /* ------------------------------------------------------------------
  * 매핑 전용 잉크 색 — 토큰 위에 얹히는 대비용 텍스트/스크림.
- * (인주 위 흰 글자 ≈5.7:1, 인주 위 다크 글자 ≈4.8:1)
+ * (라이트 인주 #B3401C 위 흰 글자 ≈5.7:1, 다크 인주 #DF7451 위 다크 글자 ≈6.1:1 —
+ *  다크 쪽은 2026-11-12 stampPoint #D8552B→#DF7451 조정으로 4.8:1에서 올라갔다)
  * ------------------------------------------------------------------ */
 private val InkOnColorDark = Color(0xFF101014)
 private val InkOnColorLight = Color(0xFFFFFFFF)
@@ -67,7 +68,7 @@ val ArosaeError: Color = DarkAroColors.informativeNegative
 private fun aroColorScheme(c: AroColors, isDark: Boolean) = if (isDark) {
     darkColorScheme(
         primary = c.stampPoint,
-        onPrimary = InkOnColorDark, // 인주 위 다크 텍스트 ≈ 4.8:1
+        onPrimary = InkOnColorDark, // 다크 인주(#DF7451) 위 다크 텍스트 ≈ 6.1:1 (2026-11-12 stampPoint 조정 반영)
         primaryContainer = c.surfaceAccent,
         onPrimaryContainer = c.textPrimary,
         secondary = c.buttonFilled,

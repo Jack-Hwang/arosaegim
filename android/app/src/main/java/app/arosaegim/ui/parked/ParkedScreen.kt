@@ -231,6 +231,9 @@ fun ParkedScreen(container: AppContainer, onExitToDriving: () -> Unit) {
     // B2·B4: 이 장소의 then-now 부가 상태(visit_ordinal·folded·fold_person_comparison_all).
     var thenNowState by remember { mutableStateOf<ThenNowPlaceState?>(null) }
 
+    // B4: 가족 prefs(인원 비교 문장 접기 — GET /v1/families/me/prefs). null = 미조회·세션 없음.
+    var partyPrefs by remember { mutableStateOf<PartyLinePrefs?>(null) }
+
     // B3: 가족 누적 거리(metrics.family_total_trip_km). null = 미조회·실패·필드 없음 → 줄 숨김.
     var familyTotalKm by remember { mutableStateOf<Double?>(null) }
 
@@ -244,6 +247,27 @@ fun ParkedScreen(container: AppContainer, onExitToDriving: () -> Unit) {
         container.apiClient.getThenNow(code, pin, placeId).fold(
             onSuccess = { body -> thenNowState = parseThenNowPlaceState(body) },
             onFailure = { thenNowState = null }, // 실패 = 기능 숨김(기존 동작 유지 — 추측 금지).
+        )
+    }
+
+    // B4: 도착 장소가 바뀔 때 가족 prefs(인원 비교 문장 접기)를 조회한다. 세션 없으면 호출하지
+    // 않는다(접기 버튼은 then-now 조회 성공분과 함께만 보인다 — 기존 동작). 서버 조회가 실패하면
+    // (⚠ 병렬 의존: 백엔드 prefs 미착지·네트워크 오류) 로컬 SharedPreferences 폴백으로 전환한다.
+    // 서버 연동이 정착하면 폴백은 실패 때만 읽히고, 서버 값이 있으면 언제나 이긴다
+    // (PartyFoldLocalStore 주석 계약).
+    LaunchedEffect(lastArrival?.id) {
+        partyPrefs = null
+        val placeId = lastArrival?.id ?: return@LaunchedEffect
+        val code = familyStore.familyCode.value
+        val pin = familyStore.pinOrNull()
+        if (code == null || pin == null) return@LaunchedEffect
+        val fromServer = container.apiClient.getPrefs(code, pin).fold(
+            onSuccess = { body -> parsePartyLinePrefs(body) },
+            onFailure = { null }, // 실패 = 로컬 폴백(가짜 서버 값 금지).
+        )
+        partyPrefs = fromServer ?: PartyLinePrefs(
+            hiddenPlaceIds = PartyFoldLocalStore.readFoldedPlaceIds(context),
+            allHidden = PartyFoldLocalStore.readAllHidden(context),
         )
     }
 
@@ -285,7 +309,12 @@ fun ParkedScreen(container: AppContainer, onExitToDriving: () -> Unit) {
         familyRecordFetched = true
         val code = familyStore.familyCode.value
         val pin = familyStore.pinOrNull()
-        if (code == null || pin == null) return@LaunchedEffect // 세션 없음 → 질문·누적 줄 모두 숨김.
+        if (code == null || pin == null) {
+            // 세션 없음 → 서버 조회(heir·구성원·누적 거리)를 생략하고 해당 줄·버튼을 숨긴다.
+            // PIN 없음(차량은 PIN 저장 금지)의 안내 카드 전환은 heirPinGuideVisible 이
+            // 담당한다 — 여기선 조회만 건너뛴다(00문서 T9-3 방식).
+            return@LaunchedEffect
+        }
         container.apiClient.getHeir(code, pin).fold(
             onSuccess = { body -> heirKnownStatus = parseHeirStatus(body) },
             onFailure = { heirKnownStatus = null }, // 조회 실패 = 질문하지 않는다(추측 금지).
@@ -297,6 +326,21 @@ fun ParkedScreen(container: AppContainer, onExitToDriving: () -> Unit) {
         container.apiClient.getMetrics(code, pin).fold(
             onSuccess = { body -> familyTotalKm = parseFamilyTotalTripKm(body) },
             onFailure = { familyTotalKm = null }, // 누적값 없음 → 줄 숨김(가짜 값 금지).
+        )
+    }
+
+    // B3 보완: 완주 이전에 스텝5(오늘의 기록)를 열었을 때도 가족 누적 거리를 물어본다 — 위 조회는
+    // 완주 시 1회라, 코스 도중에 '오늘의 기록 보기'를 누르면 누적 줄이 계속 숨겨진다. 값이 이미
+    // 있으면 재조회하지 않고, 읽지 못하면 줄은 숨은 채(가짜 값 금지 — 계약).
+    LaunchedEffect(CourseStartState.showRecord, isCompleted) {
+        if (!CourseStartState.showRecord || isCompleted) return@LaunchedEffect
+        if (familyTotalKm != null) return@LaunchedEffect
+        val code = familyStore.familyCode.value
+        val pin = familyStore.pinOrNull()
+        if (code == null || pin == null) return@LaunchedEffect
+        container.apiClient.getMetrics(code, pin).fold(
+            onSuccess = { body -> familyTotalKm = parseFamilyTotalTripKm(body) },
+            onFailure = { }, // 실패 → 줄 숨김 유지(조용히 흡수).
         )
     }
 
@@ -314,6 +358,22 @@ fun ParkedScreen(container: AppContainer, onExitToDriving: () -> Unit) {
             membersAvailable = heirCandidates.isNotEmpty(),
         ),
     )
+
+    // B1: PIN 없음 안내 판정(순수 함수 — HeirPinGuideTest). 차량은 PIN 을 저장하지 않아 프로세스
+    // 재시작 후 PIN 이 사라진다(00문서 10.6). 그때는 POST heir 를 부를 수 없으므로 질문 버튼을
+    // 숨기지 말고 '스마트폰의 가족 관리에서 정해 주세요' 안내 카드로 전환한다(계약 — 403 owner
+    // 안내와 같은 안내 문자열을 재용한다). 가족 연결이 없으면 배지 자리도 없어 숨긴다.
+    val heirPinGuideVisible = shouldShowHeirPinGuide(
+        familyConnected = familyStore.familyCode.value != null,
+        hasPin = familyStore.pinOrNull() != null,
+        courseCompleted = isCompleted,
+        driving = drivingStateNow == app.arosaegim.domain.DrivingState.DRIVING,
+        deferredThisCourse = HeirQuestionMemory.isDeferred(course.id),
+    )
+
+    // B4: 이 장소의 인원 비교 문장 접힘 — 가족 prefs(접힘 목록·'모든 장소 끄기'). then-now 응답의
+    // 접기 플래그(기존 경로)와 OR 한다 — 어느 쪽이든 이 장소에서 문장은 다시 나오지 않는다.
+    val partyLineFolded = partyLineHiddenFor(lastArrival?.id, partyPrefs)
 
     // B1: 구성원 선택 → POST heir. 403은 owner 권한 없음(차량 세션의 정상 경로) — 버튼을 숨기지
     // 않고 안내 한 줄만 추가한다. 성공 시 지정 완료 상태로 바꾸고 진단 KPI(물려주기 지정 수)를 올린다.
@@ -342,16 +402,32 @@ fun ParkedScreen(container: AppContainer, onExitToDriving: () -> Unit) {
         }
     }
 
-    // B4: 접기 → POST folded-places. 성공 시에만 이 장소 문장을 숨긴다(실패 시 기존 동작 유지).
+    // B4: 접기 → PUT /v1/families/me/prefs(전체 교체 — 현재 값에 이 장소를 합쳐 두 필드를 모두
+    // 보낸다). 성공 시 응답(저장된 값)으로 상태를 갱신해 이 장소 문장을 즉시 숨긴다. 실패 시
+    // 로컬 폴백(PartyFoldLocalStore — 서버 연동 예정, 위 조회 이펙트 주석 참조)에 남기고
+    // 화면에서는 그래도 즉시 숨긴다. 다른 장소의 접기는 목록에 그대로 있어 영향이 없다(계약).
     fun foldComparison() {
         val placeId = lastArrival?.id ?: return
-        val current = thenNowState ?: return
+        val current = partyPrefs ?: return // prefs 를 못 읽었으면 접지 않는다(추측 금지).
         val code = familyStore.familyCode.value ?: return
         val pin = familyStore.pinOrNull() ?: return
+        val mergedPlaces = partyPrefsPlacesWithPlace(current, placeId)
         scope.launch {
-            container.apiClient.postFoldedPlace(code, pin, placeId).fold(
-                onSuccess = { thenNowState = current.copy(folded = true) },
-                onFailure = { /* 유지 — 문장·버튼은 그대로(조용히 흡수, 로컬 영속 없음) */ },
+            container.apiClient.putPrefs(
+                code,
+                pin,
+                hiddenPlaceIds = mergedPlaces.toList(),
+                allHidden = current.allHidden,
+            ).fold(
+                onSuccess = { body ->
+                    partyPrefs = parsePartyLinePrefs(body)
+                        ?: current.copy(hiddenPlaceIds = mergedPlaces) // 응답이 이상하면 합친값 유지.
+                },
+                onFailure = {
+                    // ⚠ 병렬 의존(백엔드 prefs): 호출 실패 시에만 로컬 폴백 — 서버 연동 예정.
+                    PartyFoldLocalStore.writeFolded(context, placeId)
+                    partyPrefs = current.copy(hiddenPlaceIds = mergedPlaces)
+                },
             )
         }
     }
@@ -438,12 +514,14 @@ fun ParkedScreen(container: AppContainer, onExitToDriving: () -> Unit) {
                         isCompleted = isCompleted,
                         // B3: 가족 누적 거리(0 이하·없음은 null — 줄 숨김).
                         familyTotalKmLabel = familyTotalKm?.let { formatFamilyTotalTripKm(it) },
-                        // B1: 이어받을 사람 질문 카드(가족 배지 다음 1회) — 정책 판정값을 그대로 전달.
-                        heirCardVisible = heirShouldAsk,
+                        // B1: 이어받을 사람 질문 카드(가족 배지 다음 1회) — 정책 판정값을 그대로
+                        // 전달한다. PIN 없음(heirPinGuideVisible)이면 질문 대신 안내 카드로 전환
+                        // (구성원 버튼은 세션 조회분만 — PIN 없으면 빈 목록이라 버튼이 생기지 않는다).
+                        heirCardVisible = heirShouldAsk || heirPinGuideVisible,
                         heirCardCandidates = heirCandidates,
                         heirCardBusy = heirBusy,
                         heirCardDesignatedName = heirDesignatedName,
-                        heirCardOwnerGuide = heirOwnerGuide,
+                        heirCardOwnerGuide = heirOwnerGuide || heirPinGuideVisible,
                         heirCardFailed = heirPickFailed,
                         heirCardOnPick = { pickHeir(it) },
                         heirCardOnDefer = { HeirQuestionMemory.defer(course.id) },
@@ -484,8 +562,10 @@ fun ParkedScreen(container: AppContainer, onExitToDriving: () -> Unit) {
                                 // B2·B4: then-now 부가 상태 — 조회 실패·필드 없음이면 null 로
                                 // 첫 기록 문구·접기 버튼 없이 기존 동작을 유지한다(가짜 금지).
                                 thenNowState = thenNowState,
-                                comparisonFolded = isPersonComparisonFolded(thenNowState),
-                                showFoldButton = shouldShowFoldButton(thenNowState),
+                                // B4: 가족 prefs 접힘(partyLineFolded)까지 함께 본다 — 어느 경로로
+                                // 접혀도 이 장소에서 문장·버튼이 다시 나오지 않는다.
+                                comparisonFolded = isPersonComparisonFolded(thenNowState) || partyLineFolded,
+                                showFoldButton = shouldShowFoldButton(thenNowState) && !partyLineFolded,
                                 onFoldComparison = { foldComparison() },
                             )
                             else -> BookStep(

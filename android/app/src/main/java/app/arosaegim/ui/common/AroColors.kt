@@ -14,6 +14,10 @@ import androidx.compose.ui.graphics.Color
  *  - regulation 색은 주행 규제·경고 전용이다. 장식(꾸밈)에는 절대 쓰지 않는다.
  *  - 본문·아이콘 대비는 4.5:1 이상(04문서 2절). 아래 주석의 명암비는 WCAG 상대 휘도 공식으로
  *    backgroundPrimary 위에서 계산한 값이며, 실제 값은 D4(가이드 Colors 이미지)로 재확인한다.
+ *    (2026-11-12 대비 점검 반영 — 09문서 색 대비 절. 계산기: 제출용/_work/spec/contrast_calc.py.
+ *    ① 라이트 textQuaternary #756E66→#6C655E — surfaceLow 위 4.30:1 미달을 4.91:1로.
+ *    ② 다크 stampPoint #D8552B→#DF7451 — surfaceAccent 위 3.55:1·surfaceBase 위 4.33:1 미달을
+ *    AA 엄격(4.5:1 무조건) 기준으로 해소. 라이트 stampPoint #B3401C는 이미 합격이라 그대로다.)
  *
  * 안전 규칙: 주행 중 가독성을 위해 테마를 동적으로 섞거나 Material You 동적 컬러를 쓰지 않고,
  * 아래 고정 토큰만 사용한다.
@@ -60,7 +64,8 @@ data class AroColors(
  *  - textPrimary #221F1C      ≈ 15.1:1
  *  - textSecondary #55504A    ≈  7.3:1
  *  - textTertiary #6E675F     ≈  5.1:1
- *  - textQuaternary #756E66   ≈  4.6:1
+ *  - textQuaternary #6C655E   ≈  5.3:1 (2026-11-12 대비 점검으로 #756E66에서 조정 —
+ *                                 surfaceLow 위에서 4.91:1, surfaceBase 위에서 5.59:1)
  *  - stampPoint #B3401C       ≈  5.3:1
  *  - regulation #B3261E       ≈  6.0:1
  *  - informativeActive #2E7D32   ≈ 4.7:1
@@ -78,14 +83,16 @@ val LightAroColors: AroColors = AroColors(
     textPrimary = Color(0xFF221F1C),
     textSecondary = Color(0xFF55504A),
     textTertiary = Color(0xFF6E675F),
-    textQuaternary = Color(0xFF756E66),
+    // 2026-11-12 대비 점검(09문서 색대비 1번): #756E66은 surfaceLow(#F0EDE8) 위 4.30:1로
+    // 20sp 라벨(사진 자리 문구)의 4.5:1에 미달 → 한 단계 어둡게. surfaceLow 4.91:1·surfaceBase 5.59:1.
+    textQuaternary = Color(0xFF6C655E),
     buttonBasic = Color(0xFFE9E5DF),
     buttonActive = Color(0xFFDCD6CE),
     buttonFilled = Color(0xFF2A2723), // 잉크 채움 — 흰 텍스트와 약 14.9:1
     informativeActive = Color(0xFF2E7D32),
     informativePositive = Color(0xFF1A5FB4),
     informativeNegative = Color(0xFFBA1A1A),
-    stampPoint = Color(0xFFB3401C), // 인주(주간)
+    stampPoint = Color(0xFFB3401C), // 인주(주간) — backgroundPrimary 위 5.26:1로 합격(2026-11-12 점검에서 유지)
     regulation = Color(0xFFB3261E), // 진한 경고색 — 규제 전용
 )
 
@@ -96,7 +103,8 @@ val LightAroColors: AroColors = AroColors(
  *  - textSecondary #B9B6B0    ≈  9.4:1
  *  - textTertiary #8F8C86     ≈  5.7:1
  *  - textQuaternary #827F79   ≈  4.8:1
- *  - stampPoint #D8552B       ≈  4.8:1 (인주를 밝게 조절해 대비 확보)
+ *  - stampPoint #DF7451       ≈  6.1:1 (2026-11-12 대비 점검으로 #D8552B에서 조정 —
+ *                                 surfaceBase 위 5.57:1, surfaceAccent 위 4.57:1)
  *  - regulation #FF6E5E       ≈  6.9:1
  *  - informativeActive #81C784   ≈ 9.4:1
  *  - informativePositive #8AB4F8 ≈ 9.0:1
@@ -120,6 +128,10 @@ val DarkAroColors: AroColors = AroColors(
     informativeActive = Color(0xFF81C784),
     informativePositive = Color(0xFF8AB4F8),
     informativeNegative = Color(0xFFFFB4AB),
-    stampPoint = Color(0xFFD8552B), // 인주(야간 — 채도·명도 조절)
+    // 2026-11-12 대비 점검(09문서 색대비 2·3번): #D8552B은 surfaceBase 위 4.33:1·surfaceAccent 위
+    // 3.55:1로 미달(SemiBold를 "굵게"로 보지 않는 보수적 판정). AA 엄격(4.5:1 무조건) 채택으로
+    // 한 단계 밝게 — surfaceAccent 4.57:1·surfaceBase 5.57:1·backgroundPrimary 6.11:1로 세 배경 모두 합격.
+    // (기존 backgroundPrimary 위 4.75:1도 6.11:1로 여유가 생긴다. 인주색조가 밝아져 시각 확인은 D4·D5로.)
+    stampPoint = Color(0xFFDF7451), // 인주(야간 — 채도·명도 조절)
     regulation = Color(0xFFFF6E5E), // 야간에서 밝은 경고색 — 규제 전용
 )

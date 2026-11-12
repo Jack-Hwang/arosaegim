@@ -200,6 +200,23 @@ class TripSession(
         manualArrival?.stop()
     }
 
+    /**
+     * A3(2026-11-12): 현재 목표의 여정 감시(근접 알림)를 다시 등록한다.
+     *
+     * 진단 화면의 근접 관찰(U3)은 FusedArrivalDetector.startObservation/stopObservation 으로
+     * 여정 감시와 분리되어 있지만, 감시기가 어떤 경로로든 stop 된 사고에 대비한 복구
+     * 수단이다 — 진단 화면이 관찰을 중단할 때 호출해 '관찰을 꺼도 다음 장소의 도착 판정이
+     * 유지·복구된다'를 닫아 준다. 등록 동작은 도착 처리(onArrival 6단계)의 watch 재등록과
+     * 같아서 같은 목표를 다시 요청하는 중복은 무해하다(E5 의 '무해' 근거와 같다).
+     */
+    fun rewatchCurrentTarget() {
+        if (collectJobs.isEmpty()) {
+            start() // 수집까지 끊겼으면 start 가 감시 등록까지 다시 한다(중복 호출 무시 규약).
+            return
+        }
+        _currentTarget.value?.let { fusedArrival.watch(it) }
+    }
+
     /** 스탬프·진행 초기화(데모 재시작). 로컬 방문 기록도 함께 지운다(VisitStore.clear 용도 참조). */
     fun resetCourse() {
         val wasStarted = collectJobs.isNotEmpty() // 수집 중이던 세션이면 초기화 후 바로 이어 시작한다.

@@ -133,14 +133,19 @@
     <string name="parked_record_saved">오늘의 기록이 저장됐어요.</string>
     <string name="parked_offers_section">완주 혜택 미리보기</string>
 
-    <!-- ===== 시작 화면(ui/session) T9-1 — 차량 세션: 가족 코드 접속·둘러보기 =====
-         PIN(02문서 9절): 코드는 식별용, 열람·수정은 PIN. PIN 은 저장하지 않으며
-         서버 연동 시 입력받는 UI 자리만 StartScreen 처리부 주석에 남긴다. -->
+    <!-- ===== 시작 화면(ui/session) T9-1 — 차량 세션: 가족 코드·PIN 접속·둘러보기 =====
+         가족 코드(E6): 서버 발급 코드는 8자리(F58) — 입력 칸도 8자까지 받는다(6자리 호환 유지).
+         PIN(E7·02문서 9절): 코드는 식별용, 열람·수정은 PIN. PIN 은 세션 메모리에만 보관하고
+         SharedPreferences·파일·로그에 절대 저장하지 않는다(00문서 10.6). 차량 화면의 글자
+         입력은 이 시작 화면 한 곳뿐이다(00문서 16절). -->
     <string name="session_title">가족 코드로 이어 보기</string>
     <string name="session_code_label">가족 코드</string>
-    <string name="session_code_hint">여섯 자리 숫자·영문</string>
+    <string name="session_code_hint">8자리 영문·숫자</string>
+    <string name="session_pin_label">PIN</string>
+    <string name="session_pin_hint">여섯 자리 숫자</string>
+    <string name="session_pin_required">이어 보기에는 6자리 PIN이 필요해요</string>
     <string name="session_connect">이어 보기</string>
-    <string name="session_connect_invalid">코드는 여섯 자리 숫자·영문이어야 해요</string>
+    <string name="session_connect_invalid">코드는 8자리 영문·숫자여야 해요</string>
     <string name="session_connect_done">가족 코드가 이 차에 저장됐어요. 같은 코드로 다른 차에서도 기록이 이어져요.</string>
     <string name="session_guest">가족 없이 둘러보기</string>
     <string name="session_guest_note">데모·개인 모드 — 기록은 이 차에만 저장돼요</string>

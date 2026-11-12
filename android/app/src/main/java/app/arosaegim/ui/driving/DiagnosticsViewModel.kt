@@ -3,6 +3,7 @@ package app.arosaegim.ui.driving
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import app.arosaegim.AppContainer
+import app.arosaegim.AssetAudioFirstNarrator
 import app.arosaegim.R
 import app.arosaegim.SwitchableNarrator
 import app.arosaegim.SwitchableRouteService
@@ -11,7 +12,9 @@ import app.arosaegim.data.SeedRepository
 import app.arosaegim.data.SignOutCleanup
 import app.arosaegim.domain.DrivingState
 import app.arosaegim.domain.Place
+import app.arosaegim.fallback.AssetAudioNarrator
 import app.arosaegim.fallback.ManualDrivingState
+import app.arosaegim.ports.Narrator
 import app.arosaegim.ui.ModeRouter
 import app.arosaegim.ui.parked.DiagnosticsMetrics
 import app.arosaegim.ui.parked.HeirQuestionMemory
@@ -137,18 +140,28 @@ class DiagnosticsViewModel(
     /**
      * U6 카드의 '구현:' 줄. 콜드 스타트 교착 수정(2026-11-11)으로 Narrator 는 SwitchableNarrator
      * (Android TTS 시작 → Pleos onReady 확인 시 일방향 전환)일 수 있다 — 현재 활성 위임자를
-     * 함께 표시해 거짓 표기를 막는다. E4(2026-11-11): 3단 사전 제작 오디오 사슬이 끼워져 있으면
-     * 표시명(사전 제작 오디오(예시 문장))까지 덧붙인다(AppContainer.narratorAssetNote).
+     * 함께 표시해 거짓 표기를 막는다. A1(2026-11-12): 사전 제작 오디오 기본 사슬
+     * (AssetAudioFirstNarrator)이면 '사전 제작 오디오(파일 준비 후 기본)'를 앞세우고 뒤 단계
+     * (합성 사슬)를 이어 표시한다(AppContainer.narratorAssetNote).
      */
     private fun u6ImplLine(): String {
         val narrator = container.narrator
-        val base = if (narrator is SwitchableNarrator) {
+        // A1: 사전 제작 오디오가 기본 경로로 끼워진 사슬 — 오디오 단을 앞세워 표시한다.
+        if (narrator is AssetAudioFirstNarrator) {
+            val note = container.narratorAssetNote
+                ?: "${AssetAudioNarrator.DISPLAY_NAME} — 기본 경로(파일 준비 후)"
+            return "$note → 합성 대체: ${narratorLine(narrator.synth)}"
+        }
+        return narratorLine(narrator) + (container.narratorAssetNote?.let { " + $it" } ?: "")
+    }
+
+    /** Narrator 한 줄 표기 — SwitchableNarrator 면 현재 활성 위임자까지 붙인다(거짓 표기 금지). */
+    private fun narratorLine(narrator: Narrator): String =
+        if (narrator is SwitchableNarrator) {
             "${narrator.javaClass.simpleName}(현재: ${narrator.activeName.value}) (Narrator)"
         } else {
             "${narrator.javaClass.simpleName} (Narrator)"
         }
-        return container.narratorAssetNote?.let { "$base + $it" } ?: base
-    }
 
     /** 목표 장소 후보 — 시드 3곳(gj-museum 등). 시드 로드 실패 시 내장 최소 후보로 대체. */
     val places: List<Place>
@@ -273,6 +286,12 @@ class DiagnosticsViewModel(
         }
         runningJobs.remove(id)?.let { job ->
             job.cancel()
+            if (id == "U3") {
+                // A3(2026-11-12): 관찰(U3) 중단 뒤 여정 감시를 재보장한다. 관찰은 여정 감시와
+                // 분리된 수명주기(startObservation/stopObservation)라 원래 건드리지 않지만,
+                // '관찰을 꺼도 다음 장소 도착 판정이 유지·복구된다'를 재등록으로 방어적으로 닫는다.
+                container.tripSession.rewatchCurrentTarget()
+            }
             finish(id, passed = true, extra = listOf("관찰 중단(사용자 재클릭)"))
             return
         }

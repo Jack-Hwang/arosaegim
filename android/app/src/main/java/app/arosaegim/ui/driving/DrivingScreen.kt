@@ -49,7 +49,7 @@ import kotlinx.coroutines.launch
  *  - 화면 구성: 꼬리표 "주행 중" / 다음 장소명(큰 글씨, 한 줄) / 거리 한 줄(있으면) /
  *    스탬프 진행 한 줄 / 버튼 1개("이야기 다시 듣기") / 도착 시 하단 한 줄 알림 3초.
  *  - 도착 시 화면 전환·팝업 없음: TripSession.lastEventLine 한 줄만 바뀌고 음성이 낭독된다.
- *  - 본문은 24sp 이상(AroTextStyles.bodySmall 하한), 버튼은 76dp(LargePrimaryButton).
+ *  - 본문은 26sp 이상(AroTextStyles.bodySmall 하한), 버튼은 76dp(LargePrimaryButton).
  *
  * 색은 MaterialTheme.aroColors 토큰만 쓴다(포인트 색 인주 하나 원칙).
  */

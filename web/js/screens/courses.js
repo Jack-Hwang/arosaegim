@@ -1,6 +1,8 @@
 /* 코스 보기 (02문서 5절 2번) — 코스·장소 목록, 방문(스탬프) 표시.
  * 방문 여부는 GET /v1/families/me/timeline 의 place_id와 대조한다.
- * 아래에는 스탬프북 진행(예시)도 함께 보여 준다(02문서 6절). */
+ * 아래에는 스탬프북 진행(예시)도 함께 보여 준다(02문서 6절).
+ * 검증 전 장소 주소는 시드 플래그 문구 "(주소 검증 필요)"를 그대로 보이지 않게 하고
+ * "주소는 확인 중이에요" 안내 한 줄로 바꿔 표시한다(09문서 8번, 2026-11-12). */
 (function () {
   'use strict';
   Screens.courses = {
@@ -60,6 +62,17 @@
           det);
       }
 
+      /* (주소 검증 필요)는 시드의 개발 플래그 문구라 사용자 화면에 그대로 내보내지 않는다(09문서 8번).
+       * 주소 본문은 남기고, 검증 전 장소는 주소 줄 아래 사용자 말투 안내 한 줄로 바꿔 보여 준다.
+       * 주소가 플래그 문구뿐이면 주소 줄은 비어 보이지 않게 안내만 나온다.
+       * 서버·시드가 문구를 없애면 안내 없이 조용히 통과한다(가짜 동작 없음). */
+      function addressNote(p) {
+        var addr = (p.address || '').trim();
+        var checking = addr.indexOf('(주소 검증 필요)') !== -1;
+        if (checking) addr = addr.split('(주소 검증 필요)').join('').trim();
+        return { addr: addr, checking: checking };
+      }
+
       function loadCoursePlaces(id, det, visited) {
         det.appendChild(App.h('p', { class: 'loading', text: '장소를 불러오는 중...' }));
         Api.get('/v1/courses/' + encodeURIComponent(id)).then(function (d) {
@@ -67,11 +80,13 @@
           var places = (d && d.places) || [];
           if (!places.length) det.appendChild(App.h('p', { class: 'muted', text: '장소 정보가 없어요.' }));
           places.forEach(function (p, i) {
+            var a = addressNote(p);
             det.appendChild(App.h('div', { class: 'place-row' },
               App.h('span', { class: 'seq', text: String(i + 1) }),
               App.h('div', { class: 'grow' },
                 App.h('b', { text: p.name }),
-                p.address ? App.h('p', { class: 'muted small', text: p.address }) : null),
+                a.addr ? App.h('p', { class: 'muted small', text: a.addr }) : null,
+                a.checking ? App.h('p', { class: 'muted small', text: '주소는 확인 중이에요' }) : null),
               visited[p.id]
                 ? App.h('span', { class: 'stamp on', text: '스탬프 ✓' })
                 : App.h('span', { class: 'stamp', text: '미방문' })));

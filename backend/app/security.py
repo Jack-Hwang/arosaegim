@@ -172,10 +172,10 @@ def rotate_code_and_pin(old_code: str) -> dict:
     pin = generate_pin()
     salt = secrets.token_hex(8)
     now = timeutil.now_iso()
-    # 설정·접기·이름표 테이블도 새 코드로 옮겨 데이터가 유지된다.
+    # 설정·접기·이름표·prefs 테이블도 새 코드로 옮겨 데이터가 유지된다.
     tables = [
         "visits", "memories", "members", "handovers", "food_notes", "receipts", "point_ledger",
-        "memory_markers", "folded_places", "family_settings",
+        "memory_markers", "folded_places", "family_settings", "family_prefs",
     ]
     with db.connect() as conn:
         for _ in range(20):

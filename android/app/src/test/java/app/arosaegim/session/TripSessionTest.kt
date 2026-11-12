@@ -448,6 +448,46 @@ class TripSessionTest {
         delay(50)
         assertEquals("준비 상태로 시작 — 시작 요청 1회만", listOf("p1"), route2.requested)
     }
+
+    @Test
+    fun `12_외부에서 감지기가 stop돼도 rewatch하면 현재 목표 감시와 도착 판정이 복구된다`() =
+        runBlocking {
+            val f = Fixture(course())
+            f.fused.emit("p1")
+            awaitUntil { f.session.stampedCount.value == 1 }
+            assertEquals("p2", f.session.currentTarget.value?.id)
+
+            // A3 결함 재현: 진단 관찰이(구 구조에서는) 감지기 stop 을 불렀다고 가정한다.
+            f.fused.stop()
+
+            // 복구 호출 — 현재 목표(p2)의 감시가 다시 등록된다.
+            f.session.rewatchCurrentTarget()
+            assertEquals("현재 목표 p2 가 다시 watch 된다", "p2", f.fused.watched.last())
+
+            // 복구 뒤 도착 판정은 계속 된다(기준: 관찰을 꺼도 다음 장소 도착이 판정된다).
+            f.fused.emit("p2")
+            awaitUntil { f.session.stampedCount.value == 2 }
+            assertEquals("다음 목표 p3 로 진행 유지", "p3", f.session.currentTarget.value?.id)
+        }
+
+    @Test
+    fun `13_세션 수집이 중단된 뒤 rewatch하면 수집과 감시가 함께 복구된다`() = runBlocking {
+        val f = Fixture(course())
+        f.fused.emit("p1")
+        awaitUntil { f.session.stampedCount.value == 1 }
+
+        f.session.stop() // 백그라운드 복귀 등으로 수집이 끊긴 상태.
+        f.fused.emit("p2") // 수집자가 없어 무시된다(SharedFlow replay=0).
+        delay(50)
+        assertEquals("중단 중 도착은 처리되지 않는다", 1, f.session.stampedCount.value)
+
+        // rewatch → 수집이 비어 있으면 start() 경유로 감시 등록까지 함께 복구한다.
+        f.session.rewatchCurrentTarget()
+        assertTrue("복구 시 현재 목표 감시도 등록된다", f.fused.watched.last() == "p2")
+        f.fused.emit("p2")
+        awaitUntil { f.session.stampedCount.value == 2 }
+        assertEquals("복구 뒤 진행도 정상", "p3", f.session.currentTarget.value?.id)
+    }
 }
 
 /** 테스트 전용 임시 파일 — deprecated createTempFile 대신 NIO 를 쓴다. */

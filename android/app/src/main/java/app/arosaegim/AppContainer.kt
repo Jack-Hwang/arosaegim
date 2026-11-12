@@ -99,9 +99,9 @@ class AppContainer(private val appContext: Context) {
     val narratorSwitchNote: StateFlow<String?> = _narratorSwitchNote.asStateFlow()
 
     /**
-     * E4(2026-11-11): Narrator 3단(사전 제작 오디오) 구성 한 줄 — 진단 화면 U6 '구현:' 줄이
-     * 덧붙여 표시한다. null = 3단 없음(매핑된 오디오 파일이 없다 — 현재 저장소 상태(Q14),
-     * 오디오 파일은 발주자 준비다).
+     * A1(2026-11-12, 00문서 16절): Narrator 사슬에서 사전 제작 오디오가 '기본 경로'임을
+     * 알리는 한 줄 — 진단 화면 U6 '구현:' 줄이 표시한다. null = 사슬에 오디오 단이 없다
+     * (매핑된 오디오 파일이 없다 — 현재 저장소 상태(Q14), 오디오 파일은 발주자 준비다).
      */
     var narratorAssetNote: String? = null
         private set
@@ -185,11 +185,9 @@ class AppContainer(private val appContext: Context) {
         //    일방향 재전환한다(조치 8 구조 — prepareLateSwitchOver 참조).
         routeService = selectRouteService()
 
-        // 3) 안내 음성: 콜드 스타트 P0 수정 — onReady 를 runBlocking 으로 기다리지 않는다.
-        //    즉시 Android 기본 TTS(대체)로 통과하고, Pleos onReady 가 늦게라도 오면 Pleos 로
-        //    일방향 전환한다(SwitchableNarrator). 합성은 onReady 확인 후에만 쓰인다(A1③).
-        //    E4(2026-11-11): 1·2단 합성 실패 시 3단 사전 제작 오디오(AssetAudioNarrator)로
-        //    재시도하는 사슬을 끼운다 — 시드 장소로 문장→파일 매핑을 만들므로 시드를 먼저 읽는다.
+        // 3) 안내 음성: A1(2026-11-12, 00문서 16절) — 사전 제작 오디오가 기본 경로고 음성
+        //    합성은 초기화가 성공했을 때만 쓴다. 콜드 스타트 P0 수정(블로킹 대기 없음) 규약은
+        //    그대로 유지한다. 시드 장소로 문장→파일 매핑을 만들므로 시드를 먼저 읽는다.
         val seed = loadSeed()
         narrator = selectNarrator(seed)
 
@@ -201,8 +199,8 @@ class AppContainer(private val appContext: Context) {
             "ProfileVehicleInfo — CarInfo 는 VIN/CRN뿐(01문서 10절), VIN 은 규정상 미사용"
 
         // 5) 시드: 코스와 T5-1·T6-2·T9-2 데이터(heritage·voice_letter_demo·seat_roles)를 함께 읽는다.
-        //    E4로 순서 변경 — 안내 음성 3단(사전 제작 오디오)의 문장→파일 매핑에 시드 장소가 필요해
-        //    위 3) 앞으로 옮겼다. 실패 시 빈 코스로 보수적으로 복구한다(00문서 2-3 §16).
+        //    E4/A1로 순서 변경 — 안내 음성 사슬(사전 제작 오디오 기본 경로)의 문장→파일 매핑에
+        //    시드 장소가 필요해 위 3) 앞으로 옮겼다. 실패 시 빈 코스로 보수적으로 복구한다(00문서 2-3 §16).
         // 6) 차량 신호(T5-1·T6-2): Pleos Vehicle 초기화 성공(동기 확인) 시 Pleos, 실패 시 폴백(수동 입력·null).
         //    콜드 스타트에서 initialize 가 실패해도(차량 서비스 미기동) 폴백으로 즉시 기동한다 —
         //    신호는 안 읽히면 null 이고 화면 문장이 숨겨질 뿐 흐름은 계속 된다(가짜 값 금지).
@@ -343,57 +341,66 @@ class AppContainer(private val appContext: Context) {
     }
 
     /**
-     * 안내 음성 선택(콜드 스타트 P0 수정 + E4 3단 사슬): runBlocking(onReady 대기)은 없다.
-     *  - 1단: onReady 가 이미 확인됐으면(동기 확인) Pleos 즉시 선택.
-     *  - 2단: 아니면 [SwitchableNarrator] 로 Android 기본 TTS(대체)에서 시작하고, onReady 가 늦게
-     *    오면 Pleos 로 일방향 전환한다. onReady 가 끝내 오지 않으면 대체로 머무른다.
-     *  - 3단(E4, 2026-11-11): 1·2단 합성이 실패하면(F54 — 이 에뮬레이터에서는 둘 다 실패해 소리가
-     *    나지 않았다) 사전 제작 오디오([AssetAudioNarrator])로 즉시 재시도한다. **기존 1·2단이
-     *    모두 실패할 때만 3단이 쓰인다** — 매핑된 오디오 파일이 하나라도 존재할 때만 사슬에
-     *    끼우고, 파일이 없으면(현재 저장소 상태, Q14 파일은 발주자 준비) 기존 폴백 구조 그대로라
-     *    기존 동작·테스트에 영향이 없다.
+     * 안내 음성 선택(A1, 2026-11-12 — 00문서 16절 "음성은 사전 제작 오디오를 기본 경로로,
+     * 합성은 초기화가 성공했을 때만"): runBlocking(onReady 대기)은 없다(콜드 스타트 P0 규약 유지).
+     *  - 1단(기본): 사전 제작 오디오([AssetAudioNarrator]) — 매핑된 오디오 파일이 하나라도 있을
+     *    때만 사슬의 기본 경로가 된다. 매핑이 없어 재생에 실패하면 다음 단계로 넘어간다.
+     *    파일이 없으면(현재 저장소 상태, Q14 — 파일은 발주자 준비) 1단 없음 = 기존 구조 그대로라
+     *    동작·테스트가 변하지 않는다.
+     *  - 2단: Pleos 합성([PleosTtsNarrator]) — onReady(초기화)가 확인됐을 때만 쓰인다.
+     *  - 3단(최후 폴백): Android 기본 TTS([AndroidTtsNarrator]). onReady 미확인(콜드 스타트)이면
+     *    [SwitchableNarrator] 로 Android TTS 에서 시작해 늦은 onReady 에 Pleos 로 일방향 전환한다.
      * 각 단계 사유는 adapterNotes 의 "Narrator", [narratorAssetNote], [narratorSwitchNote] 로
      * 진단 화면에 표시한다.
      */
     private fun selectNarrator(seed: SeedContent): Narrator {
-        if (pleosTts.readyState.value) {
-            notes["Narrator"] = "PleosTtsNarrator (Mode.ON_DEVICE, onReady 확인 — 동기 확인)"
-            _narratorSwitchNote.value = null // 전환 대상 아님.
-            return pleosTts
-        }
-        // 3단(E4): 시드 장소 기준 문장 → 파일 매핑. 파일이 하나라도 있을 때만 사슬에 끼운다.
+        // 1단(A1): 시드 장소 기준 문장 → 파일 매핑. 파일이 하나라도 있을 때만 기본 경로가 된다.
         val assetNarrator = AssetAudioNarrator(appContext, buildAssetSentenceMap(seed))
             .takeIf { it.isAvailable }
         narratorAssetNote = assetNarrator?.let {
-            "${AssetAudioNarrator.DISPLAY_NAME} 3단(1·2단 합성 실패 시 재시도)"
+            "${AssetAudioNarrator.DISPLAY_NAME} — 기본 경로(파일 준비 후). 매핑 없는 문장은 음성 합성으로 진행"
         }
-        // 2단(+3단): Android TTS에서 시작. 3단이 있으면 합성 실패 시 사전 제작 오디오로 재시도한다.
-        val fallback: Narrator = if (assetNarrator != null) {
-            AssetFallbackNarrator(AndroidTtsNarrator(appContext), assetNarrator) { line ->
-                notes["Narrator"] = "Narrator 3단 사슬(E4) — $line"
+
+        // 2·3단: 합성 사슬 — Pleos(onReady 확인 후) → Android TTS(최후 폴백).
+        val synth: Narrator = if (pleosTts.readyState.value) {
+            notes["Narrator"] = if (assetNarrator != null) {
+                "사전 제작 오디오 기본(A1) → PleosTtsNarrator (Mode.ON_DEVICE, onReady 확인 — 동기 확인)"
+            } else {
+                "PleosTtsNarrator (Mode.ON_DEVICE, onReady 확인 — 동기 확인)"
+            }
+            _narratorSwitchNote.value = null // 전환 대상 아님.
+            pleosTts
+        } else {
+            val switchable = SwitchableNarrator(
+                fallback = AndroidTtsNarrator(appContext),
+                real = pleosTts,
+                readyState = pleosTts.readyState,
+                scope = switchScope,
+                onUpgraded = {
+                    notes["Narrator"] =
+                        "합성 단계 전환: PleosTtsNarrator — onReady 늦은 확인, Android TTS에서 일방향 전환(합성은 onReady 확인 후에만 사용)"
+                    _narratorSwitchNote.value = "음성 전환: onReady 늦은 성공 → Pleos 사용"
+                },
+            )
+            notes["Narrator"] = if (assetNarrator != null) {
+                "사전 제작 오디오 기본(A1) → SwitchableNarrator(현재: AndroidTtsNarrator) — Pleos onReady 대기 중(블로킹 없음)"
+            } else {
+                "SwitchableNarrator(현재: AndroidTtsNarrator) — Pleos TTS onReady 대기 중(블로킹 없음), 확인 시 Pleos로 전환"
+            }
+            _narratorSwitchNote.value = "초기화 대기 중 — onReady 성공 시 Pleos 사용 / 실패 시 대체 유지"
+            switchable
+        }
+
+        // 사슬 조립(A1): 매핑된 문장은 오디오로 먼저 재생하고, 실패(매핑 없음·파일 없음)면
+        // 합성 사슬로 넘어간다. 오디오 파일이 없으면 1단 없음 — 반환값이 기존과 완전히 같다.
+        return if (assetNarrator != null) {
+            AssetAudioFirstNarrator(assetNarrator, synth) { line ->
+                notes["Narrator"] = "Narrator 사슬(A1) — $line"
                 _narratorSwitchNote.value = line
             }
         } else {
-            AndroidTtsNarrator(appContext)
+            synth
         }
-        val switchable = SwitchableNarrator(
-            fallback = fallback,
-            real = pleosTts,
-            readyState = pleosTts.readyState,
-            scope = switchScope,
-            onUpgraded = {
-                notes["Narrator"] =
-                    "PleosTtsNarrator — onReady 늦은 확인, Android TTS에서 일방향 전환(합성은 onReady 확인 후에만 사용)"
-                _narratorSwitchNote.value = "음성 전환: onReady 늦은 성공 → Pleos 사용"
-            },
-        )
-        notes["Narrator"] =
-            "SwitchableNarrator(현재: AndroidTtsNarrator) — Pleos TTS onReady 대기 중(블로킹 없음), 확인 시 Pleos로 전환" +
-                (narratorAssetNote?.let { " · $it" } ?: "")
-        _narratorSwitchNote.value =
-            "초기화 대기 중 — onReady 성공 시 Pleos 사용 / 실패 시 대체 유지" +
-                if (assetNarrator != null) "(합성 실패 시 ${AssetAudioNarrator.DISPLAY_NAME} 재시도)" else ""
-        return switchable
     }
 
     /**
@@ -436,37 +443,41 @@ class AppContainer(private val appContext: Context) {
 }
 
 /**
- * Narrator 3단 사슬의 2·3단 부분(E4, 2026-11-11): 1·2단(합성 — Pleos/Android TTS)의 speak 실패
- * 시에만 3단 사전 제작 오디오([AssetAudioNarrator])로 즉시 재시도한다. 3단이 매핑 파일을 잃으면
- * (사용 불가) 1·2단의 원래 결과를 그대로 돌려준다(기존 폴백 동작 유지 — 조용한 실패 흡수,
- * 기존 테스트 호환). SwitchableNarrator(Pleos 일방향 업그레이드)는 그대로 유지되어 1단 구조가
- * 바뀌지 않는다.
+ * Narrator 사슬의 기본 경로 래퍼(A1, 2026-11-12 — 00문서 16절 "사전 제작 오디오 재생을 기본
+ * 경로로 넣는다. 음성 합성은 초기화가 성공했을 때만 쓴다"): speak 마다 사전 제작 오디오
+ * ([asset])를 먼저 시도하고, 매핑된 파일이 없어 실패하면 음성 합성 사슬([synth])로 넘어간다.
+ * E4 의 AssetFallbackNarrator(합성 먼저 → 오디오 재시도)의 순서를 뒤집은 것이다.
+ *
+ * [synth] 는 Pleos(onReady 확인 후) → Android TTS 순서의 합성 사슬이거나 그 자체다 — 초기화가
+ * 실패한 합성은 speak 실패로 조용히 흡수된다(기존 폴백 규약 동일, 주행 흐름을 막지 않는다).
+ * 오디오 파일이 없는 현재(Q14)에는 이 래퍼가 아예 끼이지 않아 동작이 기존과 같다.
  */
-internal class AssetFallbackNarrator(
-    private val primary: Narrator,
-    private val assetNarrator: Narrator,
-    private val onAssetFallbackUsed: (String) -> Unit = {},
+internal class AssetAudioFirstNarrator(
+    private val asset: Narrator,
+    /** 뒤 단계(합성 사슬). 진단 화면 표시(DiagnosticsViewModel)가 읽어 그대로 보여 준다. */
+    val synth: Narrator,
+    private val onChainNote: (String) -> Unit = {},
 ) : Narrator {
 
-    /** 활성 사실만 답한다 — 1·2단이 못 쓰고 3단 파일도 없으면 '못 쓴다'로 답한다(거짓 표기 금지). */
+    /** 활성 사실만 답한다 — 오디오·합성이 모두 못 쓰면 '못 쓴다'로 답한다(거짓 표기 금지). */
     override val isAvailable: Boolean
-        get() = primary.isAvailable || assetNarrator.isAvailable
+        get() = asset.isAvailable || synth.isAvailable
 
     override suspend fun speak(text: String): Result<Unit> {
-        val first = primary.speak(text)
-        if (first.isSuccess || !assetNarrator.isAvailable) return first
-        // 1·2단 실패 + 3단 사용 가능 — 사전 제작 오디오로 재시도한다(성공 시 소리가 난다).
-        val second = assetNarrator.speak(text)
-        onAssetFallbackUsed(
-            if (second.isSuccess) "1·2단 합성 실패 → ${AssetAudioNarrator.DISPLAY_NAME} 재생"
-            else "1·2단 합성 실패 → ${AssetAudioNarrator.DISPLAY_NAME}도 실패(매핑 파일 없음)",
+        // 1단(기본): 사전 제작 오디오. 매핑된 파일 재생이 성공하면 합성은 쓰지 않는다.
+        val audio = asset.speak(text)
+        if (audio.isSuccess) return audio
+        // 2단 이하: 음성 합성 사슬 — 오디오 매핑이 없어도(파일 미준비 Q14) 여기로 흐른다.
+        val spoken = synth.speak(text)
+        onChainNote(
+            if (spoken.isSuccess) "${AssetAudioNarrator.DISPLAY_NAME} 매핑 없음 → 음성 합성 재생"
+            else "${AssetAudioNarrator.DISPLAY_NAME} 매핑 없음 · 음성 합성도 실패(초기화 미완료)",
         )
-        // 실패면 원래 사유(1·2단 합성 실패)를 돌려준다 — 기존 실패 문구·테스트 기대를 유지한다.
-        return if (second.isSuccess) second else first
+        return spoken
     }
 
     override fun stop() {
-        primary.stop()
-        assetNarrator.stop()
+        asset.stop()
+        synth.stop()
     }
 }

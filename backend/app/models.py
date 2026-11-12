@@ -142,9 +142,10 @@ class TimelineEntry(BaseModel):
     source: Optional[Literal["fused", "navi", "manual"]] = None
     stamp_no: Optional[int] = None
     food_notes: List[FoodNoteOut] = []
-    # 기획서 v10 B1·B4·B5 확장: 방문에는 순번·주행거리, 기억에는 인물 이름표.
+    # 기획서 v10 B1·B4·B5 확장: 방문에는 순번·주행거리·인원, 기억에는 인물 이름표.
     visit_ordinal: Optional[int] = None   # visit 전용: 가족·장소 기준 몇 번째 방문인지
     trip_km: Optional[float] = None       # visit 전용: 이 방문의 코스 주행거리
+    party_size: Optional[int] = None      # visit 전용: 이 방문의 인원(내보내기에도 함께 나간다)
     markers: List[Marker] = []            # memory 전용: 사진 인물 이름표(없으면 [])
 
 
@@ -213,6 +214,20 @@ class FoldedIn(BaseModel):
 
 class FoldedOut(BaseModel):
     folded_place_ids: List[str] = []
+
+
+class PartyLinePrefsIn(BaseModel):
+    """PUT·POST /v1/families/me/prefs (기획서 v10 15절① B4). PUT은 전체 교체다:
+    보내지 않은 목록은 빈 목록으로 저장된다."""
+    model_config = Input
+    party_line_hidden_places: List[str] = []   # 문장을 접어 둔 장소 id 목록
+    party_line_all_hidden: bool = False        # 모든 장소에서 한 번에 끄기
+
+
+class PartyLinePrefsOut(BaseModel):
+    """GET /v1/families/me/prefs 응답. 저장 값이 없으면 초기값(빈 목록·false)."""
+    party_line_hidden_places: List[str] = []
+    party_line_all_hidden: bool = False
 
 
 class HandoverIn(BaseModel):

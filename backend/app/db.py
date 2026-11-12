@@ -182,6 +182,17 @@ CREATE TABLE IF NOT EXISTS folded_places (
     created_at  TEXT NOT NULL,
     PRIMARY KEY (family_code, place_id)
 );
+-- 기획서 v10 15절①(glm/07 2절 B4): '오늘은 N명이 함께 왔어요. 그때는 M명…' 인원 비교
+-- 문장 접어 두기 가족 설정. 가족마다 한 행(간단 우선):
+-- - party_line_hidden_places: 문장을 접어 둔 장소 id 목록(콤마 구분 텍스트. 장소 id에는
+--   콤마가 없으므로 별도 표 없이 충분하다)
+-- - party_line_all_hidden   : 모든 장소에서 한 번에 끄기(1/0). 새 장소마다 같은 문장을
+--   다시 접지 않게 하는 15절 약속의 열쇠다.
+CREATE TABLE IF NOT EXISTS family_prefs (
+    family_code              TEXT PRIMARY KEY,
+    party_line_hidden_places TEXT NOT NULL DEFAULT '',
+    party_line_all_hidden    INTEGER NOT NULL DEFAULT 0
+);
 -- 기획서 v10 B5: 그때 기록 사진의 인물 이름표(단순 저장 — 얼굴 인식 일절 없음).
 -- x·y는 사진 크기 대비 0..1 비율이다.
 CREATE TABLE IF NOT EXISTS memory_markers (

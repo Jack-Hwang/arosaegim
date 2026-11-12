@@ -50,7 +50,7 @@ def build_timeline(family_code: str) -> list[dict]:
         visit_rows = [
             dict(r)
             for r in conn.execute(
-                "SELECT id, place_id, visited_at, source, vehicle_label, stamp_no, trip_km"
+                "SELECT id, place_id, visited_at, source, vehicle_label, stamp_no, trip_km, party_size"
                 " FROM visits WHERE family_code = ? ORDER BY place_id, visited_at, id",
                 (family_code,),
             ).fetchall()
@@ -101,6 +101,7 @@ def build_timeline(family_code: str) -> list[dict]:
                 "food_notes": food_by_visit.get(v["id"], []),
                 "visit_ordinal": ordinal_by_place[v["place_id"]],
                 "trip_km": v["trip_km"],
+                "party_size": v["party_size"],  # 내보내기의 '그때 몇 명' 표기 원천(02문서 10절)
             }
         )
     for m in memories:
@@ -144,10 +145,10 @@ def _family_files(family_code: str) -> list[str]:
 
 
 def _delete_family_rows(family_code: str) -> None:
-    # 기획서 v10 신설 테이블(설정·접기·이름표)도 함께 지워 흔적을 남기지 않는다.
+    # 기획서 v10 신설 테이블(설정·접기·이름표·prefs)도 함께 지워 흔적을 남기지 않는다.
     tables = [
         "visits", "memories", "members", "handovers", "food_notes", "receipts", "point_ledger",
-        "memory_markers", "folded_places", "family_settings",
+        "memory_markers", "folded_places", "family_settings", "family_prefs",
     ]
     with db.connect() as conn:
         for table in tables:
@@ -188,7 +189,7 @@ def _album_photo_files(entries: list[dict]) -> list[str]:
 def export_family(family: dict = Depends(require_family_auth)):
     """가족 데이터 내보내기 ZIP:
     timeline.json(방문·기억·맛집 + 기획서 v10 B1·B4·B5 확장) + photos/(사진) + README.html(연도순 앨범).
-    timeline.json에는 방문마다 visit_ordinal·trip_km, 가족 누적 family_total_trip_km,
+    timeline.json에는 방문마다 visit_ordinal·trip_km·party_size, 가족 누적 family_total_trip_km,
     상속자 정보(heir), 기억마다 인물 이름표(markers)가 포함된다.
     README.html은 외부 리소스 없이 열리는 정적 HTML이다(서버 없이도 열람 가능)."""
     entries = build_timeline(family["code"])

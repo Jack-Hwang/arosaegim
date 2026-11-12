@@ -39,6 +39,9 @@ import app.arosaegim.ui.common.aroColors
  * - 등록 가족 구성원 버튼(GET /v1/families/me/members)을 누르면 [onPick] → POST heir.
  * - 403(owner 아님 — 차량 세션에는 owner 권한이 없다)이면 버튼은 숨기지 않고 [ownerGuide] 안내
  *   한 줄('스마트폰의 가족 관리에서 정해 주세요')을 보인다(계약).
+ * - PIN 없음(차량은 PIN 저장 금지 — 00문서 10.6)일 때도 같은 안내로 전환한다(계약). 이때는
+ *   구성원 목록을 못 읽어 버튼이 만들어지지 않으며, [shouldShowHeirPinGuide](HeirPinGuide.kt)
+ *   판정이 [ownerGuide]=true 와 [visible] 을 함께 켠다(ParkedScreen).
  * - '나중에 정하기' → [onDefer] (세션 메모리에 기록 — 이 코스에서 재문 금지).
  * - [designatedName] 이 있으면 지정 완료 상태 한 줄(버튼 대신)을 보인다.
  * - 문구에 '법적 상속이 아니라 가족이 직접 정하는 약속' 한 줄을 반드시 포함한다(계약).
@@ -47,7 +50,7 @@ import app.arosaegim.ui.common.aroColors
  * @param candidates     등록 가족 구성원(닉네임 버튼). 빈 목록이면 호출부가 애초에 질문하지 않는다.
  * @param busy           POST 진행 중 — 중복 제출을 막기 위해 버튼을 비활성화한다.
  * @param designatedName 지정 완료 구성원 이름(null = 아직 미지정).
- * @param ownerGuide     403(owner 아님) 안내 표시 여부. 버튼은 그대로 둔다.
+ * @param ownerGuide     안내 한 줄 표시 여부(403 owner 아님·PIN 없음 공용 문구). 버튼은 그대로 둔다.
  * @param failed         POST 실패(403 외) 안내 표시 여부. 재시도 가능 — 버튼은 그대로 둔다.
  */
 @Composable
@@ -101,7 +104,7 @@ internal fun HeirQuestionCard(
             }
         }
         if (ownerGuide) {
-            // 403(owner 아님): 버튼은 숨기지 않고 안내 한 줄만 추가한다(계약).
+            // 403(owner 아님)·PIN 없음 공용 안내: 버튼은 숨기지 않고 안내 한 줄만 추가한다(계약).
             Text(
                 text = stringResource(R.string.heir_question_owner_guide),
                 style = AroTextStyles.bodySmall,
