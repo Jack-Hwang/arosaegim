@@ -146,6 +146,31 @@
 
 ---
 
+## 2026-11-12 (밤) — 요구 갱신(09문서·07문서) 통합 완료
+
+- 한 일: 09_UI_FINDINGS(색 대비 3쌍·글자 크기·야간 정책)·07_NEXT_TASKS(B1·B3·B4·A1·A3)를 4개 작업 단위로 병렬 구현해 통합
+- 결과/증거:
+  - 앱: **단위 테스트 158/158 통과**(신규: PartyPrefs 13·HeirPinGuide 6·TripSession A3 2·SessionCredentials 등), assembleDebug·**assembleRelease 성공**, `apk/arosaegim_아로새김_release.apk` 갱신, 에뮬레이터 재설치·실행 확인(pid 생존)
+  - 백엔드: **pytest 86/86 통과**(prefs 10 신규) — B4 prefs API(GET/PUT/POST /v1/families/me/prefs)·visit_ordinal(then-now·visits·타임라인·export)·family_total_trip_km(metrics+export) 착지
+  - 웹: node --check 10파일 통과, 코스 목록 주소 문구 사용자화
+  - git: 커밋 3건 푸시 완료(87c93e8·6c7a0a5·e547626)
+- 확인된 사실(F-번호):
+  - **F65** 색 대비: 라이트 textQuaternary #6C655E(4.91:1)·다크 stampPoint #DF7451(surfaceAccent 4.57:1)로 AA 엄격(4.5:1) 충족 — 09문서 계산값 채택. 32sp "○"는 큰 글자 3:1 기준 합격 유지
+  - **F66** 야간 자동 전환: ThemeState.autoByClock + refreshByClock(19:00~07:00) — 호출부가 주기 호출하면 즉시 반영(미호출 시 수동 토글만 — 가짜 자동 금지)
+  - **F67** TripSession.rewatchCurrentTarget(): 진단 관찰 중단 후에도 여정 감시 복구 — 테스트 2케이스로 증명
+- Open Questions(Q-번호):
+  - **Q20** ParkedScreen.kt가 ~1061줄로 300줄 규칙 초과 — 스텝 컴포저블 분리 정리 과제
+  - Q13(TTS onReady)·Q14(오디오 파일)·Q18(테스트 가족 정리) 유지
+- 다음:
+  - 사용자 GUI 세션: U7(기어 D)·U11(Seat)·U13(Odometer)·U6(음성)·E1 재실측(도착→서버 타임라인)
+  - DEV_LOG U 표 갱신 → 기획서 반영 요청 전달(기획서 담당 소유)
+
+---
+
+## 스모크 테스트 결과표 (U1~U14)
+
+---
+
 ## 2026-11-11 — 스모크 전 항목 adb 자동 탭 실측 완료 (U4·U5·U8·U9·U13·U11·U6·U10)
   - 기획서 문장을 DEV_LOG 표 기준으로 갱신(13절 지시)
 
