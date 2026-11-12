@@ -7,10 +7,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -23,10 +26,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.arosaegim.ArosaegimApp
 import app.arosaegim.R
+import app.arosaegim.domain.DrivingState
 import app.arosaegim.domain.Haversine
 import app.arosaegim.domain.Place
 import app.arosaegim.pleos.LatestLocation
@@ -46,7 +52,8 @@ import kotlinx.coroutines.launch
  *
  * 안전 규칙(00문서 2-2 §6, 04문서 2절):
  *  - 퀴즈·입력·동영상·애니메이션 없음. 텍스트는 모두 maxLines 강제(3줄 초과 금지).
- *  - 화면 구성: 꼬리표 "주행 중" / 다음 장소명(큰 글씨, 한 줄) / 거리 한 줄(있으면) /
+ *  - 화면 구성: 꼬리표("주행 중"/"정차 중" — 실제 주행 상태 따름, 06문서 6번) /
+ *    다음 장소명(큰 글씨, 한 줄) / 거리 한 줄(있으면) /
  *    스탬프 진행 한 줄 / 버튼 1개("이야기 다시 듣기") / 도착 시 하단 한 줄 알림 3초.
  *  - 도착 시 화면 전환·팝업 없음: TripSession.lastEventLine 한 줄만 바뀌고 음성이 낭독된다.
  *  - 본문은 26sp 이상(AroTextStyles.bodySmall 하한), 버튼은 76dp(LargePrimaryButton).
@@ -76,6 +83,23 @@ fun DrivingScreen(
     val eventLine by session.lastEventLine.collectAsState()
     val scope = rememberCoroutineScope()
 
+    // 06문서 고칠 것 6번: 꼬리표는 고정 문자열이 아니라 실제 주행 상태를 따른다 — 기어 P 로
+    // 이 화면이 열리면 '정차 중'을 보인다(실측: 기어 P 인데도 '주행 중'으로 표시됐다).
+    // 호출부 Activity 는 별도 통합 작업 소유라 함수 서명을 바꾸지 않고, Application 컨테이너의
+    // drivingState.state 를 여기서 직접 구독한다(ParkedScreen 이 container.drivingState 를 쓰는
+    // 것과 같은 출처다).
+    val context = LocalContext.current
+    val drivingStateFlow = remember {
+        (context.applicationContext as? ArosaegimApp)?.container?.drivingState?.state
+    }
+    // 컨테이너를 못 얻은 환경(단위 테스트 등)이면 null — 크래시 없이 기존 문구로 조용히 흡수한다.
+    val drivingStateNow: DrivingState? = if (drivingStateFlow != null) {
+        val state by drivingStateFlow.collectAsState()
+        state
+    } else {
+        null
+    }
+
     // 도착 한 줄 알림: lastEventLine 이 바뀌면 3초간 하단에 표시 후 사라진다.
     var visibleEventLine by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(eventLine) {
@@ -90,13 +114,16 @@ fun DrivingScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background) // 윈도우 다크 배경 비침 방지(주간 테마 기본)
+            // 06문서 고칠 것 3번: 시스템 영역(상단 주행 정보·하단 GNB 등 safe drawing)을 피한다 —
+            // 배경은 화면 전체에 깔고, 본문은 인셋 안쪽에만 그린다(기존 modifier 순서 유지).
+            .windowInsetsPadding(WindowInsets.safeDrawing)
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         PageNavigationBar(courseName = session.course.title)
 
         Row(verticalAlignment = Alignment.CenterVertically) {
-            DrivingTag() // "주행 중" 꼬리표
+            DrivingTag(drivingStateNow) // 실제 주행 상태를 따르는 꼬리표("주행 중"/"정차 중")
         }
 
         Spacer(Modifier.height(8.dp))
@@ -213,11 +240,20 @@ private fun EventLineNotice(line: String?) {
 }
 
 /**
- * "주행 중" 꼬리표. ui/common 의 DemoModeTag 와 같은 스타일(테두리 박스·label 크기)이며
+ * 꼬리표("주행 중"/"정차 중"). ui/common 의 DemoModeTag 와 같은 스타일(테두리 박스·label 크기)이며
  * 문구만 다르다 — ui/common 이 텍스트 지정형으로 통합되면 이 컴포저블은 그쪽으로 교체한다.
+ *
+ * 06문서 고칠 것 6번: 문구는 [state](container.drivingState.state 의 현재 값)를 따른다 —
+ * DRIVING 이면 '주행 중', PARKED 면 '정차 중'. 상태를 못 읽었으면(null) 주행 모드 진입 경로가
+ * 기본인 이 화면의 기존 문구('주행 중')로 흡수한다(가짜 판정 금지 — 추측으로 바꾸지 않는다).
  */
 @Composable
-private fun DrivingTag() {
+private fun DrivingTag(state: DrivingState?) {
+    // 문구 리소스는 컴포저블 단계에서 고른다(재구성 시 상태 변화가 바로 반영된다).
+    val tagRes = when (state) {
+        DrivingState.PARKED -> R.string.driving_tag_parked
+        else -> R.string.driving_tag // DRIVING 또는 null(상태 미수신).
+    }
     Box(
         modifier = Modifier
             .border(
@@ -228,7 +264,7 @@ private fun DrivingTag() {
             .padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
         Text(
-            text = stringResource(R.string.driving_tag),
+            text = stringResource(tagRes),
             style = AroTextStyles.label.copy(color = MaterialTheme.aroColors.textSecondary),
         )
     }

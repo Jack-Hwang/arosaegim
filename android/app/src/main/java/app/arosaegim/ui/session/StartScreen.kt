@@ -6,9 +6,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -85,6 +88,9 @@ fun StartScreen(store: FamilySessionStore) {
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background) // 윈도우 다크 배경 비침 방지(주간 테마 기본)
+            // 06문서 고칠 것 3번: 시스템 영역(safe drawing — 상단 주행 정보·하단 GNB·입력 키보드)을
+            // 피한다. 인셋 패딩을 스크롤 바깥에 두어 스크롤 영역 자체가 인셋 안쪽에 생기게 한다.
+            .windowInsetsPadding(WindowInsets.safeDrawing)
             .verticalScroll(rememberScrollState()),
     ) {
         // 상단 헤더 — 시작 화면이므로 Back 은 숨기고 앱 이름만 표시한다.

@@ -6,11 +6,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -42,7 +45,7 @@ import app.arosaegim.ui.session.StartActivity
  * 주행 화면(UX 규제 대상)이 아니므로 긴 상세 목록을 그대로 보여 준다.
  *
  * 04문서 시안 11 — 항목 9개, 항목마다 '구현'/'검증' 꼬리표 2개:
- *   ① 어댑터 선택 ② 수동 제어 ③ 스모크 테스트(U1~U14) ④ 마지막 오류 ⑤ 차량 세션
+ *   ① 어댑터 선택 ② 수동 제어 ③ 스모크 테스트(U1~U16) ④ 마지막 오류 ⑤ 차량 세션
  *   ⑥ 기어 상태(Vehicle·Gear) ⑦ 점수 지표(T12+) ⑧ 고정 진실 ⑨ 보조 신호 메모
  * '기어 상태' 행은 01문서 10절(차종·연식 미제공 정정)에 따라 기존 '차종·연식' 관련 행을 대체한다.
  */
@@ -75,11 +78,14 @@ fun DiagnosticsScreen(vm: DiagnosticsViewModel) {
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background) // 윈도우 다크 배경 비침 방지(주간 테마 기본)
+            // 06문서 고칠 것 3번: 시스템 영역(safe drawing — 상단 주행 정보·하단 GNB)을 피한다.
+            // 인셋 패딩을 스크롤 바깥에 두어 스크롤 영역 자체가 인셋 안쪽에 생기게 한다.
+            .windowInsetsPadding(WindowInsets.safeDrawing)
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text("아로새김 진단 (U1~U14)", fontSize = 22.sp)
+        Text("아로새김 진단 (U1~U16)", fontSize = 22.sp)
 
         // ① 어댑터 선택 — 포트마다 '구현'(선택된 어댑터/사유)과 '검증'(근거 테스트 결과) 두 줄.
         SectionHeader("① 어댑터 선택")
@@ -149,8 +155,9 @@ fun DiagnosticsScreen(vm: DiagnosticsViewModel) {
             Text(line, fontSize = 18.sp)
         }
 
-        // ③ 스모크 테스트 — U1~U14 전부(01문서 8절). 카드마다 '구현'/'검증' 두 줄을 단다.
-        SectionHeader("③ 스모크 테스트 (U1~U14)")
+        // ③ 스모크 테스트 — U1~U16 전부(01문서 8절 + 07문서 3절 D 실측 항목).
+        // 카드마다 '구현'/'검증' 두 줄을 단다(09문서: 항목별 표기 유지).
+        SectionHeader("③ 스모크 테스트 (U1~U16)")
         results.forEach { result ->
             val impl = vm.smokeImplNotes[result.id] ?: "미지정"
             val verified = result.status == SmokeResult.Status.PASS
@@ -263,6 +270,7 @@ fun DiagnosticsScreen(vm: DiagnosticsViewModel) {
         Text("• Gear 보조: 병합됨(A2) — CarUxRestrictions 와 Gear 가 어긋나면 주행(더 제한적) 우선. D→P 에서 DO 해제 콜백이 늦거나 없어도 기어가 정차로 병합 판정한다", fontSize = 18.sp)
         Text("• U12 문 · U14 배터리: 참고 — 사용 안 함(로드맵, 조회·수신 실행 없음)", fontSize = 18.sp)
         Text("• D1 연료 · D2 EV 배터리: 실측 전용 — capability 성공/실패만 기록·표시(값 미읽음, 기능 구현 없음)", fontSize = 18.sp)
+        Text("• U15 연료 · U16 EV 배터리: FuelBatteryProbe 가 Vehicle 을 직접 초기화해 capability 만 실측(AAR 2.3.2 시그니처, 값 미읽음) — D1·D2 는 앱 공용 Vehicle 을 재사용한다", fontSize = 18.sp)
 
         // ── 테마(개발) — 주간/야간 토큰 전환(00문서 12절 T6, 시안 10 다크 확인용 D5 도구).
         //

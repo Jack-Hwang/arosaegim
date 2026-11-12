@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  네트워크 보안 설정.
+  - 릴리스는 HTTPS 전제(00문서)이므로 기본값(클리어텍스트 금지)을 유지한다.
+  - 예외: 에뮬레이터 데모 서버(호스트 루프백 10.0.2.2·localhost)만 클리어텍스트 허용.
+    이 설정이 없으면 릴리스 APK에서 방문 동기화(T8/E1)·then-now 조회가 전부 실패한다
+    (2026-11-12 실측: 요청이 서버에 전혀 도달하지 않음 — F71).
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">10.0.2.2</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+</network-security-config>

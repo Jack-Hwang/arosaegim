@@ -106,6 +106,31 @@ class TripSession(
     private val _partySize = MutableStateFlow<Int?>(null)
     val partySize: StateFlow<Int?> = _partySize.asStateFlow()
 
+    init {
+        // 06문서 고칠 것 5번(2026-11-12): 재시작 후에도 스탬프 진행(N/3)을 유지한다.
+        // visits.json 에 남은 방문 기록은 도착 순서대 적재된 것이라, 같은 순서로 markStamped 를
+        // 다시 불러 CourseProgress(다음 목표·완주 여부)를 저장 상태에 맞춰 재구성한다.
+        //  - 이 세션 코스의 기록만 인정한다. 코스 외 placeId 는 markStamped 가 무시하고,
+        //    다른 코스 courseId 의 기록은 여기서 걸러진다.
+        //  - 읽기 실패(깨진 파일 등)는 빈 목록으로 흡수한다 — VisitStore 계약(크래시 금지)과 같다.
+        //  - 전송 큐(visitQueue)는 복원하지 않는다. 서버 전송 대기 큐는 여정 진행과 별개다.
+        //  - 중간 재진입이 아닌 '생성 시점'의 1회 복원이라 startOdometerKm 은 아직 null 이고,
+        //    이후 start() 의 odometer 스냅샷은 복원된 진행 기준으로 잡힌다(T5-1 계약 유지).
+        val restoredVisits = runCatching { visitStore.readAll() }.getOrDefault(emptyList())
+        restoredVisits.forEach { visit ->
+            if (visit.courseId == course.id) {
+                progress.markStamped(visit.placeId) // 중복·코스 외 장소는 도메인이 무시한다.
+            }
+        }
+        // 복원 결과를 노출 StateFlow 에 반영한다. start() 전이므로 내비 경로 요청은 여기서
+        // 하지 않는다 — start() 의 E5 시작 요청이 복원된 현재 목표로 1회 나간다(중복 요청 방지).
+        // 복원은 도착이 아니므로 음성·한 줄 알림·큐 적재도 일으키지 않는다.
+        _currentTarget.value = progress.currentTarget
+        _stampedCount.value = progress.completedPlaces.size
+        _isCompleted.value = progress.isCompleted
+        _lastArrival.value = progress.completedPlaces.lastOrNull()
+    }
+
     /** T5-1 스냅샷: 코스 시작 시점의 주행거리계 값. null 이면 아직 읽지 못한(또는 미지원) 상태다. */
     private var startOdometerKm: Double? = null
 

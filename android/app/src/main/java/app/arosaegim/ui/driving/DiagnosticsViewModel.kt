@@ -14,6 +14,7 @@ import app.arosaegim.domain.DrivingState
 import app.arosaegim.domain.Place
 import app.arosaegim.fallback.AssetAudioNarrator
 import app.arosaegim.fallback.ManualDrivingState
+import app.arosaegim.pleos.FuelBatteryProbe
 import app.arosaegim.ports.Narrator
 import app.arosaegim.ui.ModeRouter
 import app.arosaegim.ui.parked.DiagnosticsMetrics
@@ -58,7 +59,15 @@ class DiagnosticsViewModel(
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
-    private val _results = MutableStateFlow(initialResults())
+    /**
+     * U15·U16(연료·EV 배터리 지원 실측, 07문서 3절 D)용 프로브 — 공용 인스턴스. Vehicle 서비스
+     * 연결은 첫 U15·U16 클릭 때 이뤄진다(진단 화면 진입 즉시 바인딩하지 않음). D1·D2 가 앱 공용
+     * Vehicle(AppContainer.pleosVehicle)을 재사용하는 것과 달리, 이 프로브는 Vehicle 을 직접
+     * 초기화해 SDK 원 호출 경로를 그대로 실측한다(값은 양쪽 모두 읽지 않는다).
+     */
+    private val fuelBatteryProbe = FuelBatteryProbe.shared(appContext)
+
+    private val _results = MutableStateFlow(initialResults(appContext))
     val results: StateFlow<List<SmokeResult>> = _results.asStateFlow()
 
     /** 포트명 → 검증 근거가 되는 스모크 테스트 id(01문서 8절 기준 수동 매핑). */
@@ -119,6 +128,10 @@ class DiagnosticsViewModel(
         // 기능 구현은 보류 범위다 — 성공/실패 기록·표시만 한다.
         "D1" to "PleosVehicleInfoProvider.checkFuelCapabilityOnly (capability 확인만·값 미읽음)",
         "D2" to "PleosVehicleInfoProvider.checkEvBatteryCapabilityOnly (capability 확인만·값 미읽음)",
+        // U15·U16(2026-11-12, 07문서 3절 D): FuelBatteryProbe 가 Vehicle 을 직접 초기화해 SDK 원
+        // 호출 경로를 실측한다 — D1·D2(앱 공용 Vehicle 재사용)와 판정 기준은 같다(값 미읽음).
+        "U15" to "FuelBatteryProbe (Vehicle.getFuel 직접 — Pleos/값 미읽음)",
+        "U16" to "FuelBatteryProbe (Vehicle.getEvBattery 직접 — Pleos/값 미읽음)",
     )
 
     /** 현재 주행 상태 제공자 이름(수동 토글이 실제 반영되는지 확인용). */
@@ -460,6 +473,10 @@ class DiagnosticsViewModel(
         "D2" -> runCapabilityCheck("D2", "EvBattery.checkEvBatteryStateOfChargeCapabilities", onDetail) {
             container.pleosVehicle.checkEvBatteryCapabilityOnly(it)
         }
+        // U15·U16: FuelBatteryProbe 의 suspend 래퍼(3초 타임아웃·runCatching)를 통한 실측.
+        // 판정은 SmokeTests 쪽 AccessType 집합 비교(D1·D2 의 runCapabilityCheck 와 동일 기준).
+        "U15" -> SmokeTests.runU15(fuelBatteryProbe, onDetail)
+        "U16" -> SmokeTests.runU16(fuelBatteryProbe, onDetail)
         else -> {
             onDetail("알 수 없는 테스트 id: $id")
             Outcome(passed = false)
@@ -588,7 +605,12 @@ class DiagnosticsViewModel(
     private fun now(): String =
         SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
 
-    private fun initialResults(): List<SmokeResult> = listOf(
+    /**
+     * 초기 스모크 목록. U15·U16 라벨은 strings 리소스로 둔다(다른 항목과 달리 신규 문구 —
+     * 실측 뒤 문구가 바뀔 수 있어 리소스로 관리). appContext 는 프로퍼티 초기화 시점에만
+     * 접근 가능한 생성자 파라미터라 인자로 받는다(멤버 함수에서 직접 참조 불가).
+     */
+    private fun initialResults(appContext: Context): List<SmokeResult> = listOf(
         SmokeResult("U1", "내비 경로 요청(poiId 빈 값)"),
         SmokeResult("U2", "내비 초기화 상태"),
         SmokeResult("U3", "근접 알림 관찰(재클릭=중단)"),
@@ -616,6 +638,10 @@ class DiagnosticsViewModel(
         // 기어 상태 카드와 같은 기존 스타일. 값 읽기·문장 생성 등 기능 구현은 보류다.
         SmokeResult("D1", "연료 capability 실측(기능 구현 없음)"),
         SmokeResult("D2", "EV 배터리 capability 실측(기능 구현 없음)"),
+        // U15·U16(2026-11-12, 07문서 3절 D): FuelBatteryProbe 직접 실측 — capability 성공/실패만
+        // 기록한다. 구현(화면 문장 생성 등)은 실측 결과를 보고 정한다(범위 고정).
+        SmokeResult("U15", appContext.getString(R.string.diag_u15_fuel_support)),
+        SmokeResult("U16", appContext.getString(R.string.diag_u16_evbattery_support)),
     )
 
     private companion object {

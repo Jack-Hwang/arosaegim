@@ -204,6 +204,8 @@ internal fun QuizChoiceButton(
  * E2(2026-11-11) — 표시 우선순위(02문서 4절): 서버 past > 시드 then_now_demo(예시) > 첫 방문 문구.
  *  - serverPast 가 있고 past 가 있으면: 서버 실데이터(연도·메모·사진·그때 인원·그때의 차)를 그리고
  *    '예시' 태그는 숨긴다. 사진은 photo_url 을 네트워크로 내려오고, 실패하면 글만 남긴다.
+ *    B5(2026-11-12): 사진 아래에 사진 속 이름표를 글자로 보여 준다 — 가족이 웹에서 직접 붙인
+ *    이름만(ThenMarkerNamesLine), 이름이 없으면 줄 없이 기존 구성 그대로다.
  *  - serverPast 가 있고 past 가 null 이면: 서버가 '과거 없음'이라 답한 것 — 첫 방문 문구.
  *  - serverPast 가 null(미조회·실패·세션 없음)이면: 기존 동작대로 시드 then_now_demo(예시 태그) 폴백.
  *
@@ -327,6 +329,9 @@ internal fun ThenNowStep(
                 SmallTag(yearLabel)
                 // 사진: photo_url 네트워크 로드. 경로 없음·실패면 칸 없이 아래 메모만(글만 — 계약).
                 past.photoUrl?.let { ThenNetworkPhoto(photoUrl = it) }
+                // B5(2026-11-12): 사진 속 이름표 — 가족이 웹에서 직접 붙인 이름을 사진 아래 글자로만
+                // 표시한다(점·얼굴 표시 없음, 차량 입력·수정 없음). 이름이 없으면 줄은 스스로 숨는다.
+                ThenMarkerNamesLine(names = past.markerNames)
                 // 메모는 2줄로 자른다(04문서 화면 4 금지: 긴 메모 전체 표시).
                 past.note?.let {
                     Text(it, style = AroTextStyles.bodySmall, color = MaterialTheme.aroColors.textPrimary, maxLines = 2)

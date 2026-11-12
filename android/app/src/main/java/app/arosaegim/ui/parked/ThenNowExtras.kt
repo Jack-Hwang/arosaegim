@@ -387,6 +387,7 @@ object DiagnosticsMetrics {
  *
  * @property past 서버의 과거 기록. null = 서버가 '과거 없음'(첫 방문)이라 답한 것 —
  *                예시(시드) 대신 첫 방문 문구를 보인다(02문서 4절 우선순위: 서버 past > 시드 예시 > 첫 방문).
+ *                과거가 기억(사진)이면 [ThenNowServerPast.markerNames]에 사진 속 이름표가 함께 온다(B5).
  * @property nowPartySize 이번 방문 기록의 인원(now.party_size). 없으면 null → 줄 숨김(04문서 화면 4).
  * @property nowTripKm 이번 방문(코스) 주행거리(now.trip_km). 없으면 null → 줄 숨김.
  * @property visitOrdinal 이번 방문이 가족·장소 기준 몇 번째인지(1=첫 방문). 없으면 null.
@@ -409,6 +410,11 @@ internal data class ThenNowServerPast(
     val vehicleLabel: String?,
     /** memory(가족이 남긴 기억) | visit(앱 자동 기록). 화면 표기에는 아직 쓰지 않고 보관만 한다. */
     val kind: String?,
+    /**
+     * B5(2026-11-12): 사진 속 이름표 — 가족이 웹에서 직접 붙인 이름만, 서버 응답 순서 그대로.
+     * 빈 목록이면 '함께한 사람' 줄을 숨긴다(ThenMarkerNamesLine 계약 — 점·좌표는 차량에 그리지 않는다).
+     */
+    val markerNames: List<String> = emptyList(),
 )
 
 /**
@@ -487,6 +493,28 @@ private fun downloadBitmap(url: String): ImageBitmap? {
     } finally {
         conn.disconnect()
     }
+}
+
+/**
+ * B5(2026-11-12): 사진 속 이름표를 사진 아래 글자로만 보여 준다 —
+ * 예: "함께한 사람: 할아버지 · 큰아버지".
+ *  - 웹 '그때 기록하기'에서 가족이 직접 붙인 이름만 온다. 얼굴 자동 인식·라이브러리 없음,
+ *    사진 위 점·이름표를 그리지 않으며 차량에서 입력·수정도 없다(07문서 B5 계약).
+ *  - 이름이 하나도 없으면(서버 미제공·조회 실패·이름 전부 빈칸) 줄을 통째로 그리지 않는다
+ *    ("안 읽히면 숨김" 원칙 — 빈 문구·크래시 금지).
+ *  - 상한 10명(02문서 13절 — 파서가 이미 잘라 두지만 여기서 한 번 더 방어), 줄은 3줄 이내.
+ */
+@Composable
+internal fun ThenMarkerNamesLine(names: List<String>, modifier: Modifier = Modifier) {
+    val cleaned = names.filter { it.isNotBlank() }.take(10)
+    if (cleaned.isEmpty()) return // 이름 없음 = 줄 숨김
+    Text(
+        text = stringResource(R.string.parked_then_marker_names, cleaned.joinToString(" · ")),
+        modifier = modifier.fillMaxWidth(),
+        style = AroTextStyles.bodySmall,
+        color = MaterialTheme.aroColors.textPrimary,
+        maxLines = 3,
+    )
 }
 
 /**

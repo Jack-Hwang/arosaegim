@@ -6,11 +6,14 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -441,7 +444,14 @@ fun ParkedScreen(container: AppContainer, onExitToDriving: () -> Unit) {
     // ── 스텝0 판정: 스탬프가 0개이고 코스를 시작하지 않았으면(로컬 플래그) 코스 선택을 먼저 본다.
     val showCourseSelect = stampedCount == 0 && !CourseStartState.courseStarted
 
-    BoxWithConstraints(Modifier.fillMaxSize()) {
+    // 06문서 고칠 것 3번: 루트에서 safe drawing 인셋(상단 주행 정보·하단 GNB)을 피한다 —
+    // 스텝0(코스 선택) 분기와 본문 분기 모두 이 안쪽에 그려진다. 기존 내부 구조(배경·스크롤
+    // modifier 순서)는 그대로 두고 루트에만 인셋 패딩을 얹는 최소 변경이다.
+    BoxWithConstraints(
+        Modifier
+            .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.safeDrawing),
+    ) {
         // 가로·세로 분기(04문서 공통): 좁은 창(세로)은 위아래로 쌓고, 넓은 창(가로)은 좌우 배치.
         val isWide = maxWidth >= 600.dp
 
@@ -980,11 +990,17 @@ private suspend fun fetchThenNowBody(
 /** then-now 응답 파싱 전용 Json(모르는 필드 무시 — 서버 필드 추가에 흔들리지 않게). */
 private val thenNowJson = Json { ignoreUnknownKeys = true }
 
+/** 사진 속 이름표 표시 상한(명) — 서버 MAX_MARKERS·웹 안내 '최대 10명'과 통일(02문서 13절). */
+private const val MARKER_NAME_LIMIT = 10
+
 /**
  * then-now 응답의 'past' 블록 중 화면에 필요한 필드만 받는 로컬 DTO.
  * 서버 형태: {"kind":"memory"|"visit", "year":1994, "years_ago":32, "note":"…",
  * "photo_url":"/uploads/…", "vehicle_label":"…", "party_size":4, "markers":[…]}.
- * markers(사진 인물 이름표)는 '누가 탔는지' 표시 금지(04문서 화면 4)에 따라 받지도 않는다.
+ * markers(B5, 2026-11-12): 가족이 웹 '그때 기록하기'에서 사진 위를 직접 눌러 붙인 이름표다 —
+ * 탑승자 자동 식별 금지('누가 탔는지' 표시 금지, 04문서 화면 4)와 다른 것으로, 가족이 직접
+ * 적은 이름만 표시 대상이다. 차량 화면에서는 이름만 글자로 보여 주고 점(x·y 좌표)은 그리지
+ * 않는다(차량에서 입력·수정 없음 — 07문서 B5).
  */
 @Serializable
 private data class ThenNowPastDto(
@@ -995,6 +1011,19 @@ private data class ThenNowPastDto(
     @SerialName("photo_url") val photoUrl: String? = null,
     @SerialName("vehicle_label") val vehicleLabel: String? = null,
     @SerialName("party_size") val partySize: Int? = null,
+    val markers: List<ThenNowMarkerDto> = emptyList(), // 옛 응답에 필드가 없으면 빈 목록(기본값).
+)
+
+/**
+ * past.markers 한 항목의 로컬 DTO — 서버 형태: {"x":0.3, "y":0.4, "name":"할아버지"}.
+ * x·y는 사진 크기에 대한 비율(0~1)이지만 차량 화면에는 점을 그리지 않으므로 받아만 둔다(표시 미사용).
+ * name 을 null 허용으로 둔 것은 방어다 — 이름 없는 항목이 섞여도 응답 전체 파싱이 깨지지 않게.
+ */
+@Serializable
+private data class ThenNowMarkerDto(
+    val x: Float? = null,
+    val y: Float? = null,
+    val name: String? = null,
 )
 
 /** then-now 응답의 'now' 블록 — 이번 방문 기록. 방문 기록이 전무하면 서버가 now 도 null 로 보낸다. */
@@ -1031,6 +1060,9 @@ private data class ThenNowResponseDto(
  *  - past 는 ThenNowResolver 와 같은 방어를 적용한다: 연도가 없거나 0 이하, 현재 연도보다 큰
  *    '미래 과거'는 과거 기록으로 인정하지 않고 past=null(→ 첫 방문 문구)로 둔다.
  *  - now.party_size·now.trip_km 는 있을 때만 화면에 나온다(04문서 화면 4 — 없으면 숨김).
+ *  - B5(2026-11-12): past.markers 는 이름만 순서 그대로 뽑아 markerNames 로 넘긴다. 빈 이름은
+ *    건너뛰고, 상한 10명(02문서 — 서버 MAX_MARKERS·웹 안내와 통일)까지만 받는다. 하나도 없으면
+ *    빈 목록 — 사진 아래 '함께한 사람' 줄은 스스로 숨는다(ThenMarkerNamesLine 계약).
  */
 internal fun parseThenNowServerData(body: String): ServerThenNowInfo? {
     val dto = runCatching { thenNowJson.decodeFromString<ThenNowResponseDto>(body) }.getOrNull()
@@ -1049,6 +1081,7 @@ internal fun parseThenNowServerData(body: String): ServerThenNowInfo? {
                 partySize = p.partySize,
                 vehicleLabel = p.vehicleLabel?.takeIf { it.isNotBlank() },
                 kind = p.kind ?: dto.pastKind, // kind 는 past 안, past_kind 는 최상위 — 둘 다 흡수(방어).
+                markerNames = p.markers.mapNotNull { it.name?.takeIf { n -> n.isNotBlank() } }.take(MARKER_NAME_LIMIT),
             )
         }
     }

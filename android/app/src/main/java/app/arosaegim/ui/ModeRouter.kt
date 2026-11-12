@@ -10,6 +10,9 @@ import app.arosaegim.ui.parked.DiagnosticsMetrics
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
@@ -23,7 +26,18 @@ class ModeRouter(context: Context) {
 
     private val appContext = context.applicationContext
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    private var lastRouted: Class<*>? = null
+    private var lastRoutedTarget: Class<*>? = null
+
+    private val _lastRouted = MutableStateFlow<String?>(null)
+
+    /**
+     * 마지막으로 startActivity 호출이 '성공한' 대상 Activity 클래스명(U9 실측 판정용, 06문서 2번).
+     *  - route() 가 startActivity 를 예외 없이 호출하면 대상 simpleName(DrivingActivity/ParkedActivity)을 기록.
+     *  - 호출이 실패하면 null 로 되돌린다(마지막 오류는 DiagnosticsMetrics '마지막 오류' 채널에 별도 기록).
+     *  - '호출 성공 기록'이지 실제 최상단 Activity 전환까지 보장하지는 않는다 — 최상단은
+     *    진단 화면 실행 중 육안(uiautomator dump 등)으로 함께 확인하는 것을 전제로 한다.
+     */
+    val lastRouted: StateFlow<String?> = _lastRouted.asStateFlow()
 
     /** 상태 수집 시작. 앱 수명 동안 1회(ArosaegimApp.onCreate 에서 호출). */
     fun bind(provider: DrivingStateProvider) {
@@ -43,8 +57,8 @@ class ModeRouter(context: Context) {
         } else {
             ParkedActivity::class.java
         }
-        if (target == lastRouted) return // 이미 최상단이면 무시
-        lastRouted = target
+        if (target == lastRoutedTarget) return // 이미 최상단이면 무시
+        lastRoutedTarget = target
         // applicationContext 기반 intent(E3 수정, 2026-11-11): Activity 가 아닌 컨텍스트로
         // startActivity 하려면 FLAG_ACTIVITY_NEW_TASK 가 필수다 — 없으면 AndroidRuntimeException 이
         // 발생하고 아래 catch 에서 조용히 사라졌었다. NEW_TASK 를 먼저 붙이고(새 태스크가 아니라
@@ -54,9 +68,13 @@ class ModeRouter(context: Context) {
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
         try {
             appContext.startActivity(intent)
+            // U9 실측(06문서 2번): 호출이 성공했을 때만 대상 Activity 클래스명을 기록한다 —
+            // SmokeTests.runU9 가 이 기록을 기대값(DrivingActivity/ParkedActivity)과 비교해 판정한다.
+            _lastRouted.value = target.simpleName
         } catch (t: Throwable) {
             // 백그라운드 시작 제한 등 실패 시 다음 상태 변화에서 재시도할 수 있게 기록을 되돌린다.
-            lastRouted = null
+            lastRoutedTarget = null
+            _lastRouted.value = null // 실패 기록은 null — U9 가 FAIL 사유로 읽는다.
             // E3: 예외가 조용히 사라지지 않게 마지막 오류 채널(DiagnosticsMetrics 의 1줄
             // SharedPreferences 채널)에 기록한다 — 진단 화면 ④ '마지막 오류'에서 확인 가능.
             // 예외 유형만 남긴다(좌표·코드·개인 식별값 기록 금지, Log 사용 금지 규칙 준수).

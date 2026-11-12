@@ -488,6 +488,51 @@ class TripSessionTest {
         awaitUntil { f.session.stampedCount.value == 2 }
         assertEquals("복구 뒤 진행도 정상", "p3", f.session.currentTarget.value?.id)
     }
+
+    /**
+     * 06문서 고칠 것 5번(2026-11-12): 재시작 후 진행 복원.
+     * 이전 실행이 남긴 visits.json 기록 1건(p1)으로 세션을 만들면 스탬프 1/3·다음 목표 p2 로
+     * 시작해야 한다. Fixture 의 저장소는 항상 새 임시 파일이라 여기서는 세션을 직접 만든다 —
+     * 생성(복원) → start() 순서는 ArosaegimApp.onCreate 와 같다.
+     */
+    @Test
+    fun `14_재시작 시 visits_json 기록으로 스탬프 진행을 복원한다`() = runBlocking {
+        val file = newTempFile()
+        // 이전 실행의 방문 기록 1건을 파일에 미리 적재한다(앱 재시작 상황 재현).
+        VisitStore(file).append(
+            LocalVisit(
+                placeId = "p1",
+                courseId = "course-test",
+                visitedAtEpochMs = 1_000L,
+                source = "fused",
+            ),
+        )
+
+        val fused = FakeArrivalDetector()
+        val store = RecordingVisitStore(file) // readAll 은 파일을 읽는다(하위 클래스도 같은 계약).
+        val session = TripSession(
+            course = course(),
+            fusedArrival = fused,
+            manualArrival = FakeArrivalDetector(),
+            narrator = FakeNarrator(),
+            visitStore = store,
+            scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined),
+        )
+        session.start()
+
+        assertEquals("저장된 방문 1건이 스탬프 1/3 으로 복원된다", 1, session.stampedCount.value)
+        assertEquals("다음 목표는 2번째 장소 p2", "p2", session.currentTarget.value?.id)
+        assertEquals("마지막 도착 장소도 함께 복원된다", "p1", session.lastArrival.value?.id)
+        assertTrue("start 는 복원된 목표(p2)부터 감시한다", fused.watched.contains("p2"))
+        assertEquals("복원은 방문 기록을 새로 적재하지 않는다", 0, store.appended.size)
+        assertNull("복원은 도착이 아니므로 한 줄 알림을 만들지 않는다", session.lastEventLine.value)
+
+        // 복원 상태에서 다음 도착(p2)이 이어서 정상 처리된다(순서 규칙 유지).
+        fused.emit("p2")
+        awaitUntil { session.stampedCount.value == 2 }
+        assertEquals("복원 뒤 진행도 정상", "p3", session.currentTarget.value?.id)
+        assertEquals("이어진 도착만 기록에 추가된다", 1, store.appended.size)
+    }
 }
 
 /** 테스트 전용 임시 파일 — deprecated createTempFile 대신 NIO 를 쓴다. */

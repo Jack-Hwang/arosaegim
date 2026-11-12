@@ -4,9 +4,11 @@ import app.arosaegim.AppContainer
 import app.arosaegim.domain.DrivingState
 import app.arosaegim.domain.Place
 import app.arosaegim.fallback.ManualDrivingState
+import app.arosaegim.pleos.FuelBatteryProbe
 import app.arosaegim.ports.Narrator
 import app.arosaegim.ports.RouteEvent
 import app.arosaegim.ui.ModeRouter
+import app.arosaegim.ui.parked.ParkedActivity
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlinx.coroutines.Dispatchers
@@ -71,7 +73,8 @@ object SmokeTests {
             }
             val passed = result.isSuccess && received.none { it.contains("Error") }
             onDetail(
-                if (passed) "판정: PASS(호출 성공, Error 미수신 — 내비 화면에 경로가 떴는지 육안 병기)"
+                // 06문서 2번: '호출 성공'이 탐색 완료를 뜻하지 않음을 문구로 구분한다(경로 미확인).
+                if (passed) "판정: PASS — 호출 성공(경로 미확인), Error 미수신(내비 화면 경로는 육안 병기)"
                 else "판정: FAIL",
             )
             Outcome(passed)
@@ -190,17 +193,43 @@ object SmokeTests {
         }
     }
 
-    /** U9: DrivingActivity ↔ ParkedActivity 3회 전환(REORDER_TO_FRONT). */
+    /**
+     * U9: DrivingActivity ↔ ParkedActivity 3회 전환(NEW_TASK + REORDER_TO_FRONT) — 실측 판정.
+     * 06문서 2번(P0): 전환을 '요청만' 하고 Outcome(true) 을 돌려주던 낡은 동작을 고친다. 각 전환
+     * 뒤 [ModeRouter.lastRouted](startActivity 호출 성공 시 대상 Activity 클래스명)를 기대값과
+     * 비교해 판정한다. lastRouted 는 '호출 성공 기록'이므로 실제 최상단 화면은 육안 병기 전제.
+     */
     suspend fun runU9(modeRouter: ModeRouter, onDetail: (String) -> Unit): Outcome {
-        onDetail("DrivingActivity ↔ ParkedActivity 3회 전환(FLAG_ACTIVITY_REORDER_TO_FRONT)")
+        onDetail("DrivingActivity ↔ ParkedActivity 3회 전환 — lastRouted 실측 비교 판정")
+        val expectedDriving = DrivingActivity::class.java.simpleName
+        val expectedParked = ParkedActivity::class.java.simpleName
+        val mismatches = mutableListOf<String>()
         repeat(3) { index ->
+            val round = index + 1
+            // 주행 화면 전환: 요청 후 lastRouted 가 DrivingActivity 로 기록됐는지 실측한다.
             modeRouter.forceBringTo(DrivingState.DRIVING)
             delay(700)
+            val routedDriving = modeRouter.lastRouted.value
+            if (routedDriving != expectedDriving) {
+                mismatches += "전환 $round 주행: 기대 $expectedDriving, 실측 ${routedDriving ?: "null"}"
+            }
+            // 정차 화면 전환.
             modeRouter.forceBringTo(DrivingState.PARKED)
             delay(700)
-            onDetail("전환 ${index + 1}/3 완료")
+            val routedParked = modeRouter.lastRouted.value
+            if (routedParked != expectedParked) {
+                mismatches += "전환 $round 정차: 기대 $expectedParked, 실측 ${routedParked ?: "null"}"
+            }
+            onDetail("전환 $round/3 — 주행:$routedDriving / 정차:$routedParked")
         }
-        return Outcome(true)
+        return if (mismatches.isEmpty()) {
+            onDetail("판정: 전환 3/3 완료(실측) — 매 전환의 startActivity 호출 성공이 기록됨(최상단 육안 병기)")
+            Outcome(true)
+        } else {
+            mismatches.forEach { onDetail("불일치: $it") }
+            onDetail("판정: FAIL — lastRouted 불일치. ④ '마지막 오류'(백그라운드 시작 제한 등) 참조")
+            Outcome(false)
+        }
     }
 
     /** U10(관찰형): 도착 이벤트 관찰 — 에뮬레이터 내비가 geo fix 를 안 따라가므로 미발생이 예상값. */
@@ -214,6 +243,47 @@ object SmokeTests {
                 onDetail("Arrived 수신(placeId=null — DestinationArrivedInfo 에 placeId 없음, AAR 확인)")
             }
         }
+    }
+
+    /**
+     * U15: 연료 지원 실측(07문서 3절 D). [FuelBatteryProbe] 로 Fuel.checkFuelPercentCapabilities
+     * 호출이 성공하는지만 기록한다. 값(getFuelPercent)은 절대 읽지 않는다 — 07문서: 화면 문장 등
+     * 구현은 실측 결과를 보고 정한다. 결과는 AccessType(NONE/READ/WRITE/READ_WRITE) 또는 실패 사유.
+     */
+    suspend fun runU15(probe: FuelBatteryProbe, onDetail: (String) -> Unit): Outcome {
+        onDetail("Fuel.checkFuelPercentCapabilities 확인만 실행(값 미읽음·기능 구현 없음 — 실측 전용)")
+        val result = probe.checkFuelCapabilities()
+        onDetail("capability 결과 = $result")
+        return capabilityOutcome(result, onDetail)
+    }
+
+    /**
+     * U16: EV 배터리 지원 실측(07문서 3절 D). EvBattery.checkEvBatteryStateOfChargeCapabilities
+     * 호출이 성공하는지만 기록한다. 값(getEvBatteryStateOfCharge)은 절대 읽지 않는다.
+     */
+    suspend fun runU16(probe: FuelBatteryProbe, onDetail: (String) -> Unit): Outcome {
+        onDetail("EvBattery.checkEvBatteryStateOfChargeCapabilities 확인만 실행(값 미읽음·기능 구현 없음 — 실측 전용)")
+        val result = probe.checkEvBatteryCapabilities()
+        onDetail("capability 결과 = $result")
+        return capabilityOutcome(result, onDetail)
+    }
+
+    /**
+     * U15·U16 공용 판정 — 결과가 capability AccessType 문자열이면 조회 성공(PASS), 그 외
+     * (FAILED/타임아웃/NOT_INITIALIZED/ERROR)는 사유와 함께 FAIL. NONE 은 '조회는 성공했으나
+     * 접근 권한 없음'이라 D1·D2·U5 판정과 같은 기준으로 성공에 넣는다(상세에 그 뜻을 남긴다).
+     */
+    private fun capabilityOutcome(result: String, onDetail: (String) -> Unit): Outcome {
+        val passed = result in setOf("NONE", "READ", "WRITE", "READ_WRITE")
+        onDetail(
+            if (passed) {
+                val note = if (result == "NONE") "(조회 성공·접근 권한 없음 — 값 읽기 불가 의미)" else "(capability 확인 성공 — 기록 전용)"
+                "판정: PASS — AccessType=$result $note"
+            } else {
+                "판정: FAIL — 사유: $result"
+            },
+        )
+        return Outcome(passed)
     }
 
     // --- 내부 도구 ---

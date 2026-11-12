@@ -13,6 +13,11 @@
     <uses-permission android:name="pleos.car.permission.FUSED_LOCATION" />
     <uses-permission android:name="pleos.car.permission.CAR_INFO" />
     <uses-permission android:name="pleos.car.permission.CAR_DRIVE" />
+    <!-- CAR_ENERGY: 연료(Fuel)·EV 배터리(EvBattery) capability 조회(U5·D1·D2·U15·U16)에 쓴다.
+         Vehicle AAR 2.3.2 매니페스트 확인 결과(2026-11-12): SDK 가 직접 요구하는 권한은
+         ai.pleos.playground.service.vehicle.VEHICLE_BINDING 하나뿐이고 Fuel·EvBattery 별도
+         권한은 없다 — 이 CAR_ENERGY 로 커버한다. 실측에서 FAILED:SecurityException 이 나오면
+         그때 재확인한다(추측으로 권한 추가 금지). -->
     <uses-permission android:name="pleos.car.permission.CAR_ENERGY" />
     <!-- Seat 점유 조회(U11·T5-1): CAR_SEATS 누락 시 capability check 가 need Permission 으로 실패한다(U11 재실측 2026-11-11) -->
     <uses-permission android:name="pleos.car.permission.CAR_SEATS" />
@@ -27,7 +32,8 @@
         android:icon="@drawable/ic_launcher"
         android:theme="@style/Theme.Arosaegim"
         android:allowBackup="false"
-        android:supportsRtl="true">
+        android:supportsRtl="true"
+        android:networkSecurityConfig="@xml/network_security_config">
 
         <!-- 로터리 컨트롤러 미지원 선언 (01문서 규칙) -->
         <meta-data

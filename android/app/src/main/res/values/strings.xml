@@ -5,6 +5,8 @@
 
     <!-- ===== 주행 화면(ui/driving) T5 — 주행 중 안전 규칙: 표시 문구는 모두 한두 줄 이내 ===== -->
     <string name="driving_tag">주행 중</string>
+    <!-- 06문서 고칠 것 6번: 기어 P 로 주행 화면이 열렸을 때의 꼬리표(실제 주행 상태 따름). -->
+    <string name="driving_tag_parked">정차 중</string>
     <string name="driving_label_next">다음 목적지</string>
     <string name="driving_completed_title">코스 완주</string>
     <string name="driving_button_replay">이야기 다시 듣기</string>
@@ -80,6 +82,9 @@
     <!-- 서버 past.party_size·now.party_size 한 줄. 인원 수만 쓰고 누가 탔는지는 표시 금지(04문서 화면 4). -->
     <string name="parked_then_party">그때 함께 온 인원: %1$d명</string>
     <string name="parked_now_party">이번에 함께 온 인원: %1$d명</string>
+    <!-- B5(2026-11-12): 사진 속 이름표 — 웹에서 가족이 직접 붙인 이름만 글자로 보여 준다(사진 위 점·
+         얼굴 표시 없음, 차량 입력·수정 없음). 이름이 하나도 없으면 이 줄을 숨긴다. 최대 10명(02문서). -->
+    <string name="parked_then_marker_names">함께한 사람: %1$s</string>
 
     <!-- T6-1: 유물×가족 타임라인 한 줄(정적). heritage 가 없는 장소는 줄 자체를 숨긴다. -->
     <string name="parked_heritage_family">우리 가족 · %1$d년</string>
@@ -109,6 +114,12 @@
     <string name="diag_metrics_refresh">지표 새로고침</string>
     <string name="diag_metrics_no_session">가족 코드·PIN 세션이 없어 로컬 값을 표시해요</string>
     <string name="diag_metrics_fetch_failed">서버 지표를 가져오지 못해 로컬 값을 유지해요</string>
+    <!-- U15·U16(07문서 3절 D 실측 전용, 2026-11-12): Fuel·EvBattery capability 확인만 한다.
+         값(연료 %·SOC %)은 절대 읽지 않는다 — 화면 문장 등 구현은 실측 결과를 보고 정한다.
+         권한은 앱 매니페스트의 pleos.car.permission.CAR_ENERGY 로 커버(AAR 매니페스트는
+         VEHICLE_BINDING 만 요구 — FuelBatteryProbe.kt 주석 참조). -->
+    <string name="diag_u15_fuel_support">연료 지원(Fuel capability 실측)</string>
+    <string name="diag_u16_evbattery_support">EV 배터리 지원(EvBattery capability 실측)</string>
     <!-- 완주 화면: 오늘 함께 달린 거리. tripKm 을 못 읽으면 이 문장을 숨긴다. -->
     <string name="parked_trip_distance">오늘 함께 달린 거리 약 %1$.1f km</string>
 

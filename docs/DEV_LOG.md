@@ -369,3 +369,20 @@
 | vehicle-app | 8.10.2 | 8.8.2 | 2.0.0 | 23 | 35 | libs.versions.toml에 vehicleSdk=2.3.1(공개 Maven에 없음→2.3.2 사용) |
 | navi-app | 8.10.2 | 8.8.0 | 1.9.22 | 33 | 35 | Hilt+kapt 사용(우리는 미채용), naviHelper=3.0.5 |
 | fusedlocation-app | 8.10.2 | 8.8.2 | 2.0.0 | 24 | 35 | debug 매니페스트에 ACCESS_MOCK_LOCATION, fusedLocation=1.1.3 |
+
+---
+
+## 2026-11-13 (아침) — F71 릴리스 클리어텍스트 차단 발견·수정 + A2 실측 PASS + Q26 실증
+
+- 번호 안내: 이 섹션의 F71~F75는 이 섹션 전용이다(위쪽 2026-11-12 섹션의 F61~F64, 중간 2026-11-11(심야) 섹션의 F61~F70과 번호가 겹치므로 섹션 소속으로 구분).
+- 확인된 사실(F-번호):
+  - **F71 릴리스 클리어텍스트 차단 발견·수정(P0)**: release APK에서 ApiClient의 http://10.0.2.2:8000 호출이 전부 클라이언트에서 차단 — uvicorn 접속 로그에 앱 요청 0건(가족 코드 이어 보기는 오프라인 저장이라 성공처럼 보였고, then-now 조회 실패→B4 접기 버튼·B2 숨김, 방문 큐 미전송까지 전부 이 하나로 설명됨). debug 변형 매니페스트만 usesCleartextTraffic=true였던 것이 원인. 수정: res/xml/network_security_config.xml 신설(10.0.2.2·localhost만 허용 — 릴리스 HTTPS 전제 유지) + 매니페스트 networkSecurityConfig 연결. 수정 후 재실측: POST /v1/visits가 서버에 도달 확인(401 — 아래 Q26; 도달 자체는 성공).
+  - **F72 A2 실측 PASS(정차 화면 자동 전환)**: Virtual Console 기어 D(40km/h)→P 전환 시 손대지 않아도 ParkedActivity가 최상단 복귀 — 2회 확인(.pleos-download/a5_07_afterP_1.png·a5_15_afterP2.png). CombinedDrivingState 기어 2초 폴링이 실제 정차 전환을 만든다.
+  - **F73 A5 실측(문장 표시 PASS·값 불일치)**: 좌석 3명 주입 후 도착 카드에 "오늘은 1명이 함께 왔어요. 그때는 5명이었어요." 표시 확인(.pleos-download/a5_11_thennow.png) — partySize 파이프라인 동작. 주입 3명 대비 1명은 Q27 과제.
+  - **F74 A4 스탬프 카드 재확인**: 기어 D·40km/h 주행 중 반경 진입 → P 복귀 후 "국립경주박물관에 스탬프를 찍었어요 / 스탬프 1/3 / 다음: 대릉원(천마총)" 표시(a5_07_afterP_3.png). 대릉원 도착 2/3도 확인(a5_15_afterP2.png).
+  - **F75 운영 기록 — 에뮬레이터 공유 충돌**: 사용자의 Android Studio Run이 같은 에뮬레이터에 debug 빌드를 설치·기동할 수 있다(2026-11-13 07:58 사례: app-debug.apk 49MB 설치 → 진단 화면 노출). 자동 실측 시작 전 pm path app.arosaegim + lastUpdateTime 확인 권장. 이 이미지의 앱 데이터 초기화는 pm clear --user 10이 필요(pm clear만으론 user 10 데이터 미삭제).
+- 열린 질문(Q-번호):
+  - **Q26 (Q19 후속·실증)**: D→P 직후 우리 앱 디스플레이의 DO(CarUxRestrictions)가 Requires DO? true로 잔존해 병합 규칙(더 제한적 우선)이 주행 화면을 유지한 사례 1회 — 기어 P↔D 재사이클로 해소. 코드 과제: 기어 P·속도 0 지속 시 주행 해제 타임아웃(미구현).
+  - **Q27**: partySize 불일치(F73 — 주입 3 vs 표시 1) — SeatArea(ROW_1~3×L/C/R)와 VHAL areaId(1/4/16/32/64) 대응표·점유 값 의미(1/2) 스모크 확정 필요.
+  - **Q28**: 새 설치 플로우에서 가족 코드 입력 화면(StartActivity) 진입점이 보이지 않음 — fresh install이 곧바로 ParkedActivity 코스 선택. 세션(PIN) 없이는 방문 동기화(401)·B2/B4 표시가 불가능하다. UI 진입점 확인·보완 필요.
+- 테스트: 앱 ./gradlew test 159/159(네트워크 설정 포함 재빌드), 백엔드 pytest 76/76. release APK 재빌드·apk/ 재복사(40.45MB).
