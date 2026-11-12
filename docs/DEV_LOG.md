@@ -3,6 +3,24 @@
 > 작업 로그. 최신이 위. 스모크 테스트 결과표(U1~U10)를 맨 위에 유지한다.
 > 날짜 시각은 로컬(KST) 기준.
 
+## 2026-11-13 (오전) — D실측(연료·EV 배터리) 완료(진단 화면 실측)
+
+- 한 일: ①07문서 3절 D(연료·배터리 신호 실측 전용 스모크)를 진단 화면에서 실행 ②U10 관찰 중의 연속 도착 재확인 ③서버 DB에서 E1 전송 상태 대조
+- 결과/증거: `.pleos-download/d1_result.png`·`d2_result.png`·`u15_result.png`·`u16_result.png`(진단 판정 화면), `launched_drawer3.png`(스탬프 2/3·다음 첨성대)
+- 확인된 사실(F-번호):
+  - **F76 D실측 4항목 완료(07문서 3절 약속 이행 — capability 확인만, 값 미읽음)**: D1 연료 capability **FAIL**(`Fuel.checkFuelPercentCapabilities` → `FAILED: ERROR_NOT_SUPPORTED_PROPERTY` — 에뮬레이터 VHAL이 연료 속성 미지원)·D2 EV 배터리 capability **PASS**(`EvBattery.checkEvBatteryStateOfChargeCapabilities` → **READ**)·U15 연료 지원(Vehicle 직접) **FAIL**(동일 사유)·U16 EV 배터리 지원 **PASS**(확인함). 판정은 08:09~08:11 실측. → 기획서 반영 요청: "그때는 휘발유차, 오늘은 전기차" 문장의 연료 쪽은 이 에뮬레이터에서 불가(EV 쪽만 가능) — 기획서 담당 소유.
+  - **F77 연속 도착 1→2 독립 관찰**: U10 관찰 중 geo fix 이동 경로가 대릉원을 지나가자 도착이 자동 발행돼 스탬프 2/3·다음 목표 첨성대로 진행 — 같은 아래쪽 (아침) 섹션 F74(병렬 세션 기록)와 동일 사실의 독립 재관찰로, 재시작·수동 개입 없는 자동 진행을 다시 확인. F68(1건)의 연장 실측.
+  - **F78 서버 DB visits 0건 대조**: 기존 설치 릴리스 APK(네트워크 보안 설정 이전 빌드)의 방문이 서버에 1건도 없었다 — 아래쪽 (아침) 섹션 F71(릴리스 클리어텍스트 차단)과 정확히 일치하는 서버 쪽 대조 기록. 가족 세션이 없는 앱은 방문을 큐에 보류한다(설계대로 — 00문서 10.6). E1 전체 재실측(코드·PIN 입력→출발→도착→서버 행)은 Q28의 진입점 문제와 함께 GUI 세션 항목으로 남는다.
+  - **F79 진단 화면 진입 경로 확정**: 디버그 빌드는 런처=진단 화면이지만, 기어 D 상태에서는 시스템이 비(DO) 창 전환을 제한해 시작/정차 화면이 계속 최상단을 덮는다(아래쪽 (아침) 섹션 Q26의 DO 잔존과 같은 맥락). 기어 P 복구(콘솔 REST `PUT /vehicle/controls {speed:0,brake:100}` → `PUT /vehicle/gear?gear=Park`) 후 `am start --activity-reorder-to-front`로 진입이 안정화됐다. 진단 화면 ⑤ 차량 세션 카드의 '가족 코드 입력 화면' 버튼이 StartActivity의 유일한 adb 진입로다(StartActivity는 exported=false — Q28의 일반 흐름 진입점 보완과 별개). 릴리스 빌드는 진단 화면이 즉시 시작 화면으로 넘어가므로(설계) 진단 실측은 반드시 디버그 APK로 한다(서명이 달라 `install -r`로 덮어쓸 수 없음 — `uninstall` 후 재설치, 앱 데이터 초기화; 아래쪽 F75의 pm clear --user 10 참고).
+- Open Questions(Q-번호):
+  - **Q29** E1 전체 경로(가족 코드·PIN 입력 → 출발 → geo fix 도착 → 서버 visits 행·스탬프 반영) 실측 — GUI 세션. 서버에 테스트 가족 `UJ2AUXS9`(발급 2026-11-13)가 있으니 그대로 쓰면 된다. **Q18 정리 대상에 UJ2AUXS9 추가**(기존 8XTPUG8N와 함께 제출 전 삭제). Q28(가족 코드 진입점 보완) 선행.
+  - U11(좌석 4석에서의 문장 표시)·U13(주행거리 문장)·U6(음성 청취) 유지 — GUI 세션.
+- 다음: 미커밋 배치(네트워크 보안 설정·FuelBatteryProbe·스탬프 복원·마커·U9 lastRouted)는 병렬 세션이 커밋함(327158a, 2026-11-13 08:15). 본 섹션은 DEV_LOG만 커밋
+- 확인된 사실(추가):
+  - **F80 Q28 수정 — 정차 자동 전환의 세션 게이트**: 새 설치에서 첫 상태 수집(PARKED)이 정차 화면을 곧바로 최상단으로 올려 시작 화면(가족 코드 입력)의 진입점이 사라졌다(위 (아침) 섹션 Q28). 수정: ModeRouter에 `sessionExists` 게이트 — 정차로의 자동 전환은 세션(가족 코드·둘러보기)이 있을 때만; 주행 화면은 DO 안전 화면이므로 세션과 무관하게 항상 허용. 순수 판정 `ModeRouter.resolveTarget` 분리 + 단위 테스트 4케이스(`ModeRouterResolveTest`), `FamilySessionStore.hasSession()` 신설, 진단 U9의 `forceBringTo`는 게이트 우회(개발자 명시 전환 보호). ArosaegimApp에서 `container.familySessionStore.hasSession()` 배선. 실측 검증(08:30): 수정분 debug APK 재설치 후 콜드 스타트 → 6초 경과 시 `topResumedActivity`가 여전히 런처(진단 화면)이고 ParkedActivity가 뜨지 않았다(수정 전에는 몇 초 안에 정차 화면이 덮였다) — `.pleos-download/q28_verify.png`. 앱 테스트 163/163(신규 4케이스 포함)·assembleDebug·assembleRelease 성공, `apk/arosaegim_아로새김_release.apk` 갱신.
+
+---
+
 ## 2026-11-10 (심야) — Pleos 에뮬레이터 CLI 구축 + 실기동 첫 스모크
 
 - 한 일:
@@ -250,11 +268,15 @@
 | U7 | 주행 규제 전환 | **부분 → 진전** — CarUxRestrictions 획득·등록 성공에 더해, A2 병합(CombinedDrivingState)로 기어 보조 2초 폴링이 실측 확인됨(F62 — VENDOR_GEAR_SELECTION 주기 조회 로그). 기어 D 진입 시 주행 모드 전환·화면 가려짐도 확인(F68). restrict 수신 세부는 여전히 Q19 | v2.1.0 실측 | 2.3.2 | .pleos-download/a4_36.png |
 | U8 | 에뮬레이터→호스트 서버 | **PASS** — GET 10.0.2.2:8000/health → **200 {"ok":true}**(cleartext 포함)·재확인 | v2.1.0 실측 | - | 백엔드 uvicorn 구동 중 — .pleos-download/u8_r.png |
 | U9 | Activity 전환 반복 | **PASS** — Driving↔Parked 3회 전환(REORDER_TO_FRONT) 완료·복귀·상태 유지 | v2.1.0 실측 | - | .pleos-download/u9_r.png |
-| U10 | 도착 이벤트 관찰 | **관찰 중 — geo fix 3회 이동 후에도 onDestinationArrived 미발생**([REPORTED]와 일치 — 이것이 정상 결과). 관찰 카드 유지 | v2.1.0 실측 | 3.0.5 | 도착 판정 본역은 FusedLocation(U3 PASS) — 설계 정당화 근거 |
+| U10 | 도착 이벤트 관찰 | **관찰 중 — geo fix 3회 이동 후에도 onDestinationArrived 미발생**([REPORTED]와 일치 — 이것이 정상 결과). 관찰 카드 유지. **2026-11-13: 연속 도착 1→2 재확인(F77)** — 대릉원 통과 중 스탬프 2/3·다음 첨성대 자동 진행 | v2.1.0 실측 | 3.0.5 | 도착 판정 본역은 FusedLocation(U3 PASS) — 설계 정당화 근거 |
 | U11 | 좌석 점유 → 인원(partySize) | **원인 발견·수정 → 조회 성공** — 근원은 매니페스트 CAR_SEATS 권한 누락("need Permission", F67). 추가 후 Virtual Console 좌석 3명 주입 재실측에서 SEAT_OCCUPANCY capability 성공·좌석별 값 수신. '문장 표시'까지의 화면 확인은 Q19과 함께 대기 | v2.1.0 실측 | 2.3.2 | .pleos-download/a4_51.png — u11_r3.png(구 실패 기록) |
 | U12 | 문 상태(참고 — 사용 안 함) | **해당 없음(고정)** — 문장 안 함(로드맵)·좌석·수신음 실행하지 않음 | - | - | 진단 카드 고정 안내 렌더링 확인 |
 | U13 | 주행거리계(odometerKm) | **PASS** — odometerKm()=**0.0 km 수신**(판정 PASS). '현재(트립) 거리' 채널로 보임 — **T5-1 계산에 적합**. 2026-11-11 심야: Virtual Console odometer 12500km 주입 성공(F69) — 클러스터에 반영 확인. 앱 화면 문장 반영 확인은 대기 | v2.1.0 실측 | 2.3.2 | .pleos-download/u13_r.png |
 | U14 | 배터리(참고 — 사용 안 함) | **해당 없음(고정)** — 사용 안 함(로드맵) | - | - | 진단 카드 고정 안내 렌더링 확인 |
+| D1 | 연료 capability 실측(07문서 3절 D — 실측 전용) | **FAIL — `ERROR_NOT_SUPPORTED_PROPERTY`**(에뮬레이터 VHAL이 연료 속성 미지원). capability 확인만·값 미읽음(약속 준수) | v2.1.0 실측 | 2.3.2 | .pleos-download/d1_result.png — F76, 기획서 반영 요청 |
+| D2 | EV 배터리 capability 실측(실측 전용) | **PASS — capability 결과 `READ`**. 값 미읽음(약속 준수) | v2.1.0 실측 | 2.3.2 | .pleos-download/d2_result.png — F76 |
+| U15 | 연료 지원(Vehicle 직접 접근 프로브) | **FAIL — D1과 동일 사유** | v2.1.0 실측 | 2.3.2 | .pleos-download/u15_result.png — F76 |
+| U16 | EV 배터리 지원(EvBattery 직접 접근 프로브) | **PASS — 확인함** | v2.1.0 실측 | 2.3.2 | .pleos-download/u16_result.png — F76 |
 
 > 실측 방법: 진단 화면을 `input tap`으로 직접 조작(좌표는 스크린샷 측정). U3·U10의 위치 주입은 `adb emu geo fix`. U7·U11·U13 완결은 Virtual Console(adb forward tcp:8088 → 127.0.0.1:8088) 필요.
 
@@ -384,5 +406,5 @@
 - 열린 질문(Q-번호):
   - **Q26 (Q19 후속·실증)**: D→P 직후 우리 앱 디스플레이의 DO(CarUxRestrictions)가 Requires DO? true로 잔존해 병합 규칙(더 제한적 우선)이 주행 화면을 유지한 사례 1회 — 기어 P↔D 재사이클로 해소. 코드 과제: 기어 P·속도 0 지속 시 주행 해제 타임아웃(미구현).
   - **Q27**: partySize 불일치(F73 — 주입 3 vs 표시 1) — SeatArea(ROW_1~3×L/C/R)와 VHAL areaId(1/4/16/32/64) 대응표·점유 값 의미(1/2) 스모크 확정 필요.
-  - **Q28**: 새 설치 플로우에서 가족 코드 입력 화면(StartActivity) 진입점이 보이지 않음 — fresh install이 곧바로 ParkedActivity 코스 선택. 세션(PIN) 없이는 방문 동기화(401)·B2/B4 표시가 불가능하다. UI 진입점 확인·보완 필요.
+  - **Q28**: 새 설치 플로우에서 가족 코드 입력 화면(StartActivity) 진입점이 보이지 않음 — fresh install이 곧바로 ParkedActivity 코스 선택. 세션(PIN) 없이는 방문 동기화(401)·B2/B4 표시가 불가능하다. UI 진입점 확인·보완 필요. → **해소(2026-11-13 오전, 위 오전 섹션 F80)**: ModeRouter 세션 게이트 — 세션 없는 정차 상태에서는 자동 전환을 보류해 시작 화면을 유지. 남은 검증: 새 설치 후 시작 화면이 유지되는지 GUI 재확인.
 - 테스트: 앱 ./gradlew test 159/159(네트워크 설정 포함 재빌드), 백엔드 pytest 76/76. release APK 재빌드·apk/ 재복사(40.45MB).

@@ -21,8 +21,14 @@ import kotlinx.coroutines.launch
  * Application 컨텍스트에서 startActivity 하므로 FLAG_ACTIVITY_NEW_TASK 도 함께 쓴다(E3 수정 —
  * NEW_TASK 가 없으면 Activity 아닌 컨텍스트에서 예외가 났고 catch 에 묻혔었다).
  * 이미 마지막으로 띄운 화면이면 재요청하지 않는다(연속 콜백 중복 방지).
+ *
+ * 세션 게이트(Q28 수정, 2026-11-13): 정차 화면으로의 자동 전환은 가족 세션(코드 접속 또는
+ * 둘러보기)이 있을 때만 한다. 세션이 없으면 시작 화면(가족 코드 입력 — 차량에서 글자를 넣는
+ * 유일한 곳)을 최상단에 유지해야 하는데, 첫 상태 수집(PARKED)이 곧바로 정차 화면을 덮어
+ * 새 설치에서 코드 진입점이 사라졌었다. 주행 화면으로의 전환은 세션과 무관하게 항상 허용한다 —
+ * DO 선언으로 주행 중 시스템이 허용하는 안전 화면이므로.
  */
-class ModeRouter(context: Context) {
+class ModeRouter(context: Context, private val sessionExists: () -> Boolean = { true }) {
 
     private val appContext = context.applicationContext
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -46,17 +52,17 @@ class ModeRouter(context: Context) {
         }
     }
 
-    /** 진단 화면 U9 용 강제 전환(주행 상태와 무관하게 특정 화면을 앞으로 당김). */
+    /**
+     * 진단 화면 U9 용 강제 전환(주행 상태와 무관하게 특정 화면을 앞으로 당김).
+     * 세션 게이트(Q28)를 우회한다 — 개발자가 진단 화면에서 명시적으로 누른 전환이므로.
+     */
     fun forceBringTo(state: DrivingState) {
-        route(state)
+        route(state, respectSessionGate = false)
     }
 
-    private fun route(state: DrivingState) {
-        val target = if (state == DrivingState.DRIVING) {
-            DrivingActivity::class.java
-        } else {
-            ParkedActivity::class.java
-        }
+    private fun route(state: DrivingState, respectSessionGate: Boolean = true) {
+        val gated = if (respectSessionGate) sessionExists() else true
+        val target = resolveTarget(state, gated) ?: return // 세션 없음 — 시작 화면 유지(Q28)
         if (target == lastRoutedTarget) return // 이미 최상단이면 무시
         lastRoutedTarget = target
         // applicationContext 기반 intent(E3 수정, 2026-11-11): Activity 가 아닌 컨텍스트로
@@ -80,5 +86,20 @@ class ModeRouter(context: Context) {
             // 예외 유형만 남긴다(좌표·코드·개인 식별값 기록 금지, Log 사용 금지 규칙 준수).
             DiagnosticsMetrics.setLastError(appContext, "화면 전환 실패(ModeRouter): ${t.javaClass.simpleName}")
         }
+    }
+
+    companion object {
+        /**
+         * 라우팅 대상 결정(순수 함수 — 단위 테스트 대상). 상태와 세션 존재 여부만으로 판정한다.
+         *  - DRIVING → 주행 화면(세션과 무관 — DO 안전 화면 유지).
+         *  - PARKED + 세션 있음 → 정차 화면.
+         *  - PARKED + 세션 없음 → null(전환하지 않음 — 시작 화면을 최상단에 유지, Q28).
+         */
+        fun resolveTarget(state: DrivingState, sessionExists: Boolean): Class<*>? =
+            when {
+                state == DrivingState.DRIVING -> DrivingActivity::class.java
+                sessionExists -> ParkedActivity::class.java
+                else -> null
+            }
     }
 }

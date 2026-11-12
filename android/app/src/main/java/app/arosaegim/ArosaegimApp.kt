@@ -24,7 +24,13 @@ class ArosaegimApp : Application() {
         // 대기는 더 이상 없다 — onCreate 는 SDK 응답과 무관하게 즉시 끝나고, 늦은 초기화 성공은
         // 일방향 업그레이드(SwitchableRouteService·SwitchableNarrator)가 뒤따라 처리한다.
         container = AppContainer(this)
-        modeRouter = ModeRouter(this)
+        modeRouter = ModeRouter(
+            this,
+            // Q28(2026-11-13): 세션(가족 코드·둘러보기)이 없으면 정차 화면 자동 전환을 보류해
+            // 시작 화면(가족 코드 입력)을 유지한다. 람다는 route 시점에 평가되므로 초기화
+            // 순서와 무관하다.
+            sessionExists = { container.familySessionStore.hasSession() },
+        )
         // PARKED/DRIVING 상태 변화 → 해당 화면을 REORDER_TO_FRONT 로 최상단화(앱 수명 동안 1회 묶음).
         modeRouter.bind(container.drivingState)
         // 여행 세션(T5)은 Application 수명으로 1회 시작한다. Activity 가 백그라운드로

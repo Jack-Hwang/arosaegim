@@ -107,6 +107,13 @@ class FamilySessionStore(context: Context) {
         get() = prefs.getBoolean(KEY_GUEST, false)
 
     /**
+     * 세션 존재 여부 — 가족 코드 접속 또는 둘러보기 모드 중 하나라도 있으면 true.
+     * ModeRouter 의 정차 화면 자동 전환 게이트가 쓴다(Q28, 2026-11-13): 둘 다 아니면
+     * 시작 화면(가족 코드 입력)을 최상단에 유지해야 한다.
+     */
+    fun hasSession(): Boolean = _familyCode.value != null || isGuestMode
+
+    /**
      * 가족 코드로 접속. 6자리 영숫자가 아니면 IllegalArgumentException 을 던진다.
      * 서버 검증은 이번 범위에서 생략했다 — Sync 담당 큐 flush 가 실질 검증이다(T9-2 이후).
      * 저장 전 대문자로 정규화해 코드 표기 흔들림을 줄인다.
