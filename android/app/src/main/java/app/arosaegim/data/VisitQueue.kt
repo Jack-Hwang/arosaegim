@@ -31,7 +31,7 @@ private data class QueuedVisit(
 
 /**
  * PIN 거절(2026-11-13 — 방문 전송 경로의 안전장치 전용 실패). 서버가 가족 코드·PIN 이 모두
- * 실린 전송을 거부했거나(401·403 — [AuthException]), 서버가 거부한 조합의 자동 재전송을
+ * 실린 전송을 거부했거나(401·403·429 — [AuthException]), 서버가 거부한 조합의 자동 재전송을
  * [VisitQueue] 가 막았을 때 flush 의 실패 타입으로 돌아온다. 호출부(TripSession)는 이 타입을
  * 보고 화면 한 줄에 'PIN 재입력' 안내를 고른다. 메시지에 가족 코드·PIN 은 담지 않는다.
  */
@@ -71,7 +71,7 @@ class PinRejectedException(
  *  - 이 절은 확인 결과의 문서화만이다. 오프라인 우선 계약 보호를 위해 로직은 변경하지 않았다.
  *
  * PIN 오입력 반복 방지(E⑤, 2026-11-13): 서버가 가족 코드·PIN 이 모두 실린 전송을 거부하면
- * (401·403 → [AuthException] — 서버 계약상 'PIN이 틀렸다'의 신호이며 실패 1회를 기록한다),
+ * (401·403·429 → [AuthException] — 서버 계약상 'PIN이 틀렸다·잠겼다'의 신호이며 실패 1회를 기록한다),
  *  1. 거부된 (가족 코드, PIN) 조합을 메모리에 기록하고([rejectedPair] — 파일에 쓰지 않는다),
  *  2. 메모리에 묶어 둔 같은 값의 PIN([pendingPins])을 치워 재입력된 새 값이 흐르게 하고,
  *  3. 세션 자격 증명에도 거절을 표시한다([onAuthRejected] — 기본값은 FamilySessionStore 의

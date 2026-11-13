@@ -55,12 +55,14 @@ data class VisitResponse(
 )
 
 /**
- * 가족 인증 실패(401·403) 전용 예외(T9-3·T12) — 00문서 10.6.
+ * 가족 인증 실패(401·403·429) 전용 예외(T9-3·T12) — 00문서 10.6.
  *
  * PIN 누락·오류는 '다시 입력'이 답이므로 일반 네트워크 오류(IOException)와 구별해 별도
  * 타입으로 답한다. 호출부는 Result.exceptionOrNull() 이 AuthException 인지 보고 PIN 재입력
- * UI 를 띄우면 된다. 404(모르는 가족 코드·장소)·429(PIN 오류 잠금) 등은 AuthException 이
- * 아니라 일반 실패로 흡수된다 — 재입력이 답인 경우만 이 타입이다.
+ * UI 를 띄우면 된다. 429(PIN 오류 잠금)도 같은 타입으로 답한다 — 잠금은 10분간 올바른 PIN
+ * 으로도 거부되므로 자동 재전송을 멈추는 편이 맞고(VisitQueue 거절 잠금), 답은
+ * '기다렸다가 재입력·코드 재발급'이라 재입력 신호와 같은 종류다.
+ * 404(모르는 가족 코드·장소) 등은 AuthException 이 아니라 일반 실패로 흡수된다.
  * 메시지에 가족 코드·PIN 은 절대 담지 않는다(00문서 9절 로깅 규칙과 같은 취지).
  */
 class AuthException(message: String) : Exception(message)
@@ -135,7 +137,7 @@ open class ApiClient(private val baseUrl: String = "http://10.0.2.2:8000") {
      * @param pin        세션 PIN(00문서 10.6 — 메모리 값만 전달, 저장·로그 금지). 있으면
      *                   X-Family-Pin 헤더로 실어 보낸다. 둘 중 하나라도 없으면 서버 401.
      * @return 2xx 면 VisitResponse(visit_id·stamp_no), 그 외·예외는 전부 Result.failure.
-     *         401·403 은 [AuthException](PIN 재입력 신호), 그 외 4xx·5xx 는 IOException.
+     *         401·403·429(PIN 잠금)는 [AuthException](PIN 재입력 신호), 그 외 4xx·5xx 는 IOException.
      */
     open suspend fun postVisit(
         v: VisitPayload,
@@ -161,7 +163,7 @@ open class ApiClient(private val baseUrl: String = "http://10.0.2.2:8000") {
                     out.flush()
                 }
                 val code = conn.responseCode
-                if (code == 401 || code == 403) {
+                if (code == 401 || code == 403 || code == 429) {
                     throw AuthException("가족 인증 실패(HTTP $code)")
                 }
                 if (code !in 200..299) {
@@ -220,7 +222,7 @@ open class ApiClient(private val baseUrl: String = "http://10.0.2.2:8000") {
     /**
      * GET /v1/families/me/heir — 이어받을 사람 조회(B1).
      * 계약 응답: {"member_id": "<id>" | null}. 필드가 없으면 호출부는 기능을 숨긴다(추측 금지).
-     * 401·403 은 AuthException(기존 getJson 관례).
+     * 401·403·429 은 AuthException(기존 getJson 관례 — 429 는 PIN 잠금).
      */
     open suspend fun getHeir(familyCode: String?, pin: String?): Result<String> =
         getJson("/v1/families/me/heir", familyCode, pin)
@@ -279,7 +281,7 @@ open class ApiClient(private val baseUrl: String = "http://10.0.2.2:8000") {
      * PUT /v1/families/me/prefs — 인원 비교 문장 접기 설정 저장(B4, PIN 필요).
      * PUT 은 '전체 교체'다 — 현재 값 전체(접힌 장소 목록 + 전체 끄기 플래그)를 항상 두 필드에
      * 담아 보낸다([PartyLinePrefsBody]). 서버가 같은 동작의 POST 별칭(/v1/families/me/prefs)도
-     * 제공하지만 계약 이름은 PUT 이다. 401·403 은 AuthException(가족 인증 — owner 전용 아님).
+     * 제공하지만 계약 이름은 PUT 이다. 401·403·429 은 AuthException(가족 인증 — owner 전용 아님).
      *
      * @param hiddenPlaceIds 문장을 접어 둔 장소 id 전체(이 장소를 합친 목록 — 호출부 조립).
      * @param allHidden      모든 장소에서 문장을 끄는 가족 설정(웹 가족 관리의 스위치 값).
@@ -317,7 +319,7 @@ open class ApiClient(private val baseUrl: String = "http://10.0.2.2:8000") {
      *
      * @param placeId    장소 id(경로 조각 — encodedSegment 로 감싼다).
      * @param familyCode X-Family-Code 헤더. null·빈값이면 헤더 없이 보낸다(서버 401).
-     * @param pin        X-Family-Pin 헤더(열람 권한 — 00문서 10.6). 401·403 은 AuthException.
+     * @param pin        X-Family-Pin 헤더(열람 권한 — 00문서 10.6). 401·403·429 은 AuthException.
      */
     open suspend fun getPlaceThenNow(
         placeId: String,
@@ -338,7 +340,7 @@ open class ApiClient(private val baseUrl: String = "http://10.0.2.2:8000") {
 
     /**
      * GET 공용 도우미 — 2xx 면 원본 몸체 문자열, 그 외·예외는 전부 Result.failure.
-     * 401·403 만 AuthException 으로 답한다(PIN 누락·오류 = 재입력 신호). 헤더 값은 요청에만
+     * 401·403·429 만 AuthException 으로 답한다(PIN 누락·오류·잠금 = 재입력 신호). 헤더 값은 요청에만
      * 쓰고 저장·로그하지 않는다(postVisit 의 familyCode 처리와 같은 규칙).
      */
     private suspend fun getJson(
@@ -358,7 +360,7 @@ open class ApiClient(private val baseUrl: String = "http://10.0.2.2:8000") {
                     conn.setRequestProperty("X-Family-Pin", it)
                 }
                 val code = conn.responseCode
-                if (code == 401 || code == 403) {
+                if (code == 401 || code == 403 || code == 429) {
                     throw AuthException("가족 인증 실패(HTTP $code)")
                 }
                 if (code !in 200..299) {
@@ -410,7 +412,7 @@ open class ApiClient(private val baseUrl: String = "http://10.0.2.2:8000") {
                 if (code == 403 && ownerOnly) {
                     throw OwnerRequiredException("owner 권한 필요(HTTP 403)")
                 }
-                if (code == 401 || code == 403) {
+                if (code == 401 || code == 403 || code == 429) {
                     throw AuthException("가족 인증 실패(HTTP $code)")
                 }
                 if (code !in 200..299) {

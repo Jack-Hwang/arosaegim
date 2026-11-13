@@ -1,210 +1,162 @@
 {
   "feature": "F8",
-  "name": "로컬 맛집·숙소 포인트 캐시백(영수증 인증)",
+  "name": "로컬 맛집·숙소 포인트 캐시백",
   "acs": [
     {
       "id": "ARO-F8-AC01",
       "pattern": "event",
-      "text": "영수증(사진·금액·결제 시각·제휴처)이 규칙을 통과하면 서버는 금액×적립률의 내림을 포인트 캐시백으로 적립하고 accepted로 응답합니다.",
+      "text": "영수증을 올리고 방문 연계·중복·한도 조건을 모두 통과하면 앱은 결제액의 1~2%를 포인트 캐시백으로 적립합니다(소수점 이하 버림).",
       "io": [
-        {"in": "50,000원 × 적립률 0.02 영수증 제출", "out": "accepted, 적립 1,000포인트, point_ledger 1건"}
+        {"in": "맛집 제휴처(적립률 2%)에 50,000원 영수증 제출(사진 포함, 방문 연계 통과)", "out": "상태 accepted, 1,000점 적립(50,000×0.02), 응답 라벨 \"포인트 캐시백(예시)\""},
+        {"in": "숙소 제휴처(적립률 2%)에 80,000원 영수증 제출(숙박 기간 안)", "out": "상태 accepted, 1,600점 적립(80,000×0.02)"}
       ],
-      "verify": {
-        "kind": "server",
-        "refs": ["서버 시험 test_accepted_points_are_floored", "서버 시험 test_evaluate_receipt_pure_function", "소스 backend/app/services/points.py(points = floor(amount × point_rate))"]
-      },
+      "verify": {"kind": "server", "refs": ["서버 시험 test_accepted_points_are_floored", "서버 시험 test_evaluate_receipt_pure_function"]},
       "status": "[코드 확인]",
-      "numbers": ["50,000원", "0.02", "1,000"]
+      "numbers": ["1~2%", "50,000원", "1,000점"]
     },
     {
       "id": "ARO-F8-AC02",
-      "pattern": "unwanted",
-      "text": "금액이 0원 이하이거나 1,000,000원을 넘으면 서버는 rejected(invalid_amount)로 거부하고 적립하지 않습니다.",
+      "pattern": "event",
+      "text": "맛집·가게 영수증의 결제일이 스탬프를 찍은 날이거나 그 다음 날이면 앱은 방문 연계가 있다고 보아 적립을 인정합니다.",
       "io": [
-        {"in": "금액 0원 또는 1,000,001원", "out": "rejected invalid_amount, 적립 0"}
+        {"in": "11/10 스탬프 획득, 같은 날 19시 결제 영수증 제출", "out": "상태 accepted"},
+        {"in": "11/10 스탬프 획득, 11/11 결제 영수증 제출", "out": "상태 accepted(다음 날도 인정)"}
       ],
-      "verify": {
-        "kind": "server",
-        "refs": ["서버 시험 test_amount_boundary", "소스 backend/app/services/points.py(MAX_AMOUNT_KRW=1_000_000)"]
-      },
+      "verify": {"kind": "server", "refs": ["서버 시험 test_restaurant_same_day_accepted", "서버 시험 test_restaurant_next_day_accepted"]},
       "status": "[코드 확인]",
-      "numbers": ["1,000,000원"]
+      "numbers": ["1일"]
     },
     {
       "id": "ARO-F8-AC03",
-      "pattern": "event",
-      "text": "식당·가게 영수증의 결제일이 연계 스탬프의 날짜 또는 다음 날이면 인정하고, 이틀 뒤부터는 rejected(no_visit)로 거부합니다.",
+      "pattern": "unwanted",
+      "text": "맛집·가게 영수증의 결제일이 스탬프를 찍은 날로부터 이틀 이상 지나면 앱은 방문 연계가 없다고 보아 적립을 거부합니다(사유: no_visit).",
       "io": [
-        {"in": "스탬프 당일 결제 영수증", "out": "인정(방문 연계 성공)"},
-        {"in": "스탬프 다음 날 결제 영수증", "out": "인정"},
-        {"in": "스탬프 이틀 뒤 결제 영수증", "out": "rejected no_visit"}
+        {"in": "11/10 스탬프 획득, 11/12 결제 영수증 제출", "out": "상태 rejected, 사유 no_visit"}
       ],
-      "verify": {
-        "kind": "server",
-        "refs": ["서버 시험 test_restaurant_same_day_accepted", "서버 시험 test_restaurant_next_day_accepted", "서버 시험 test_restaurant_two_days_later_rejected", "서버 시험 test_no_visit_same_day_rejected"]
-      },
-      "status": "[코드 확인]",
-      "numbers": ["1일", "2일"]
-    },
-    {
-      "id": "ARO-F8-AC04",
-      "pattern": "event",
-      "text": "숙소 영수증은 연계 스탬프 날짜가 체크인 이상 체크아웃 이하이면 인정하고, 그 밖이면 rejected(no_visit)로 거부합니다.",
-      "io": [
-        {"in": "숙박 기간 안의 날짜로 스탬프 찍은 숙소 영수증", "out": "인정"},
-        {"in": "숙박 기간 밖의 날짜 스탬프", "out": "rejected no_visit"}
-      ],
-      "verify": {
-        "kind": "server",
-        "refs": ["서버 시험 test_lodging_within_stay_accepted", "서버 시험 test_lodging_outside_stay_rejected"]
-      },
+      "verify": {"kind": "server", "refs": ["서버 시험 test_restaurant_two_days_later_rejected", "서버 시험 test_wrong_partner_place_has_no_visit"]},
       "status": "[코드 확인]",
       "numbers": []
     },
     {
+      "id": "ARO-F8-AC04",
+      "pattern": "event",
+      "text": "숙소 영수증은 체크인부터 체크아웃 사이(최대 3박)에 찍은 스탬프가 있으면 앱이 적립을 인정합니다.",
+      "io": [
+        {"in": "체크인 11/9·체크아웃 11/12, 11/10에 찍은 스탬프, 체크아웃일(11/12)에 결제 영수증 제출", "out": "상태 accepted(결제일이 체크아웃일이어도 기간 안 스탬프면 인정)"}
+      ],
+      "verify": {"kind": "server", "refs": ["서버 시험 test_lodging_within_stay_accepted"]},
+      "status": "[코드 확인]",
+      "numbers": ["3박"]
+    },
+    {
       "id": "ARO-F8-AC05",
       "pattern": "unwanted",
-      "text": "숙박이 최대 3박을 넘으면 서버는 400(invalid_stay)으로 거부하고, 체크인·체크아웃 날짜가 없으면 400(missing_stay)으로 거부합니다.",
+      "text": "숙소 영수증의 스탬프 날짜가 숙박 기간 밖이거나 숙박 일수가 3박을 넘으면 앱은 적립을 거부합니다(기간 밖은 no_visit, 3박 초과는 400 invalid_stay).",
       "io": [
-        {"in": "체크인~체크아웃이 4박", "out": "400 invalid_stay"},
-        {"in": "숙소 영수증에 날짜 필드 없음", "out": "400 missing_stay"}
+        {"in": "체크인 11/9·체크아웃 11/12, 스탬프는 11/20(기간 밖)", "out": "상태 rejected, 사유 no_visit"},
+        {"in": "체크인 11/9·체크아웃 11/13(4박) 입력", "out": "HTTP 400, 오류 코드 invalid_stay"}
       ],
-      "verify": {
-        "kind": "server",
-        "refs": ["서버 시험 test_lodging_over_three_nights_rejected_400", "서버 시험 test_lodging_missing_stay_dates_400", "소스 backend/app/config.py(MAX_STAY_NIGHTS=3)"]
-      },
+      "verify": {"kind": "server", "refs": ["서버 시험 test_lodging_outside_stay_rejected", "서버 시험 test_lodging_over_three_nights_rejected_400", "서버 시험 test_lodging_missing_stay_dates_400"]},
       "status": "[코드 확인]",
       "numbers": ["3박"]
     },
     {
       "id": "ARO-F8-AC06",
-      "pattern": "unwanted",
-      "text": "사진이 없는 영수증 제출은 서버가 400(missing_photo)으로 거부합니다. 사진은 필수이고 최대 5MB까지만 받습니다.",
+      "pattern": "ubiquitous",
+      "text": "앱은 영수증 사진이 없는 제출을 받지 않습니다(400 missing_photo).",
       "io": [
-        {"in": "사진 파일 없이 영수증 제출", "out": "400 missing_photo"},
-        {"in": "5MB를 넘는 사진 업로드", "out": "413 photo_too_large"}
+        {"in": "사진 없이 금액·결제일만 제출", "out": "HTTP 400, 오류 코드 missing_photo"}
       ],
-      "verify": {
-        "kind": "server",
-        "refs": ["서버 시험 test_receipt_without_photo_rejected_400", "서버 시험 test_photo_over_5mb_rejected", "소스 backend/app/routers/rewards.py(사진 필수 직접 검사)", "소스 backend/app/services/photos.py(MAX_PHOTO_BYTES 검사)"]
-      },
+      "verify": {"kind": "server", "refs": ["서버 시험 test_receipt_without_photo_rejected_400"]},
       "status": "[코드 확인]",
-      "numbers": ["5MB"]
+      "numbers": []
     },
     {
       "id": "ARO-F8-AC07",
       "pattern": "unwanted",
-      "text": "제휴처+날짜+금액+사진 해시가 같은 영수증을 다시 보내면 서버는 rejected(duplicate)로 거부하고, 같은 사진 해시의 재제출도 rejected(duplicate_photo)로 거부합니다.",
+      "text": "이미 제출한 적 있는 사진(바이트가 같음)으로 다시 제출하면 금액을 바꿔도 앱은 적립을 거부합니다(사유: duplicate_photo).",
       "io": [
-        {"in": "같은 조합의 영수증 재제출", "out": "rejected duplicate"},
-        {"in": "같은 사진 파일(해시 동일)로 다른 내용 제출", "out": "rejected duplicate_photo"}
+        {"in": "사진 A로 20,000원 제출(accepted) → 같은 사진 A로 99,999원 재제출", "out": "두 번째 제출은 rejected, 사유 duplicate_photo"}
       ],
-      "verify": {
-        "kind": "server",
-        "refs": ["서버 시험 test_duplicate_receipt_rejected", "서버 시험 test_same_photo_resubmission_rejected", "서버 시험 test_receipt_key_uses_photo_hash", "서버 시험 test_photo_hash_is_sha256_of_raw_bytes"]
-      },
+      "verify": {"kind": "server", "refs": ["서버 시험 test_same_photo_resubmission_rejected", "서버 시험 test_receipt_key_uses_photo_hash", "서버 시험 test_photo_hash_is_sha256_of_raw_bytes"]},
       "status": "[코드 확인]",
       "numbers": []
     },
     {
       "id": "ARO-F8-AC08",
-      "pattern": "state",
-      "text": "같은 제휴처·같은 날 두 번째 영수증은 서버가 pending(확인 대기)으로 저장하고 적립은 0으로 둡니다.",
+      "pattern": "event",
+      "text": "같은 제휴처에 같은 날 두 번째로 올리는 영수증은 앱이 바로 거부하지 않고 '확인 대기(pending)'로 저장하며 포인트는 적립하지 않습니다.",
       "io": [
-        {"in": "같은 제휴처·같은 날 영수증 2회 제출", "out": "1회차 accepted, 2회차 pending(적립 0·사진과 함께 저장)"}
+        {"in": "맛집 제휴처에 같은 날 영수증 두 번째 제출(첫 번째는 이미 accepted)", "out": "상태 pending, 적립 0점, 사진·기록은 저장됨(다른 제휴처의 그날 첫 제출은 정상 적립)"}
       ],
-      "verify": {
-        "kind": "server",
-        "refs": ["서버 시험 test_second_receipt_same_partner_same_day_pending", "소스 backend/app/services/points.py(PENDING_REASON)"]
-      },
+      "verify": {"kind": "server", "refs": ["서버 시험 test_second_receipt_same_partner_same_day_pending"]},
       "status": "[코드 확인]",
-      "numbers": ["0"]
+      "numbers": ["0점"]
     },
     {
       "id": "ARO-F8-AC09",
       "pattern": "unwanted",
-      "text": "같은 날 이미 적립(accepted)된 영수증이 5건을 넘으면 서버는 rejected(daily_limit)로 거부합니다. 확인 대기(pending)는 적립이 아니므로 이 한도에 세지 않습니다.",
+      "text": "결제 금액이 0원 이하이거나 100만 원을 넘으면 앱은 적립을 거부합니다(사유: invalid_amount). 100만 원은 상한 안에 포함되어 인정됩니다.",
       "io": [
-        {"in": "같은 날 accepted 영수증 5건 저장 후 6회째 제출", "out": "rejected daily_limit"}
+        {"in": "결제액 1,000,000원 제출", "out": "상태 accepted, 20,000점 적립(상한 포함)"},
+        {"in": "결제액 1,000,001원 / 0원 / -100원 제출", "out": "세 경우 모두 상태 rejected, 사유 invalid_amount"}
       ],
-      "verify": {
-        "kind": "server",
-        "refs": ["서버 시험 test_daily_limit_after_five", "소스 backend/app/services/points.py(DAILY_LIMIT=5)"]
-      },
+      "verify": {"kind": "server", "refs": ["서버 시험 test_amount_boundary"]},
       "status": "[코드 확인]",
-      "numbers": ["5"]
+      "numbers": ["1,000,000원"]
     },
     {
       "id": "ARO-F8-AC10",
-      "pattern": "optional",
-      "text": "방문 연계 장소가 정의되지 않은 제휴처의 영수증은 서버가 방문 연계 검사 없이 규칙을 통과시킵니다.",
+      "pattern": "state",
+      "text": "그날 이미 승인(accepted)된 영수증이 5건인 동안에는, 그날 처음 제출하는 제휴처 영수증이어도 앱이 더 이상 적립하지 않고 거부합니다(사유: daily_limit).",
       "io": [
-        {"in": "near_place_id가 없는 제휴처의 영수증 제출", "out": "no_visit 사유가 아니라 정상 판정 경로"}
+        {"in": "같은 날 다섯 제휴처에서 각각 첫 영수증 제출(모두 accepted) → 여섯 번째(그날 처음인 제휴처)", "out": "앞의 다섯 건은 accepted, 여섯 번째는 rejected, 사유 daily_limit"}
       ],
-      "verify": {
-        "kind": "server",
-        "refs": ["서버 시험 test_wrong_partner_place_has_no_visit", "소스 backend/app/routers/rewards.py(_visit_near_place — near_place_id 없으면 null)"]
-      },
+      "verify": {"kind": "server", "refs": ["서버 시험 test_daily_limit_after_five", "서버 시험 test_evaluate_receipt_pure_function"]},
       "status": "[코드 확인]",
-      "numbers": []
+      "numbers": ["5건"]
     },
     {
       "id": "ARO-F8-AC11",
-      "pattern": "state",
-      "text": "서버는 거부된(rejected) 영수증을 저장하지 않고 사유만 응답하며 사진 파일은 바로 지웁니다. accepted·pending만 저장합니다.",
-      "io": [
-        {"in": "rejected 판정 영수증 제출", "out": "응답은 사유만, 저장된 영수증 없음, 사진 파일 삭제"},
-        {"in": "accepted 또는 pending 영수증 제출", "out": "사진·내용이 receipts에 저장"}
-      ],
-      "verify": {
-        "kind": "code",
-        "refs": ["소스 backend/app/routers/rewards.py(거부 시 사진 삭제·응답만 반환, accepted·pending만 INSERT)"]
-      },
+      "pattern": "ubiquitous",
+      "text": "가족의 포인트 캐시백 합계는 가족 구성원별 가중치 없이, 적립된 포인트를 그대로 더한 단순 합입니다.",
+      "io": [],
+      "verify": {"kind": "code", "refs": ["서버 포인트 조회 라우터(합계 조회 SQL — SUM(points), 가족 코드 단위)"]},
       "status": "(설계)",
+      "note": "코드로 확인. 구성원별로 누가 더 많이 벌었는지 비교하거나 나누는 계산은 두지 않았습니다(가족 관계를 겨루는 수단으로 쓰지 않기 위함).",
       "numbers": []
     },
     {
       "id": "ARO-F8-AC12",
-      "pattern": "ubiquitous",
-      "text": "적립·혜택의 모든 응답에는 \"포인트 캐시백(예시)\" 문구와 시뮬레이션 표시가 붙고, 환급·입금처럼 읽히는 문구는 쓰지 않습니다.",
+      "pattern": "optional",
+      "text": "제휴처가 숙소인 경우 앱(스마트폰 화면)은 결제 시각 대신 체크인·체크아웃 날짜 입력칸을 보여 주고, 그 두 값으로 방문 연계와 숙박일수를 판정합니다.",
       "io": [
-        {"in": "영수증 적립 응답", "out": "label=\"포인트 캐시백(예시)\"·simulated=true"}
+        {"in": "제휴처 종류 select에서 '숙소'를 고름", "out": "결제 일시 입력칸이 숨겨지고 체크인·체크아웃 날짜 입력칸이 나타남"}
       ],
-      "verify": {
-        "kind": "server",
-        "refs": ["서버 시험 test_accepted_points_are_floored(label·simulated 단언)", "소스 backend/app/models.py(label 기본값 \"포인트 캐시백(예시)\" — 환급 표기 금지 주석)", "소스 web/js/screens/receipt.js(문구 규칙)"]
-      },
-      "status": "[코드 확인]",
+      "verify": {"kind": "code", "refs": ["가족 모바일 웹 영수증 화면 소스(숙소 선택 시 입력칸 전환)", "서버 라우터의 숙박 기간 검증 코드"]},
+      "status": "(설계)",
+      "note": "코드로 확인.",
       "numbers": []
     },
     {
       "id": "ARO-F8-AC13",
-      "pattern": "state",
-      "text": "영수증 입력은 차량 화면이 아니라 스마트폰 모바일 웹 화면에서만 받습니다. 차량 화면은 금액·사진 입력을 두지 않습니다.",
-      "io": [
-        {"in": "모바일 웹 영수증 화면(웹 화면 7번)", "out": "제휴처 선택·금액·결제 일시·숙박 날짜·사진 입력 제공"},
-        {"in": "차량 정차 화면의 맛집·숙소 카드", "out": "금액·사진 입력 요소 없음"}
-      ],
-      "verify": {
-        "kind": "code",
-        "refs": ["소스 web/js/screens/receipt.js(영수증 입력 화면)", "소스 docs/ARCHITECTURE.md 7절·9절 Q17(영수증 입력은 모바일 웹 전용·시뮬레이션)", "소스 web/README.md 화면 7 표"]
-      },
+      "pattern": "ubiquitous",
+      "text": "차량 화면에는 결제 금액이나 영수증 사진을 넣는 입력칸이 없습니다. 영수증 인증은 스마트폰 화면에서만 할 수 있습니다.",
+      "io": [],
+      "verify": {"kind": "code", "refs": ["차량 화면 문구 소스 주석(스탬프북·제휴처 화면 — 입력칸·결제 버튼 없음)", "가족 모바일 웹 영수증 화면 소스(금액·날짜·사진 입력칸 전부 여기에만 있음)"]},
       "status": "(설계)",
-      "numbers": ["7"]
+      "note": "코드로 확인.",
+      "numbers": []
     },
     {
       "id": "ARO-F8-AC14",
-      "pattern": "state",
-      "text": "가족 포인트 조회는 적립된(accepted) 영수증에서만 생긴 원장 합계와 내역을 돌려줍니다.",
-      "io": [
-        {"in": "적립 1,000포인트 1건 상태에서 포인트 조회", "out": "합계 1,000, 내역 1건"}
-      ],
-      "verify": {
-        "kind": "server",
-        "refs": ["서버 시험 test_accepted_points_are_floored(points 합계·내역 단언)", "소스 backend/app/routers/points.py(point_ledger가 유일한 원장)"]
-      },
-      "status": "[코드 확인]",
-      "numbers": ["1,000"]
+      "pattern": "ubiquitous",
+      "text": "결제·적립을 직접 보여주는 화면(차량 화면·스마트폰 화면)에는 '포인트 캐시백(예시)'이라는 말과 '현금이 아니다'라는 말이 함께 나옵니다.",
+      "io": [],
+      "verify": {"kind": "code", "refs": ["차량 화면 문구 소스 전수 검색(제휴처·포인트 관련 문구)", "가족 모바일 웹 영수증 화면·동의 화면 소스 전수 검색"]},
+      "status": "(설계)",
+      "note": "코드 확인. 차량 화면 1곳, 스마트폰 화면 3곳에서 두 말이 함께 나옵니다. 동의 화면은 '예시'만 적고 '현금이 아니다' 말은 없습니다.",
+      "numbers": ["1곳", "3곳"]
     }
   ]
 }

@@ -1,180 +1,120 @@
 {
   "feature": "F9",
-  "name": "오프라인·대체 구현(포트·폴백)",
+  "name": "오프라인·대체 구현",
   "acs": [
     {
       "id": "ARO-F9-AC01",
-      "pattern": "state",
-      "text": "서버가 없어도 앱은 APK에 내장한 시드(JSON)만으로 코스·퀴즈·스탬프북·제휴처를 읽고 스탬프→기록→음성→그때와 지금 흐름을 동작합니다.",
-      "io": [
-        {"in": "시드 파일 로드(서버 없음)", "out": "장소 3개·장소별 퀴즈 2개·스탬프북 1개·제휴처 4개·음성 편지 1개로 파싱"}
-      ],
-      "verify": {
-        "kind": "unit",
-        "refs": ["단위 테스트 SeedRepositoryTest.realSeedFile_parsesToExpectedContent(장소 3개·퀴즈 6문항·제휴처 4개 단언)", "소스 app/src/main/java/app/arosaegim/data/SeedRepository.kt", "소스 docs/ARCHITECTURE.md 9절 Q6"]
-      },
-      "status": "[코드 확인]",
-      "numbers": ["3", "2", "4", "1"]
+      "pattern": "ubiquitous",
+      "text": "앱은 차량 SDK 호출을 7개의 포트(인터페이스) 뒤로 감싸서만 씁니다. 화면·세션 코드가 SDK를 직접 부르지 않습니다.",
+      "io": [],
+      "verify": {"kind": "code", "refs": ["포트 정의 소스(인터페이스 7개: 주행 상태·경로 안내·도착 감지·음성 안내·차량 정보·차량 신호 조회·음성 편지 재생)"]},
+      "status": "(설계)",
+      "note": "코드 확인.",
+      "numbers": ["7개"]
     },
     {
       "id": "ARO-F9-AC02",
-      "pattern": "unwanted",
-      "text": "시드 파일이 깨져 있어도 앱은 빈 코스로 복구하고 크래시하지 않습니다.",
+      "pattern": "event",
+      "text": "앱을 시작하면 각 포트는 차량 SDK의 초기화 콜백을 기다리지 않고, 그 순간 확인 가능한 값만으로 바로 구현(대체 또는 차량 연동)을 선택합니다.",
       "io": [
-        {"in": "형식이 깨진 시드 문자열 파싱", "out": "빈 내용 반환, 예외 전파 없음"}
+        {"in": "콜드 스타트 — 내비게이션 SDK 초기화 콜백이 아직 안 옴", "out": "경로 안내 포트는 대기 없이 즉시 대체 구현으로 기동, 이후 콜백이 오면 자동으로 차량 연동으로 전환"}
       ],
-      "verify": {
-        "kind": "unit",
-        "refs": ["단위 테스트 SeedRepositoryTest.corruptJson_returnsEmptyContentWithoutCrash(깨진 JSON → 빈 내용, 예외 없음)"]
-      },
-      "status": "[코드 확인]",
+      "verify": {"kind": "emulator", "refs": ["설계 결정 기록 ADR-008 결과(콜드 부팅 직후 연속 실행 2회 실측 — 강제 종료 0건)"]},
+      "status": "[확인]",
       "numbers": []
     },
     {
       "id": "ARO-F9-AC03",
       "pattern": "event",
-      "text": "내비 초기화가 늦게 성공하면 앱은 대체 경로 구현에서 실제 구현으로 한 번만 전환하고, 전환 시점에 진행 중 목표로 경로를 다시 요청합니다.",
+      "text": "경로 안내·음성 안내 포트는 대체 구현으로 기동한 뒤 차량 SDK 초기화가 늦게 성공하면 차량 연동 구현으로 전환하고, 이후에는 다시 대체 구현으로 돌아가지 않습니다.",
       "io": [
-        {"in": "초기 Fake 선택 후 실제 구현의 늦은 ok 콜백", "out": "실제 구현으로 전환, 진행 중 목표 경로 재요청"},
-        {"in": "전환 후 두 번째 전환 시도", "out": "무시(일방향)"}
+        {"in": "대체 구현으로 기동 후 3초 뒤 차량 SDK 초기화 성공 신호 수신", "out": "경로 안내가 차량 연동 구현으로 전환, 전환 뒤 차량 SDK 신호가 다시 실패해도 대체로 되돌아가지 않음"}
       ],
-      "verify": {
-        "kind": "unit",
-        "refs": ["단위 테스트 SwitchableRouteServiceTest.`6_감시기는 늦은 ok에서 전환하고 콜백을 부른다`", "단위 테스트 SwitchableRouteServiceTest.`3_재전환은 일방향 — 두 번째 switchTo는 전부 무시된다`", "단위 테스트 TripSessionTest.`11_경로가 늦게 준비되면 전환 시점에 현재 목표를 다시 요청한다`"]
-      },
+      "verify": {"kind": "unit", "refs": ["SwitchableRouteServiceTest.`3_재전환은 일방향 — 두 번째 switchTo는 전부 무시된다`", "SwitchableNarratorTest.`전환은 일방향 - ready가 false로 되돌아가도 Pleos를 유지한다`"]},
       "status": "[코드 확인]",
       "numbers": []
     },
     {
       "id": "ARO-F9-AC04",
-      "pattern": "unwanted",
-      "text": "내비 초기화가 실패로 끝나면 앱은 대체 경로 구현을 유지하고 실제 구현으로 전환하지 않습니다.",
-      "io": [
-        {"in": "실제 구현의 늦은 failed 콜백", "out": "대체(Fake) 구현 유지, 전환 없음"}
-      ],
-      "verify": {
-        "kind": "unit",
-        "refs": ["단위 테스트 SwitchableRouteServiceTest.`7_감시기는 늦은 failed에서 전환하지 않고 Fake를 유지한다`"]
-      },
-      "status": "[코드 확인]",
+      "pattern": "ubiquitous",
+      "text": "진단 화면은 현재 켜져 있는 구현(차량 연동 또는 대체)을 '구현: ○○' 한 줄로 그대로 보여 줍니다. 실제로 쓰고 있지 않은 구현을 쓰고 있다고 표시하지 않습니다.",
+      "io": [{"in": "경로 안내가 대체 구현(FakeRouteService)으로 동작 중", "out": "진단 화면에 \"구현: FakeRouteService\" 표시"}],
+      "verify": {"kind": "code", "refs": ["진단 화면 소스(구현 이름을 그대로 그리는 줄)"]},
+      "status": "(설계)",
+      "note": "코드 확인.",
       "numbers": []
     },
     {
       "id": "ARO-F9-AC05",
-      "pattern": "event",
-      "text": "포트 선택은 시작 때 즉시 판정하므로 콜드 부팅 직후 첫 실행도 앱이 멈추지 않고 열립니다.",
-      "io": [
-        {"in": "콜드 부팅 직후 첫 실행 2회", "out": "시작 완료 8.1~8.5초, ANR 0"}
-      ],
-      "verify": {
-        "kind": "emulator",
-        "refs": ["개발 기록 F61(콜드 스타트 교착 해소 — 동기 즉시 판정·늦은 초기화 일방향 업그레이드, TotalTime 8.1~8.5초 실측)"]
-      },
-      "status": "[확인]",
-      "numbers": ["8.1~8.5초", "0"]
-    },
-    {
-      "id": "ARO-F9-AC06",
       "pattern": "unwanted",
-      "text": "포트 초기화 실패 시 앱은 대체 구현을 선택하고 선택 사유를 진단 화면에 표시합니다.",
-      "io": [
-        {"in": "내비 초기화 콜백 지연 → 포트 선택", "out": "대체(Fake) 구현 선택, 선택 사유 기록"},
-        {"in": "음성 초기화 실패·미확인", "out": "대체 구현 선택, 선택 사유 기록"},
-        {"in": "예시 오디오 파일 미준비", "out": "음성 편지 폴백(isAvailable=false) 선택"}
-      ],
-      "verify": {
-        "kind": "emulator",
-        "refs": ["개발 기록 F50(진단 화면이 어댑터 표를 구현/검증 분리로 렌더링하는 것 실측)", "개발 기록 F54(음성 합성 두 경로 초기화 실패 실측)", "개발 기록 F29(주행 규제 구현 등록 성공 실측)", "소스 docs/ARCHITECTURE.md 5절(실측 선택 결과 표)"]
-      },
-      "status": "[확인]",
+      "text": "차량 신호(동승 인원 수·주행 거리)를 읽지 못하면 앱은 가짜 값을 채우지 않고 빈 값으로 남겨 해당 문장을 화면에서 숨깁니다.",
+      "io": [{"in": "차량 신호 조회 실패", "out": "동승 인원·오늘 함께 달린 거리 값이 비어 있음(숫자 없음), 관련 문장이 화면에서 보이지 않음"}],
+      "verify": {"kind": "unit", "refs": ["TripSessionTest.`10_tripSignals_읽기 실패시 tripKm과 partySize는 null로 남는다`"]},
+      "status": "[코드 확인]",
       "numbers": []
     },
     {
+      "id": "ARO-F9-AC06",
+      "pattern": "event",
+      "text": "도착 스탬프가 기록되어 전송 대기열에 적재되면(enqueue), 앱은 그 즉시 1회 전송(flush)을 시도합니다.",
+      "io": [{"in": "국립경주박물관 도착 스탬프 기록", "out": "방문 기록이 전송 대기열에 1건 적재되고 곧바로 서버 전송 1회 시도"}],
+      "verify": {"kind": "unit", "refs": ["VisitQueueTest.`2_flush 성공시 큐가 비우고 전송 건수를 돌려준다`", "서버 시험(방문 기록 전송 처리 — 같은 분 멱등 판정)"]},
+      "status": "[코드 확인]",
+      "numbers": ["1회"]
+    },
+    {
       "id": "ARO-F9-AC07",
-      "pattern": "unwanted",
-      "text": "대체 구현이 선택돼 있으면 진단 화면과 화면 꼬리표가 그 사실을 보여주고, 대체 구현으로 찍은 영상을 실제 SDK 동작처럼 표기하지 않습니다.",
-      "io": [
-        {"in": "대체 구현 선택 상태", "out": "진단 화면 표·화면 꼬리표에 대체 사용 표시"}
-      ],
-      "verify": {
-        "kind": "code",
-        "refs": ["소스 docs/ARCHITECTURE.md 5절(대체 구현이 쓰이는 동안의 표시)", "소스 app/src/main/java/app/arosaegim/AppContainer.kt(adapterNotes)"]
-      },
+      "pattern": "ubiquitous",
+      "text": "전송 대기열은 주기적으로 스스로 재시도하지 않습니다(따로 도는 타이머·주기 폴링이 없음). 그래서 서버가 없는 환경에서도 큐가 계속 혼자 돌지 않습니다.",
+      "io": [],
+      "verify": {"kind": "code", "refs": ["전송 대기열 소스 전수 검색(전송 호출 지점이 도착 처리 한 곳뿐임을 확인)"]},
       "status": "(설계)",
+      "note": "코드 확인. 소스 전체에서 전송 호출 지점을 찾아보니 도착 처리 직후 한 곳뿐이었습니다(다른 파일 호출 2곳은 전송 대기열과 무관한 입출력 스트림의 같은 이름 함수입니다).",
       "numbers": []
     },
     {
       "id": "ARO-F9-AC08",
       "pattern": "unwanted",
-      "text": "방문 전송이 실패해도 앱은 기록을 대기열에 유지하고, 다음 도착 시 대기열 순서대로 재전송합니다. 같은 멱등키의 중복 적재는 무시합니다.",
-      "io": [
-        {"in": "flush 실패", "out": "대기열 항목 유지"},
-        {"in": "대기열에 실패 건이 남은 상태에서 다음 도착", "out": "FIFO 순서대로 이어서 재전송"},
-        {"in": "같은 멱등키로 재적재 시도", "out": "무시"}
-      ],
-      "verify": {
-        "kind": "unit",
-        "refs": ["단위 테스트 VisitQueueTest.`3_flush 실패시 항목이 큐에 유지된다`", "단위 테스트 VisitQueueTest.`5_flush는 FIFO 순서를 지키고 부분 실패 후 이어서 재전송한다`", "단위 테스트 VisitQueueTest.`1_같은 멱등키의 중복 enqueue는 무시된다`", "개발 기록 F82(flush는 도착 1건당 1회 — 공회전 폴링 없음)"]
-      },
+      "text": "전송 중 한 건이 실패하면 앱은 그 항목에서 멈추고, 그 뒤 항목들은 전송을 시도하지 않은 채 큐에 그대로 남깁니다(순서를 지키기 위함).",
+      "io": [{"in": "큐에 3건 적재된 상태에서 첫 건 전송이 실패", "out": "첫 건과 나머지 2건 모두 큐에 남음(순서가 바뀌지 않음), 성공 건수는 돌려주지 않고 실패로 응답"}],
+      "verify": {"kind": "unit", "refs": ["VisitQueueTest.`3_flush 실패시 항목이 큐에 유지된다`", "VisitQueueTest.`5_flush는 FIFO 순서를 지키고 부분 실패 후 이어서 재전송한다`"]},
       "status": "[코드 확인]",
       "numbers": []
     },
     {
       "id": "ARO-F9-AC09",
-      "pattern": "unwanted",
-      "text": "대기열에 넣은 PIN은 파일에 저장되지 않고 전송 요청 헤더로만 쓰입니다.",
-      "io": [
-        {"in": "PIN을 넘겨 대기열에 적재", "out": "대기열 파일에 PIN 없음"},
-        {"in": "전송(flush) 시점", "out": "세션 PIN이 X-Family-Pin 헤더로 전달"}
-      ],
-      "verify": {
-        "kind": "unit",
-        "refs": ["단위 테스트 VisitQueueTest.`7_enqueue 로 받은 PIN 은 파일에 저장되지 않고 전송에만 쓰인다`", "단위 테스트 VisitQueueTest.`6_pin 공급자의 세션 PIN 이 X-Family-Pin 값으로 전달된다`"]
-      },
+      "pattern": "state",
+      "text": "큐가 비어 있는 동안에는 전송 시도(flush)가 아무 것도 보내지 않고 '전송 0건 성공'으로 바로 끝납니다.",
+      "io": [],
+      "verify": {"kind": "code", "refs": ["전송 대기열 소스(큐가 비면 바로 성공·0건을 돌려주는 분기)"]},
+      "status": "(설계)",
+      "note": "코드 확인. 이 분기를 직접 겨냥한 단위 시험 이름은 찾지 못해 (설계)로 남깁니다.",
+      "numbers": ["0건"]
+    },
+    {
+      "id": "ARO-F9-AC10",
+      "pattern": "optional",
+      "text": "가족 세션에 PIN이 있는 경우 전송 대기열은 그 PIN을 실어 서버에 전송합니다.",
+      "io": [{"in": "가족 세션에 PIN이 남아 있는 상태에서 전송", "out": "요청 헤더(X-Family-Pin)에 그 PIN 값이 실림"}],
+      "verify": {"kind": "unit", "refs": ["VisitQueueTest.`6_pin 공급자의 세션 PIN 이 X-Family-Pin 값으로 전달된다`"]},
       "status": "[코드 확인]",
       "numbers": []
     },
     {
-      "id": "ARO-F9-AC10",
-      "pattern": "state",
-      "text": "릴리스 앱은 평문 HTTP가 기본 금지이고 데모 서버 주소(10.0.2.2·localhost)만 예외로 허용합니다.",
-      "io": [
-        {"in": "릴리스 APK에서 http://10.0.2.2:8000 방문 전송", "out": "요청이 서버에 도달(수정 전에는 전부 차단됐음)"}
-      ],
-      "verify": {
-        "kind": "emulator",
-        "refs": ["소스 android/app/src/main/res/xml/network_security_config.xml(10.0.2.2·localhost만 허용)", "개발 기록 F71(릴리스 클리어텍스트 차단 발견·수정 후 재실측 — POST /v1/visits 도달 확인)"]
-      },
-      "status": "[확인]",
-      "numbers": []
-    },
-    {
       "id": "ARO-F9-AC11",
-      "pattern": "event",
-      "text": "진단 관찰이 중단돼도 앱은 재감시 호출로 여정 감시와 도착 판정을 복구합니다.",
-      "io": [
-        {"in": "감지기가 외부에서 중단된 뒤 rewatch 호출", "out": "현재 목표 감시·도착 판정 복구"},
-        {"in": "세션 수집이 중단된 뒤 rewatch 호출", "out": "수집과 감시가 함께 복구"}
-      ],
-      "verify": {
-        "kind": "unit",
-        "refs": ["단위 테스트 TripSessionTest.`12_외부에서 감지기가 stop돼도 rewatch하면 현재 목표 감시와 도착 판정이 복구된다`", "단위 테스트 TripSessionTest.`13_세션 수집이 중단된 뒤 rewatch하면 수집과 감시가 함께 복구된다`", "개발 기록 F67"]
-      },
+      "pattern": "unwanted",
+      "text": "전송을 위해 받아 둔 PIN이라도 앱은 그것을 큐 파일에 적지 않습니다(메모리에만 잠깐 둠). PIN이 파일에 남는 일은 없습니다.",
+      "io": [{"in": "PIN을 받아 도착을 큐에 적재한 직후 큐 파일을 직접 읽음", "out": "큐 파일(JSON)에는 장소·시각 등만 있고 PIN 문자열은 없음"}],
+      "verify": {"kind": "unit", "refs": ["VisitQueueTest.`7_enqueue 로 받은 PIN 은 파일에 저장되지 않고 전송에만 쓰인다`"]},
       "status": "[코드 확인]",
       "numbers": []
     },
     {
       "id": "ARO-F9-AC12",
-      "pattern": "state",
-      "text": "포트 전환은 일방향이고 초기 대체 구현 자신으로의 전환은 무시합니다.",
-      "io": [
-        {"in": "대체 구현으로 이미 전환한 뒤 같은 구현으로 재전환", "out": "무시"},
-        {"in": "초기 위임자 자신으로 전환 시도", "out": "무시"}
-      ],
-      "verify": {
-        "kind": "unit",
-        "refs": ["단위 테스트 SwitchableRouteServiceTest.`3_재전환은 일방향 — 두 번째 switchTo는 전부 무시된다`", "단위 테스트 SwitchableRouteServiceTest.`4_초기 위임자 자신으로의 전환은 무시된다`", "단위 테스트 SwitchableNarratorTest.`전환은 일방향 - ready가 false로 되돌아가도 Pleos를 유지한다`"]
-      },
+      "pattern": "ubiquitous",
+      "text": "코스·스탬프북·맛집 정보가 앱 안에 내장 데이터로 들어 있어서, 서버가 없어도 여정이 끝까지 이어집니다. 서버 호출이 실패해도 그 실패는 흡수되고 주행 흐름을 막지 않습니다.",
+      "io": [],
+      "verify": {"kind": "unit", "refs": ["SeedRepositoryTest.missingStampBookAndPartners_defaultToEmptyLists", "TripSessionTest.`8_routeService_호출 실패시 주행은 유지되고 한 줄 안내만 남는다`"]},
       "status": "[코드 확인]",
       "numbers": []
     }

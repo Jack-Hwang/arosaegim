@@ -5,195 +5,287 @@
     {
       "id": "ARO-F2-AC01",
       "pattern": "ubiquitous",
-      "text": "앱은 주행 규제 신호(주행 최적화 요구)를 1차 신호로 삼아 주행 상태를 판정합니다.",
+      "text": "앱은 주행 규제 신호를 1차 신호로 삼아 주행 상태를 판정합니다.",
       "io": [],
       "verify": {
         "kind": "code",
-        "refs": ["단위 테스트 DrivingStateMergerTest.`보조가 없으면 1차만으로 판정한다`", "소스 app/src/main/java/app/arosaegim/pleos/UxRestrictionsDrivingState.kt(CarUxRestrictionsManager.registerListener)", "개발 기록 F29(주행 규제 관리자 획득·등록 성공 실측)", "소스 docs/ARCHITECTURE.md 3절"]
+        "refs": [
+          "DrivingStateMerger.kt(1차 신호 판정)",
+          "DrivingStateMergerTest.`보조가 없으면 1차만으로 판정한다`",
+          "개발 기록 F29(주행 규제 관리자 획득·등록 성공)"
+        ]
       },
       "status": "[코드 확인]",
-      "numbers": []
+      "numbers": [],
+      "note": "수신 경로는 공식 문서와 일치, 등록 성공은 실측(F29)"
     },
     {
       "id": "ARO-F2-AC02",
       "pattern": "event",
       "text": "1차 신호와 보조(기어) 신호가 서로 어긋나면 앱은 더 제한적인 쪽인 주행으로 판정합니다.",
       "io": [
-        {"in": "1차 신호 정차 + 보조 신호(기어) 주행", "out": "주행으로 판정"},
-        {"in": "1차 신호 주행 + 보조 신호(기어) 정차", "out": "주행을 유지"}
+        {
+          "in": "1차 신호 정차 + 보조 신호(기어) 주행",
+          "out": "주행으로 판정"
+        },
+        {
+          "in": "1차 신호 주행 + 보조 신호(기어) 정차",
+          "out": "주행을 유지"
+        }
       ],
       "verify": {
         "kind": "unit",
-        "refs": ["단위 테스트 DrivingStateMergerTest.`1차 정차에 보조 주행이면 주행으로 판정한다 - 어긋나면 더 제한적 우선`", "단위 테스트 DrivingStateMergerTest.`1차 주행에 보조 정차여도 주행을 유지한다 - 더 제한적 우선`", "소스 docs/ADR.md ADR-005"]
+        "refs": [
+          "DrivingStateMergerTest.`1차 정차에 보조 주행이면 주행으로 판정한다 - 어긋나면 더 제한적 우선`",
+          "DrivingStateMergerTest.`1차 주행에 보조 정차여도 주행을 유지한다 - 더 제한적 우선`"
+        ]
       },
       "status": "[코드 확인]",
       "numbers": []
     },
     {
       "id": "ARO-F2-AC03",
-      "pattern": "state",
-      "text": "기어 P가 5초 이상 지속되면 1차 신호가 주행을 보고해도 앱은 정차로 판정을 해제합니다.",
+      "pattern": "optional",
+      "text": "보조(기어) 신호를 읽지 못하는 경우 앱은 1차 신호만으로 주행 상태를 판정합니다.",
       "io": [
-        {"in": "기어 P 지속 5초 이상 + 1차 신호 주행 보고", "out": "PARKED로 판정 해제"},
-        {"in": "기어 P 지속 5초 미만 + 1차 신호 주행 보고", "out": "주행 판정을 유지"}
+        {
+          "in": "기어 신호 조회 실패(null)",
+          "out": "1차 신호만으로 주행 상태 유지"
+        }
       ],
       "verify": {
         "kind": "unit",
-        "refs": ["단위 테스트 DrivingStateMergerTest.`1차 주행에 보조 정차가 보류 시간 이상이면 PARKED로 해제한다 - Q26`", "단위 테스트 DrivingStateMergerTest.`1차 주행에 보조 정차가 보류 시간 미만이면 주행을 유지한다 - Q26 보수적`", "개발 기록 F81(Q26 해소 — PARK_RELEASE_HOLD_MS 5초, 2초 폴링 3회)"]
+        "refs": [
+          "DrivingStateMergerTest.`보조를 못 읽었으면 판정에 영향을 주지 않는다`"
+        ]
       },
       "status": "[코드 확인]",
-      "numbers": ["5초", "2초"]
+      "numbers": []
     },
     {
       "id": "ARO-F2-AC04",
-      "pattern": "optional",
-      "text": "기어 신호를 읽지 못하는 경우 앱은 1차 신호만으로 주행 상태를 판정합니다.",
-      "io": [
-        {"in": "기어 신호 조회 실패(null)", "out": "1차 신호만으로 판정, 판정이 흔들리지 않음"}
-      ],
+      "pattern": "ubiquitous",
+      "text": "앱은 주행 화면에만 주행 최적화를 선언하고 정차 화면에는 선언하지 않습니다.",
+      "io": [],
       "verify": {
-        "kind": "unit",
-        "refs": ["단위 테스트 DrivingStateMergerTest.`보조를 못 읽었으면 판정에 영향을 주지 않는다`", "단위 테스트 CombinedDrivingStateTest.`못 읽은 기어 결과는 판정을 흔들지 않는다`"]
+        "kind": "code",
+        "refs": [
+          "AndroidManifest.xml(DrivingActivity distractionOptimized=true 선언)",
+          "개발 기록 ARCHITECTURE.md 3절"
+        ]
       },
       "status": "[코드 확인]",
       "numbers": []
     },
     {
       "id": "ARO-F2-AC05",
-      "pattern": "ubiquitous",
-      "text": "앱은 주행 화면에만 주행 최적화를 선언하고 정차 화면에는 선언하지 않습니다.",
-      "io": [],
-      "verify": {
-        "kind": "code",
-        "refs": ["소스 android/app/src/main/AndroidManifest.xml(DrivingActivity distractionOptimized=true 선언, ParkedActivity 미선언)", "소스 docs/ARCHITECTURE.md 3절(DO 선언의 역할)"]
-      },
-      "status": "[코드 확인]",
-      "numbers": []
-    },
-    {
-      "id": "ARO-F2-AC06",
       "pattern": "unwanted",
-      "text": "주행 최적화를 선언하지 않은 화면은 주행이 시작되면 시스템이 가립니다. 주행 중 퀴즈·입력 금지는 이 방식으로 강제됩니다.",
+      "text": "주행 최적화를 선언하지 않은 화면은 주행이 시작되면 시스템이 자동으로 가립니다. 주행 중 퀴즈·입력 금지는 이 방식으로 지켜집니다.",
       "io": [
-        {"in": "정차 화면이 떠 있는 동안 기어 D·시속 40km로 주행 시작", "out": "시스템이 정차 화면을 가리고 \"주행 중에는 사용할 수 없습니다\" 문구를 보여 줌"}
+        {
+          "in": "정차 화면이 떠 있는 동안 주행 시작",
+          "out": "시스템이 정차 화면을 가리고 \"주행 중에는 사용할 수 없습니다\" 문구를 보여 줌"
+        }
       ],
       "verify": {
         "kind": "emulator",
-        "refs": ["개발 기록 F68(기어 D·40km/h 실측 — 화면 가려짐 확인)", "소스 docs/ARCHITECTURE.md 3절"]
+        "refs": [
+          "개발 기록 F68(기어 D·시속 40km 실측에서 화면 가려짐 확인)",
+          "개발 기록 ARCHITECTURE.md 3절"
+        ]
       },
       "status": "[확인]",
-      "numbers": ["40km/h"]
+      "numbers": [
+        "40km/h"
+      ]
     },
     {
-      "id": "ARO-F2-AC07",
+      "id": "ARO-F2-AC06",
       "pattern": "unwanted",
       "text": "일부 실측에서는 주행 최적화를 선언한 화면도 주행 중 시스템이 함께 가렸습니다.",
       "io": [],
       "verify": {
         "kind": "emulator",
-        "refs": ["개발 기록 F68(주행 화면도 \"주행 중에는 사용할 수 없습니다\"로 가려진 사례)", "소스 docs/DEV_LOG.md U7 표(잔존 사례 — Q26)"]
+        "refs": [
+          "개발 기록 F68(주행 화면도 \"주행 중에는 사용할 수 없습니다\"로 가려진 사례)"
+        ]
       },
       "status": "[일부 확인]",
-      "numbers": []
+      "numbers": [],
+      "note": "직접 설치한 앱에서는 이 선언이 그대로 인정되지 않는 것으로 보이며, 원인은 아직 확정하지 못함(미확인)"
     },
     {
-      "id": "ARO-F2-AC08",
+      "id": "ARO-F2-AC07",
       "pattern": "state",
       "text": "정차 화면이 시스템에 가려지는 동안에도 앱은 퀴즈 진행 상태(문항 번호·답안)를 보존합니다.",
       "io": [
-        {"in": "퀴즈 문항 풀이 중 주행 시작으로 화면 가려짐", "out": "정차로 복귀하면 같은 문항부터 이어서 표시"}
+        {
+          "in": "퀴즈 2번 문제를 풀던 중 주행 시작으로 화면이 가려짐",
+          "out": "정차로 복귀하면 2번 문제부터 이어서 표시"
+        }
       ],
       "verify": {
         "kind": "code",
-        "refs": ["소스 app/src/main/java/app/arosaegim/ui/parked/QuizState.kt(QuizStateHolder — 프로세스 수명 싱글톤)", "소스 docs/ARCHITECTURE.md 3절(퀴즈 상태 보존)"]
+        "refs": [
+          "QuizState.kt(QuizStateHolder — 프로세스 수명 싱글톤)",
+          "개발 기록 ARCHITECTURE.md 3절(퀴즈 상태 보존)"
+        ]
       },
       "status": "(설계)",
-      "numbers": []
+      "numbers": [],
+      "note": "코드로 확인, 실측 전"
     },
     {
-      "id": "ARO-F2-AC09",
+      "id": "ARO-F2-AC08",
       "pattern": "event",
       "text": "가족 세션(가족 코드 또는 둘러보기)이 있는 상태에서 차가 정차하면 앱은 정차 화면으로 자동 전환합니다.",
       "io": [
-        {"in": "기어 D→P 전환(세션 있는 상태)", "out": "정차 화면이 최상단으로 복귀"}
+        {
+          "in": "가족 코드로 접속한 상태에서 기어 D→P 전환",
+          "out": "정차 화면으로 자동 전환"
+        }
       ],
       "verify": {
         "kind": "emulator",
-        "refs": ["개발 기록 F72(기어 D→P 자동 복귀 2회 실측 — 세션 게이트 추가 이전 빌드)", "단위 테스트 ModeRouterResolveTest.`정차 상태에서 세션이 있으면 정차 화면으로 라우팅한다`"]
+        "refs": [
+          "개발 기록 F72(기어 D→P 자동 복귀 2회 확인 — 세션 게이트를 넣기 전 빌드)",
+          "ModeRouterResolveTest.`정차 상태에서 세션이 있으면 정차 화면으로 라우팅한다`"
+        ]
       },
       "status": "[일부 확인]",
-      "numbers": ["2회"]
+      "numbers": [],
+      "note": "세션 게이트를 넣기 전 빌드에서 자동 전환 자체는 실측됐으나(F72), 게이트를 넣은 뒤의 재실측은 남아 있음(미확인)"
     },
     {
-      "id": "ARO-F2-AC10",
+      "id": "ARO-F2-AC09",
       "pattern": "unwanted",
-      "text": "가족 세션이 없는 상태에서 차가 정차해도 앱은 자동 전환을 보류하고 시작 화면을 그대로 유지합니다.",
+      "text": "가족 세션이 없는 상태에서 차가 정차해도 앱은 자동 전환을 보류하고 시작 화면(가족 코드 입력)을 그대로 유지합니다.",
       "io": [
-        {"in": "새로 설치한 뒤 세션 없이 첫 상태가 정차로 수집됨", "out": "정차 화면으로 전환하지 않고 보류"}
+        {
+          "in": "새로 설치한 뒤 세션 없이 첫 상태가 정차로 수집됨",
+          "out": "정차 화면으로 전환하지 않고 보류"
+        }
       ],
       "verify": {
         "kind": "unit",
-        "refs": ["단위 테스트 ModeRouterResolveTest.`정차 상태에서 세션이 없으면 전환을 보류한다(Q28 - 시작 화면 유지)`", "개발 기록 F80(게이트 추가 후 콜드 스타트 실측 — ParkedActivity 미기동 확인)", "개발 기록 Q28(릴리스 빌드에서 시작 화면 표시 자체의 재확인은 남음)"]
+        "refs": [
+          "ModeRouterResolveTest.`정차 상태에서 세션이 없으면 전환을 보류한다(Q28 - 시작 화면 유지)`",
+          "개발 기록 F80(디버그 앱 콜드 스타트에서 정차 화면이 뜨지 않는 것을 확인)"
+        ]
       },
       "status": "[일부 확인]",
+      "numbers": [],
+      "note": "콜드 스타트에서 정차 화면이 뜨지 않는 것은 확인했으나, 그 순간 보인 화면은 디버그 빌드의 진단 화면이었고(F79) 가족 코드 입력 화면이 실제로 보이는지는 별도 확인 필요(미확인)"
+    },
+    {
+      "id": "ARO-F2-AC10",
+      "pattern": "event",
+      "text": "주행 상태가 되면 앱은 가족 세션 여부와 관계없이 항상 주행 화면으로 전환합니다.",
+      "io": [
+        {
+          "in": "세션 없음 + 주행 상태",
+          "out": "주행 화면으로 전환"
+        },
+        {
+          "in": "세션 있음 + 주행 상태",
+          "out": "주행 화면으로 전환"
+        }
+      ],
+      "verify": {
+        "kind": "unit",
+        "refs": [
+          "ModeRouterResolveTest.`주행 상태는 세션이 없어도 주행 화면으로 라우팅한다`",
+          "ModeRouterResolveTest.`주행 상태는 세션이 있어도 주행 화면으로 라우팅한다`"
+        ]
+      },
+      "status": "[코드 확인]",
       "numbers": []
     },
     {
       "id": "ARO-F2-AC11",
-      "pattern": "event",
-      "text": "주행 상태가 되면 앱은 가족 세션 여부와 관계없이 항상 주행 화면으로 전환합니다.",
+      "pattern": "state",
+      "text": "같은 상태 신호가 반복해서 들어오는 동안에는 앱은 화면을 다시 전환하지 않습니다.",
       "io": [
-        {"in": "세션 없음 + 주행 상태", "out": "주행 화면으로 전환"},
-        {"in": "세션 있음 + 주행 상태", "out": "주행 화면으로 전환"}
+        {
+          "in": "주행 상태 신호가 연속 3회 들어옴",
+          "out": "화면 전환 1회, 추가 전환 없음"
+        }
       ],
       "verify": {
         "kind": "unit",
-        "refs": ["단위 테스트 ModeRouterResolveTest.`주행 상태는 세션이 없어도 주행 화면으로 라우팅한다`", "단위 테스트 ModeRouterResolveTest.`주행 상태는 세션이 있어도 주행 화면으로 라우팅한다`"]
+        "refs": [
+          "ModeStateMachineTest.`연속 동일 신호 3회는 mode 값 변화가 없다`"
+        ]
       },
       "status": "[코드 확인]",
       "numbers": []
     },
     {
       "id": "ARO-F2-AC12",
-      "pattern": "state",
-      "text": "같은 상태 신호가 반복해서 들어오는 동안에는 앱은 화면을 다시 전환하지 않습니다.",
+      "pattern": "event",
+      "text": "주행에서 정차로 복귀하면 앱은 복귀 전의 화면 모드를 그대로 복원합니다.",
       "io": [
-        {"in": "주행 상태 신호가 연속 3회 들어옴", "out": "화면 전환 1회, 추가 전환 없음"}
+        {
+          "in": "정차→주행→정차를 3회 반복 전환",
+          "out": "매번 정차 화면으로 복귀, 진행 상태 유지"
+        }
       ],
       "verify": {
-        "kind": "unit",
-        "refs": ["단위 테스트 ModeStateMachineTest.`연속 동일 신호 3회는 mode 값 변화가 없다`"]
+        "kind": "emulator",
+        "refs": [
+          "ModeStateMachineTest.`PARKED에서 DRIVING으로 복귀 후 PARKED로 복원된다`",
+          "개발 기록(Driving·Parked 3회 전환·복귀 실측 — 세션 게이트를 넣기 전)"
+        ]
       },
-      "status": "[코드 확인]",
-      "numbers": ["3회"]
+      "status": "[일부 확인]",
+      "numbers": [
+        "3"
+      ],
+      "note": "전환·복귀 자체는 실측됐으나 세션 게이트를 넣기 전 빌드의 결과임"
     },
     {
       "id": "ARO-F2-AC13",
-      "pattern": "event",
-      "text": "주행에서 정차로 복귀하면 앱은 정차 화면으로 돌아가고 이전 화면 모드를 복원합니다.",
-      "io": [
-        {"in": "정차→주행→정차를 3회 반복 전환", "out": "매번 정차 화면으로 복귀, 진행 상태 유지"}
-      ],
-      "verify": {
-        "kind": "unit",
-        "refs": ["단위 테스트 ModeStateMachineTest.`PARKED에서 DRIVING으로 복귀 후 PARKED로 복원된다`", "개발 기록 F72(D→P 자동 복귀 실측)", "소스 docs/DEV_LOG.md U9 표(3회 전환·복귀·상태 유지 PASS — 세션 게이트 추가 이전 빌드)"]
-      },
-      "status": "[일부 확인]",
-      "numbers": ["3회"]
-    },
-    {
-      "id": "ARO-F2-AC14",
       "pattern": "unwanted",
-      "text": "주행 상태 신호 등록이 실패하면 앱은 정차 상태를 유지하고 수동 전환(데모 모드)으로 대체합니다.",
+      "text": "주행 상태 신호 등록이 실패하면 앱은 정차 상태를 유지하고 화면에 수동 전환 표시를 보여 줍니다.",
       "io": [
-        {"in": "주행 규제 신호 등록 실패(차량 서비스 부재 등)", "out": "정차 상태 유지, 오류 문자열 기록, 화면에 '데모 모드' 꼬리표 표시"}
+        {
+          "in": "주행 규제 신호 등록 실패(차량 서비스 부재 등)",
+          "out": "정차 상태 유지, 화면에 '데모 모드' 표시"
+        }
       ],
       "verify": {
         "kind": "code",
-        "refs": ["소스 docs/ARCHITECTURE.md 3절(실패 시의 동작 — ManualDrivingState 폴백·파생 상태 금지)", "소스 app/src/main/java/app/arosaegim/fallback/ManualDrivingState.kt", "소스 docs/ADR.md ADR-005"]
+        "refs": [
+          "개발 기록 ARCHITECTURE.md 3절(실패 시의 동작 — 수동 전환 대체)"
+        ]
       },
       "status": "(설계)",
+      "note": "코드로 확인, 실측 전",
       "numbers": []
+    },
+    {
+      "id": "ARO-F2-AC14",
+      "pattern": "event",
+      "text": "보조(기어) 신호가 정차로 5초 이상 이어지면 앱은 1차 신호가 주행을 주장해도 정차로 판정합니다.",
+      "io": [
+        {
+          "in": "기어 P 신호가 5초 이상(2초 주기 폴링 3회) 연속 확인되는 동안 1차 신호는 주행을 유지",
+          "out": "병합 결과가 정차(PARKED)로 전환"
+        }
+      ],
+      "verify": {
+        "kind": "unit",
+        "refs": [
+          "DrivingStateMergerTest.`1차 주행에 보조 정차가 보류 시간 이상이면 PARKED로 해제한다 - Q26`",
+          "개발 기록 F81(Q26 해소 — 기어 P 지속 시 주행 해제 타임아웃)"
+        ]
+      },
+      "status": "[코드 확인]",
+      "note": "에뮬레이터 재실측은 아직입니다.",
+      "numbers": [
+        "5초",
+        "3회"
+      ]
     }
   ]
 }

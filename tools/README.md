@@ -6,7 +6,7 @@
 
 - `facts.json`은 저장소 코드의 측정 방법(git grep/show/ls-tree)과 문서 문장 검사 규칙을 담은 사실 대장이다. 측정값은 문서에 박아 두지 않고, **현재 값은 도구를 돌려 확인한다.**
 - `facts.json`의 `doc_patterns`은 저장소 안 문서(README.md · docs/ARCHITECTURE.md · docs/ADR.md · docs/TRACEABILITY.md · docs/spec/*.md)에서 그 사실을 말하는 문장을 찾는다. docs/DEV_LOG.md은 시간순 기록이라 총계 문장 감시에서 제외한다(값·표기로 앵커한 문장만 한정 감시한다).
-- 기대 결과(2026-11-13, HEAD ba96030 실측): 앱 @Test 179 · 서버 def test_ 87 · 엔드포인트 37 · 라우터 11 · 모델 46 · strings 121 · 포트 7 · APK(안드로이드 앱 패키지) 40483945바이트 — 전 문장 일치, 종료 코드 0.
+- 기대 결과(2026-11-14, HEAD 실측): 앱 @Test 197 · 서버 def test_ 87 · 엔드포인트 37 · 라우터 11 · 모델 46 · strings 122 · 포트 7 · APK(안드로이드 앱 패키지) 40484425바이트 — 전 문장 일치, 종료 코드 0.
 - 실행 결과는 `tools/drift-results.json`에 기록된다. 문서 숫자가 코드값과 어긋나면 종료 코드 1로 실패한다.
 - 읽기 전용 도구다(git grep/show/ls-tree로만 저장소를 읽는다) — 문서·코드를 바꾸지 않는다. 파이썬 표준 라이브러리만 쓴다.
 

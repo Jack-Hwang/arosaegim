@@ -206,7 +206,7 @@ class FamilySessionStore(context: Context) {
 
     /**
      * 세션 PIN 거절 표시(2026-11-13 — 방문 전송 경로의 안전장치). 서버가 'PIN이 틀렸다'
-     * (401·403 → [AuthException])고 답했을 때 호출한다. 세션 PIN 이 메모리에서 지워져
+     * (401·403·429 → [AuthException])고 답했을 때 호출한다. 세션 PIN 이 메모리에서 지워져
      * [pinOrNull] 이 null 이 되고, 거절 상태는 [setPin]·[clearPin]·[signOut] 에서 풀린다.
      * [rejectedPin] 은 거부된 PIN 값(선택) — 지금 세션 PIN 이 그 값일 때만 표시한다.
      */
