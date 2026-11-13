@@ -41,7 +41,7 @@
 
 ## 2026-11-13 (오후) — 미구현 요구 전수 조사·작업 단위 구현(Q26·Q27·Q20·09문서 7번·요구 E항목 문서화)
 
-- 한 일: 요구 문서 갱신(11-12 20:57 이후 없음)을 확인하고 남은 구현 과제를 개발 기록·감사·요구 후보에서 전수 추려 4개 작업 단위로 구현해 통합. 통합 검증: 앱 단위 테스트는 그 시점 기준 179건(163+7+9, 실패 0 — 이후 신규 시험으로 190건까지 증가)·백엔드 pytest 87/87(+1)·assembleDebug·assembleRelease 성공, `apk/arosaegim_아로새김_release.apk` 갱신(40,483,945바이트)
+- 한 일: 요구 문서 갱신(11-12 20:57 이후 없음)을 확인하고 남은 구현 과제를 개발 기록·감사·요구 후보에서 전수 추려 4개 작업 단위로 구현해 통합. 통합 검증: 앱 단위 테스트는 그 시점 기준 179건(163+7+9, 실패 0 — 이후 신규 시험으로 190건까지 증가)·백엔드 pytest 87/87(+1)·assembleDebug·assembleRelease 성공, `apk/arosaegim_아로새김_release.apk` 갱신(당시 40,483,945 B)
 - 확인된 사실(F-번호):
   - **F81 Q26 해소 — 기어 P 지속 시 주행 해제 타임아웃**: DrivingStateMerger에 정차 유지 해제 규칙 추가 — 보조(기어)가 false(P)로 확인된 지속 시간이 5초(`PARK_RELEASE_HOLD_MS`, 2초 폴링 3회) 이상이면 1차(DO)가 주행을 주장해도 PARKED로 판정. 근거: 기어 P에서 차가 움직일 수 없다는 물리 사실(DO 잔존은 오류 — Q26 실증). 시계(`nowMs`)·보류 시간 주입으로 순수 유지, CombinedDrivingState는 무변경. 테스트 +7(기존 7 유지)
   - **F82 Q27 완화 — 좌석 집계 부분 합산 차단**: 집계를 순수 함수 `countOccupied`로 추출하고 **응답률 50% 미달(`MIN_RESPONSE_RATIO=0.5`)이면 null**(F73의 "주입 3명→표시 1명"은 capability 일부 목록·부분 응답의 부분 합산 경로와 일치 — 확정 실측은 여전히 사용자 Virtual Console 세션 필요). `lastSeatDiagnostics`(요청/성공/실패 좌석 수 한 줄 — 표시 전용·저장 없음)를 진단 U11 상세에 연결. VisitQueue(E④)는 flush 호출자가 TripSession enqueue 직후 1회뿐임을 확인 — 공회전 폴링 없음(설계 요건 충족), KDoc에 전송 시점·재시도 예산 절 추가. 테스트 +9
@@ -501,7 +501,7 @@
 ## 2026-11-13 (밤) — 12번 문서 §3 수행 보고 (§6 형식)
 
 1. **최종 커밋**: 3bea357(요구 문서 12 §3 P0-1~P0-5 일괄 — 이후 본 보고 커밋이 뒤따른다).
-2. **시험 수**: 앱 단위 테스트 190/190(`./gradlew testDebugUnitTest`) · 서버 pytest 87/87. 이번 P0-1~P0-5는 문서·주석·도구 변경이라 시험 수를 바꾸지 않았다(190은 선행 커밋의 신규 시험 반영).
+2. **시험 수**: 앱 단위 테스트는 당시 190/190(`./gradlew testDebugUnitTest`) · 서버 pytest 87/87. 이번 P0-1~P0-5는 문서·주석·도구 변경이라 시험 수를 바꾸지 않았다(190은 선행 커밋의 신규 시험 반영).
 3. **만든·고친 문서와 도구**: tools(facts.json 규칙 보강·spec_drift_check.py 기본 출력 tmp/ 이동·README 재작성·spec_check.py 기존) / docs(EMULATOR_SETUP.md 신설·SPEC_TRACE.md 신설·spec/ac/ 정본 9파일·ADR.md 정비+기각한 대안 14건·TRACEABILITY 머리말·README 현재 값 문단+NN문서 안내·ATTRIBUTION 경로 표기 정리) / 코드 주석 6파일(작업 방식 표현 제거 — 로직·식별자 무변경).
 4. **못 한 것과 이유**: (a) 명령 ③이 서버 응답 모델 식별자 1종 5줄을 대소문자 무시로 계속 잡는다 — 식별자 변경은 금지(P0-2.1)라 예외로 남긴다(실제 작업 방식 문장은 0건). (b) 기획서 검증을 마친 수용 기준 최종본·문서 원문 첨부가 미도착 — 도착 시 P0-4 절차대로 정본을 덮어쓰고 차이를 새 F 번호로 보고한다(F91로 완료). (c) 명령 ②는 커밋 전 기준이라 F-TEST-APP이 잠정 불일치로 나온다 — 본 커밋 이후 HEAD 측정값이 문서(190)와 일치해 통과한다. (d) P1-1 README 심사 안내·P1-2 문서 묶음은 미착수(12번 §4 — P1-2는 첨부 도착 전 쓰지 않는다). (e) 시연 영상 재촬영·U6 청취·Q27 확정 실측은 에뮬레이터 GUI 세션 과제로 남는다(사용자 세션).
 5. **기획서 반영 요청**:
@@ -515,7 +515,7 @@
 
 - 확인된 사실(F-번호):
   - **F91 P1-2 배치 완료**: 별지 검증이 끝난 문서 원문을 배치 지도대로 저장소에 옮겼다. ① `docs/spec/00_CHARTER.md`·`docs/AI_SCOPE.md`·`docs/QUALITY.md` — 원문과 바이트 단위 동일(대조 확인 4건). ② `docs/QUALITY_EVAL.md` 신설(평가 지표 적용표 — 배치 지도의 선택지 중 별도 파일로 배치). ③ `docs/ADR.md`의 14건 `- 기각한 대안:` 줄을 원문으로 교체(ADR 번호·제목 무변경, '검토 근거 있음/검토 기록 없음' 구분 14건 유지). ④ P1-1로 README 맨 위에 '5분 확인' 절 추가(①APK 위치·크기 ②시험 명령·현재 개수 ③문서 지도 ④숫자 대조 명령 ⑤확인·미확인 요약 — 상태 어휘 그대로).
-  - **배치 후 코드·시험 재확인**(배치 규칙): 원문이 인용한 수용 기준 번호 22종 전부 정본에 실존, 시험 이름 전부 실존, 코드 경로(routers/places.py·ui/parked/ParkedComponents.kt·web/js/screens/receipt.js·Haversine.distanceM·PleosVehicleInfoProvider.checkVinCapabilityOnly 등) 전부 실존, 시드 수치(코스 3곳·퀴즈 6문항·반경 120m·제휴처 4곳)·APK 40,483,945바이트 일치.
+  - **배치 후 코드·시험 재확인**(배치 규칙): 원문이 인용한 수용 기준 번호 22종 전부 정본에 실존, 시험 이름 전부 실존, 코드 경로(routers/places.py·ui/parked/ParkedComponents.kt·web/js/screens/receipt.js·Haversine.distanceM·PleosVehicleInfoProvider.checkVinCapabilityOnly 등) 전부 실존, 시드 수치(코스 3곳·퀴즈 6문항·반경 120m·제휴처 4곳)·APK 40,483,945 B(당시) 일치.
   - **원문과 실제가 어긋난 값**(고치지 않고 요청만): TripSessionTest 14건→실제 16건·FamilySessionStoreTest 16건→실제 21건·VisitQueueTest 9건→실제 13건·앱 단위 시험 179건→197건(F92 신규 7건 포함). 서버 시험 87건·CombinedDrivingStateTest 3건·DrivingStateMergerTest 15건·SwitchableRouteServiceTest 8건·SwitchableNarratorTest 5건·ModeRouterResolveTest 4건·VisitPayloadContractTest 4건·SignOutCleanupTest 4건·ThenNowResolverTest 12건은 일치.
   - **SPEC_INDEX.md는 만들지 않았다**: 원문 제공이 없어 기획서 별지와 어긋날 위험을 피했다 — 원문이 도착하면 그때 배치한다.
   - **작업 트리 정리**: docs/ADR.md에 커밋되지 않은 재작성본(번호·제목 체계가 별지 인용과 어긋나는 14건)이 남아 있어 커밋 기준본으로 되돌린 뒤 원문을 반영했다(되돌린 본은 tmp/ 아래 백업 — 추적 제외).
