@@ -74,6 +74,11 @@ class TripSession(
     // E1: 전송 시점의 세션 PIN 공급자(예: { familySessionStore.pinOrNull() }). 메모리 전용 —
     // 저장·로그 금지(00문서 10.6). 기본 null 공급자라 기존 호출부는 그대로 컴파일된다.
     private val pinProvider: () -> String? = { null },
+    // E1 전체 경로(2026-11-14): 전송 시점의 세션 가족 코드 공급자(예: { familySessionStore.familyCode.value }).
+    // 이전에는 enqueue 에 familyCode = null 이 하드코딩돼 서버가 family_code_required 로
+    // 거부해 큐가 비지 않았다(요구 문서 12 §5 F101 후속 과제 해소). 코드는 기기 설정값이라
+    // 전송 시점에 다시 읽는다 — 저장·로그 금지 규칙은 PIN 과 같다.
+    private val familyCodeProvider: () -> String? = { null },
     // A7: 늦은 초기화 전환 신호 — SwitchableRouteService 가 Fake→Pleos 로 갈아끼워졌을 때
     // true 가 되는 StateFlow(없으면 null). true 로 바뀌는 순간 현재 목표의 경로를 다시 요청한다.
     private val routeBecameReady: StateFlow<Boolean>? = null,
@@ -302,7 +307,7 @@ class TripSession(
         // 금지, 00문서 10.6)을 함께 넘긴다. PIN 은 전송(flush) 순간에만 쓰이고 파일에 남지 않는다.
         visitQueue?.enqueue(
             visit,
-            familyCode = null,
+            familyCode = familyCodeProvider(),
             courseRunId = courseRunId,
             pin = pinProvider(),
         )

@@ -129,6 +129,8 @@ class TripSessionTest {
         /** E1: 세션이 enqueue 에 건네준 course_run_id·pin 기록(공백 여부만 검증한다). */
         val courseRunIds = mutableListOf<String?>()
         val pins = mutableListOf<String?>()
+        /** E1 전체 경로: enqueue 에 건네준 가족 코드 기록. */
+        val familyCodes = mutableListOf<String?>()
         var flushCalls = 0
 
         private val _pending = MutableStateFlow(0)
@@ -146,6 +148,7 @@ class TripSessionTest {
             enqueued.add(visit)
             courseRunIds.add(courseRunId)
             pins.add(pin)
+            familyCodes.add(familyCode)
             _pending.value = enqueued.size
         }
 
@@ -201,6 +204,7 @@ class TripSessionTest {
         val queue: VisitQueue? = null,
         val signals: TripSignalProvider? = null,
         routeReady: StateFlow<Boolean>? = null, // A7: 늦은 초기화 전환 신호(없으면 null).
+        private val familyCode: String? = null, // E1 전체 경로: 세션 가족 코드 공급자 검증용.
     ) {
         val fused = FakeArrivalDetector()
         val manual = FakeArrivalDetector()
@@ -216,6 +220,7 @@ class TripSessionTest {
             routeService = route, // T7 — null 이면 기존 동작만 한다.
             visitQueue = queue, // T8 — null 이면 기존 동작만 한다.
             tripSignals = signals, // T5-1·T6-2 — null 이면 기존 동작만 한다(기존 테스트 호환).
+            familyCodeProvider = { familyCode }, // E1 전체 경로 — null 이면 기존 동작만 한다.
             routeBecameReady = routeReady, // A7 — null 이면 기존 동작만 한다.
         )
 
@@ -575,6 +580,33 @@ class TripSessionTest {
         awaitUntil { queue.flushCalls >= 2 }
         delay(200)
         assertEquals("도착 2건 → flush 2회", 2, queue.flushCalls)
+    }
+
+    @Test
+    fun `17_세션 가족 코드가 큐 아이템에 실린다 — E1 전체 경로`() = runBlocking {
+        // 배경(2026-11-14 실측): enqueue 의 familyCode 가 null 로 하드코딩돼 있어 세션에
+        // 코드+PIN 이 있어도 서버가 family_code_required 로 거부하고 큐만 남았다.
+        val queue = RecordingVisitQueue()
+        val f = Fixture(course(), queue = queue, familyCode = "TESTCODE")
+
+        f.fused.emit("p1")
+        awaitUntil { queue.flushCalls >= 1 }
+
+        assertEquals("도착 1건 → 큐 적재 1건", 1, queue.enqueued.size)
+        assertEquals("세션 가족 코드가 enqueue 로 전달된다", "TESTCODE", queue.familyCodes[0])
+        assertEquals("PIN 공급자는 그대로 동작한다", null, queue.pins[0])
+        assertEquals("전송(flush) 시도가 있었다", 1, queue.flushCalls)
+    }
+
+    @Test
+    fun `18_가족 코드 공급자가 null이면 큐 아이템 코드도 null이다 — 기존 동작 유지`() = runBlocking {
+        val queue = RecordingVisitQueue()
+        val f = Fixture(course(), queue = queue) // familyCode 미지정 = 세션 없음.
+
+        f.fused.emit("p1")
+        awaitUntil { queue.flushCalls >= 1 }
+
+        assertEquals("세션 코드가 없으면 큐 아이템 코드도 없다", null, queue.familyCodes[0])
     }
 }
 

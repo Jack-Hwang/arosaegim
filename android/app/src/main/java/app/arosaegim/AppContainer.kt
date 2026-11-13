@@ -248,6 +248,10 @@ class AppContainer(private val appContext: Context) {
             tripSignals = tripSignals,
             // T9-3·E1: 도착 전송 시 세션 PIN(휘발성) 헤더용.
             pinProvider = { familySessionStore.pinOrNull() },
+            // E1 전체 경로: 도착 전송 시 세션 가족 코드 헤더용(X-Family-Code) — 큐 아이템에
+            // 코드가 실려야 서버가 가족 기록으로 저장한다(2026-11-14 실측: null 이면 401
+            // family_code_required 로 큐에만 남는다).
+            familyCodeProvider = { familySessionStore.familyCode.value },
             // A7: 늦은 초기화로 Fake→Pleos 전환되면 진행 중 목표의 경로를 다시 요청한다.
             routeBecameReady = (routeService as? SwitchableRouteService)?.switched,
         )
