@@ -538,3 +538,17 @@
   - **F92-④ ModeStateMachine 클래스 주석 명시**: "참고용 순수 모델 — 운영 코드는 호출하지 않고 실제 전환은 ModeRouter가 담당, 삭제하지 않는다"를 머리 주석에 추가(운영 코드 미호출 재확인).
 - 시험 수: 앱 단위 시험 197/197(25파일)·서버 87/87 통과. README·ARCHITECTURE·TRACEABILITY의 현재 값 문장을 197·25파일로 갱신.
 - **기획서 반영 요청**: 앱 시험 수 179→197·앱 시험 파일 22→25로 갱신하고, 신규 시험 이름 3개(ApiClientHttpContractTest·DrivingScreenContractTest·QuizStateHolderTest)를 확인 방법 목록에 올린다.
+
+---
+
+## 2026-11-14 — 12번 문서 §4 수행 보고 (§6 형식)
+
+1. **최종 커밋**: 내용 커밋 df3f723(12번 §4 P1-1·P1-2·P2) — 뒤이어 통합 커밋 ad23058(수용 기준 정본·SPEC_INDEX·F1~F9 기능 문서)·f1dec60(과거 실측 문장형 정리 — 숫자 대조 전 항목 통과)와 본 보고 커밋이 이어진다.
+2. **시험 수**: 앱 단위 시험 197/197(25파일) · 서버 pytest 87/87. P2에서 앱 시험 7건을 추가했고 그 외는 문서·주석 변경이다. 완료 확인 명령 ①~⑥ 전부 통과(③은 API 스키마 식별자 예외 — P0-2 보고와 같다), 숫자 대조 도구는 10개 사실 전부 일치·종료 코드 0.
+3. **만든·고친 문서와 도구**: docs — 별지 원문 배치 4건(00_CHARTER·AI_SCOPE·QUALITY·QUALITY_EVAL — 바이트 동일 확인), ADR 기각한 대안 14건 원문 교체, README '5분 확인' 절, README·ARCHITECTURE·TRACEABILITY 현재 값 갱신, DEV_LOG F91~F92. 코드 — ApiClient의 429→AuthException 매핑 3경로(이번 유일한 동작 변경)·FamilySessionStore·VisitQueue·ModeStateMachine 주석. 시험 — 3개 클래스 7건 신설. 릴리스 APK는 현재 코드로 재빌드(40,484,425바이트 — README·사실 대장 갱신).
+4. **못 한 것과 이유**: (a) 근접 알림 실패→거리 계산 대체 전환의 JVM 단위 시험 — 차량 SDK 직접 의존으로 불가(F92-③, 기존 보증 유지). (b) 옮긴 원문(docs/QUALITY.md 등)의 시험 수·APK 바이트는 원문 수정 금지 규칙에 따라 고치지 않고 기획서 반영 요청으로 남긴다. (c) F1~F9 기능 문서의 수용 기준 건수는 정본(129건) 반영 이전 값이다(Q31 — 통합 커밋에 포함됐으므로 정본 수치로 맞추는 일이 남는다). (d) 시연 영상 재촬영·U6 청취·정차 자동 전환 재실측은 에뮬레이터 GUI 세션 과제로 남는다.
+5. **기획서 반영 요청**:
+   - 앱 시험 수 179→197·앱 시험 파일 22→25·신규 시험 이름 3개(ApiClientHttpContractTest·DrivingScreenContractTest·QuizStateHolderTest) — F92.
+   - TripSessionTest 14→16·FamilySessionStoreTest 16→21·VisitQueueTest 9→13 — F91.
+   - docs/QUALITY.md 원문의 APK 바이트 수는 현재 값(40,484,425바이트)으로 — 재빌드 반영.
+   - ApiClient 오류 계약을 인용하는 곳은 '401·403·429 → AuthException'으로 — PIN 잠금 429가 앱의 재전송 중단·한 줄 안내 경로에 합류했다(F92-②).
