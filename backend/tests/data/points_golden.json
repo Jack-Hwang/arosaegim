@@ -1,0 +1,755 @@
+{
+  "_설명": "evaluate_receipt 순수 함수 골든셋(요구 P2-⑤ — 50건). 기대값은 services/points.py 머리 규칙 1~7과 검사 순서(금액→키 중복→사진 중복→방문→대기→한도→계산)에서 유도했다. points는 floor(amount×rate)다.",
+  "cases": [
+    {
+      "id": "A01_amount_zero",
+      "amount_krw": 0,
+      "point_rate": 0.02,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 0,
+      "expect": {
+        "status": "rejected",
+        "points": 0,
+        "reason": "invalid_amount"
+      }
+    },
+    {
+      "id": "A02_amount_negative",
+      "amount_krw": -1,
+      "point_rate": 0.02,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 0,
+      "expect": {
+        "status": "rejected",
+        "points": 0,
+        "reason": "invalid_amount"
+      }
+    },
+    {
+      "id": "A03_amount_minus_max",
+      "amount_krw": -1000000,
+      "point_rate": 0.02,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 0,
+      "expect": {
+        "status": "rejected",
+        "points": 0,
+        "reason": "invalid_amount"
+      }
+    },
+    {
+      "id": "A04_amount_one",
+      "amount_krw": 1,
+      "point_rate": 0.02,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 0,
+      "expect": {
+        "status": "accepted",
+        "points": 0,
+        "reason": "ok"
+      }
+    },
+    {
+      "id": "A05_amount_two_rate01",
+      "amount_krw": 2,
+      "point_rate": 0.01,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 0,
+      "expect": {
+        "status": "accepted",
+        "points": 0,
+        "reason": "ok"
+      }
+    },
+    {
+      "id": "A06_amount_fifty",
+      "amount_krw": 50,
+      "point_rate": 0.02,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 0,
+      "expect": {
+        "status": "accepted",
+        "points": 1,
+        "reason": "ok"
+      }
+    },
+    {
+      "id": "A07_amount_hundred",
+      "amount_krw": 100,
+      "point_rate": 0.02,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 0,
+      "expect": {
+        "status": "accepted",
+        "points": 2,
+        "reason": "ok"
+      }
+    },
+    {
+      "id": "A08_amount_999999",
+      "amount_krw": 999999,
+      "point_rate": 0.02,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 0,
+      "expect": {
+        "status": "accepted",
+        "points": 19999,
+        "reason": "ok"
+      }
+    },
+    {
+      "id": "A09_amount_max",
+      "amount_krw": 1000000,
+      "point_rate": 0.02,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 0,
+      "expect": {
+        "status": "accepted",
+        "points": 20000,
+        "reason": "ok"
+      }
+    },
+    {
+      "id": "A10_amount_over_max",
+      "amount_krw": 1000001,
+      "point_rate": 0.02,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 0,
+      "expect": {
+        "status": "rejected",
+        "points": 0,
+        "reason": "invalid_amount"
+      }
+    },
+    {
+      "id": "A11_amount_way_over",
+      "amount_krw": 10000000,
+      "point_rate": 0.02,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 0,
+      "expect": {
+        "status": "rejected",
+        "points": 0,
+        "reason": "invalid_amount"
+      }
+    },
+    {
+      "id": "A12_amount_none",
+      "amount_krw": null,
+      "point_rate": 0.02,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 0,
+      "expect": {
+        "status": "rejected",
+        "points": 0,
+        "reason": "invalid_amount"
+      }
+    },
+    {
+      "id": "A13_amount_max_rate01",
+      "amount_krw": 1000000,
+      "point_rate": 0.01,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 0,
+      "expect": {
+        "status": "accepted",
+        "points": 10000,
+        "reason": "ok"
+      }
+    },
+    {
+      "id": "A14_amount_over_max_rate01",
+      "amount_krw": 1000001,
+      "point_rate": 0.01,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 0,
+      "expect": {
+        "status": "rejected",
+        "points": 0,
+        "reason": "invalid_amount"
+      }
+    },
+    {
+      "id": "B01_floor_50000",
+      "amount_krw": 50000,
+      "point_rate": 0.02,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 0,
+      "expect": {
+        "status": "accepted",
+        "points": 1000,
+        "reason": "ok"
+      }
+    },
+    {
+      "id": "B02_floor_30000_rate01",
+      "amount_krw": 30000,
+      "point_rate": 0.01,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 0,
+      "expect": {
+        "status": "accepted",
+        "points": 300,
+        "reason": "ok"
+      }
+    },
+    {
+      "id": "B03_floor_5500_rate01",
+      "amount_krw": 5500,
+      "point_rate": 0.01,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 0,
+      "expect": {
+        "status": "accepted",
+        "points": 55,
+        "reason": "ok"
+      }
+    },
+    {
+      "id": "B04_floor_99999",
+      "amount_krw": 99999,
+      "point_rate": 0.02,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 0,
+      "expect": {
+        "status": "accepted",
+        "points": 1999,
+        "reason": "ok"
+      }
+    },
+    {
+      "id": "B05_floor_12345",
+      "amount_krw": 12345,
+      "point_rate": 0.02,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 0,
+      "expect": {
+        "status": "accepted",
+        "points": 246,
+        "reason": "ok"
+      }
+    },
+    {
+      "id": "B06_floor_49999",
+      "amount_krw": 49999,
+      "point_rate": 0.02,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 0,
+      "expect": {
+        "status": "accepted",
+        "points": 999,
+        "reason": "ok"
+      }
+    },
+    {
+      "id": "B07_floor_100000_rate01",
+      "amount_krw": 100000,
+      "point_rate": 0.01,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 0,
+      "expect": {
+        "status": "accepted",
+        "points": 1000,
+        "reason": "ok"
+      }
+    },
+    {
+      "id": "B08_floor_250000",
+      "amount_krw": 250000,
+      "point_rate": 0.02,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 0,
+      "expect": {
+        "status": "accepted",
+        "points": 5000,
+        "reason": "ok"
+      }
+    },
+    {
+      "id": "B09_floor_999500",
+      "amount_krw": 999500,
+      "point_rate": 0.02,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 0,
+      "expect": {
+        "status": "accepted",
+        "points": 19990,
+        "reason": "ok"
+      }
+    },
+    {
+      "id": "B10_floor_3333_rate01",
+      "amount_krw": 3333,
+      "point_rate": 0.01,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 0,
+      "expect": {
+        "status": "accepted",
+        "points": 33,
+        "reason": "ok"
+      }
+    },
+    {
+      "id": "C01_dup_key",
+      "amount_krw": 50000,
+      "point_rate": 0.02,
+      "has_visit_near_place": true,
+      "is_duplicate_key": true,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 0,
+      "expect": {
+        "status": "rejected",
+        "points": 0,
+        "reason": "duplicate"
+      }
+    },
+    {
+      "id": "C02_dup_photo",
+      "amount_krw": 50000,
+      "point_rate": 0.02,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": true,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 0,
+      "expect": {
+        "status": "rejected",
+        "points": 0,
+        "reason": "duplicate_photo"
+      }
+    },
+    {
+      "id": "C03_dup_key_and_photo",
+      "amount_krw": 50000,
+      "point_rate": 0.02,
+      "has_visit_near_place": true,
+      "is_duplicate_key": true,
+      "is_duplicate_photo": true,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 0,
+      "expect": {
+        "status": "rejected",
+        "points": 0,
+        "reason": "duplicate"
+      }
+    },
+    {
+      "id": "C04_dup_key_no_visit",
+      "amount_krw": 50000,
+      "point_rate": 0.02,
+      "has_visit_near_place": false,
+      "is_duplicate_key": true,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 0,
+      "expect": {
+        "status": "rejected",
+        "points": 0,
+        "reason": "duplicate"
+      }
+    },
+    {
+      "id": "C05_dup_photo_no_visit",
+      "amount_krw": 50000,
+      "point_rate": 0.02,
+      "has_visit_near_place": false,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": true,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 0,
+      "expect": {
+        "status": "rejected",
+        "points": 0,
+        "reason": "duplicate_photo"
+      }
+    },
+    {
+      "id": "C06_dup_key_bad_amount",
+      "amount_krw": 0,
+      "point_rate": 0.02,
+      "has_visit_near_place": true,
+      "is_duplicate_key": true,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 0,
+      "expect": {
+        "status": "rejected",
+        "points": 0,
+        "reason": "invalid_amount"
+      }
+    },
+    {
+      "id": "C07_dup_photo_bad_amount",
+      "amount_krw": -5,
+      "point_rate": 0.02,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": true,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 0,
+      "expect": {
+        "status": "rejected",
+        "points": 0,
+        "reason": "invalid_amount"
+      }
+    },
+    {
+      "id": "C08_dup_key_over_daily",
+      "amount_krw": 50000,
+      "point_rate": 0.02,
+      "has_visit_near_place": true,
+      "is_duplicate_key": true,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 5,
+      "expect": {
+        "status": "rejected",
+        "points": 0,
+        "reason": "duplicate"
+      }
+    },
+    {
+      "id": "D01_no_visit",
+      "amount_krw": 50000,
+      "point_rate": 0.02,
+      "has_visit_near_place": false,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 0,
+      "expect": {
+        "status": "rejected",
+        "points": 0,
+        "reason": "no_visit"
+      }
+    },
+    {
+      "id": "D02_no_visit_with_second",
+      "amount_krw": 50000,
+      "point_rate": 0.02,
+      "has_visit_near_place": false,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": true,
+      "receipts_accepted_today": 0,
+      "expect": {
+        "status": "rejected",
+        "points": 0,
+        "reason": "no_visit"
+      }
+    },
+    {
+      "id": "D03_no_visit_over_daily",
+      "amount_krw": 50000,
+      "point_rate": 0.02,
+      "has_visit_near_place": false,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 5,
+      "expect": {
+        "status": "rejected",
+        "points": 0,
+        "reason": "no_visit"
+      }
+    },
+    {
+      "id": "D04_no_visit_dup_photo",
+      "amount_krw": 20000,
+      "point_rate": 0.02,
+      "has_visit_near_place": false,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": true,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 0,
+      "expect": {
+        "status": "rejected",
+        "points": 0,
+        "reason": "duplicate_photo"
+      }
+    },
+    {
+      "id": "E01_second_pending",
+      "amount_krw": 50000,
+      "point_rate": 0.02,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": true,
+      "receipts_accepted_today": 0,
+      "expect": {
+        "status": "pending",
+        "points": 0,
+        "reason": "pending"
+      }
+    },
+    {
+      "id": "E02_second_pending_rate01",
+      "amount_krw": 30000,
+      "point_rate": 0.01,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": true,
+      "receipts_accepted_today": 0,
+      "expect": {
+        "status": "pending",
+        "points": 0,
+        "reason": "pending"
+      }
+    },
+    {
+      "id": "E03_second_pending_at_limit",
+      "amount_krw": 50000,
+      "point_rate": 0.02,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": true,
+      "receipts_accepted_today": 5,
+      "expect": {
+        "status": "pending",
+        "points": 0,
+        "reason": "pending"
+      }
+    },
+    {
+      "id": "E04_second_pending_over_limit",
+      "amount_krw": 50000,
+      "point_rate": 0.02,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": true,
+      "receipts_accepted_today": 9,
+      "expect": {
+        "status": "pending",
+        "points": 0,
+        "reason": "pending"
+      }
+    },
+    {
+      "id": "E05_second_not_triggered",
+      "amount_krw": 50000,
+      "point_rate": 0.02,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 4,
+      "expect": {
+        "status": "accepted",
+        "points": 1000,
+        "reason": "ok"
+      }
+    },
+    {
+      "id": "F01_today_4_accepted",
+      "amount_krw": 50000,
+      "point_rate": 0.02,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 4,
+      "expect": {
+        "status": "accepted",
+        "points": 1000,
+        "reason": "ok"
+      }
+    },
+    {
+      "id": "F02_today_5_rejected",
+      "amount_krw": 50000,
+      "point_rate": 0.02,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 5,
+      "expect": {
+        "status": "rejected",
+        "points": 0,
+        "reason": "daily_limit"
+      }
+    },
+    {
+      "id": "F03_today_6_rejected",
+      "amount_krw": 50000,
+      "point_rate": 0.02,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 6,
+      "expect": {
+        "status": "rejected",
+        "points": 0,
+        "reason": "daily_limit"
+      }
+    },
+    {
+      "id": "F04_today_9_rejected",
+      "amount_krw": 50000,
+      "point_rate": 0.02,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 9,
+      "expect": {
+        "status": "rejected",
+        "points": 0,
+        "reason": "daily_limit"
+      }
+    },
+    {
+      "id": "F05_today_5_rate01",
+      "amount_krw": 30000,
+      "point_rate": 0.01,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 5,
+      "expect": {
+        "status": "rejected",
+        "points": 0,
+        "reason": "daily_limit"
+      }
+    },
+    {
+      "id": "F06_today_4_rate01",
+      "amount_krw": 30000,
+      "point_rate": 0.01,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 4,
+      "expect": {
+        "status": "accepted",
+        "points": 300,
+        "reason": "ok"
+      }
+    },
+    {
+      "id": "F07_today_0_accepted",
+      "amount_krw": 50000,
+      "point_rate": 0.02,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 0,
+      "expect": {
+        "status": "accepted",
+        "points": 1000,
+        "reason": "ok"
+      }
+    },
+    {
+      "id": "G01_rate_zero",
+      "amount_krw": 50000,
+      "point_rate": 0.0,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 0,
+      "expect": {
+        "status": "accepted",
+        "points": 0,
+        "reason": "ok"
+      }
+    },
+    {
+      "id": "G02_rate_negative",
+      "amount_krw": 50000,
+      "point_rate": -0.01,
+      "has_visit_near_place": true,
+      "is_duplicate_key": false,
+      "is_duplicate_photo": false,
+      "is_second_same_partner_day": false,
+      "receipts_accepted_today": 0,
+      "expect": {
+        "status": "accepted",
+        "points": 0,
+        "reason": "ok"
+      }
+    }
+  ]
+}
