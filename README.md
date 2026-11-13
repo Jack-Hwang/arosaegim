@@ -17,7 +17,7 @@
 | `tools/` 시연 스크립트 | **완성** | drive-demo-route · grant-permissions · record-demo (PowerShell 5.1/7 호환, 구문 검증 PASS) |
 | `docs/` | 갱신 완료 | ARCHITECTURE(실측 반영) · DEV_LOG(상시) · ATTRIBUTION |
 
-**현재 값** — 문서의 숫자는 `tools/spec_drift_check.py`로 코드에서 센 값과 대조한다(2026-11-13 측정): 앱 단위 테스트 190건 · 서버 테스트 87건 · 라우터 11개 · 엔드포인트 37개 · 서버 모델 46개 · 앱 테스트 파일 22개 · 서버 테스트 파일 9개 · 화면 문구(strings.xml) 121개.
+**현재 값** — 문서의 숫자는 `tools/spec_drift_check.py`로 코드에서 센 값과 대조한다(2026-11-13 측정): 앱 단위 테스트 190건 · 서버 테스트 87건 · 라우터 11개 · 엔드포인트 37개 · 서버 모델 46개 · 앱 테스트 파일 22개 · 서버 테스트 파일 9개 · 화면 문구(strings.xml) 122개.
 
 **남은 것 (코드 아님).**
 1. 사용자 GUI 실측 — U7 완결(기어 P→D restrict 수신)·U6 청취·U11/U13(Virtual Console 좌석·주행거리)·음성 청취.
