@@ -1,0 +1,94 @@
+# 명세 통합 색인 (SPEC_INDEX)
+
+## 한눈에 보기
+
+- 아로새김의 요구·설계·시험·품질 문서가 어디에 있는지 한 장으로 묶은 색인이다. 숫자의 정본은 코드·시험·개발 기록(`DEV_LOG.md`)과 수용 기준 JSON(`spec/ac/*.json`)이고, 문서는 그것을 인용한다.
+- 기능 명세 10개(F1~F10)·수용 기준 129건(시험 이름 실존 확인 82건·없음 0건·점검 오류 0건 — `tools/spec_check.py` 측정)을 다룬다.
+- 아직 남은 것: F10 화면 이동은 수용 기준 정본만 있고 서술 문서는 (계획), 수용 기준 중 (계획) 12건·(설계) 33건은 실측·시험 연결이 남아 있다.
+
+## 1. 읽는 순서
+
+| 시간 | 읽을 것 |
+|---|---|
+| 5분 | `spec/00_CHARTER.md`(헌장) + 이 색인 |
+| 30분 | `spec/F1~F10` 기능 서술 + `ADR.md`(설계 결정 14건) |
+| 전체 | `spec/ac/*.json`(수용 기준 정본) → `SPEC_TRACE.md`(추적표) → `QUALITY.md`(품질 체계) → `AI_SCOPE.md`(AI·RAG 판정) → `TRACEABILITY.md`(요구-구현-시험 대조표) → `ARCHITECTURE.md`·`DEV_LOG.md`(구조와 개발 기록) |
+
+## 2. 정본(진짜 원본) 규칙
+
+- 숫자와 사실의 정본은 **코드·시험·개발 기록**이다. 문서는 그것을 요약·인용하며, 서로 충돌하면 코드가 이긴다.
+- 수용 기준의 정본은 `spec/ac/*.json` 한 곳이다. 서술 문서의 표는 이 JSON에서 생성·인용한 것이며 고칠 때는 JSON을 먼저 고친다.
+- 새로운 숫자를 문서에 쓰기 전에 `tools/facts.json`(사실 대장)에 등록하고, `tools/spec_drift_check.py`로 문서-코드 대조를 통과시킨다.
+- 날짜·버전 사본을 만들지 않고 항상 현재 상태만 둔다. 바뀐 이력은 `DEV_LOG.md`의 개발 기록(F·Q 번호)이 담당한다.
+
+## 3. 문서 ↔ 명세 10관점 대응표
+
+| 관점 | 담당 문서·절 |
+|---|---|
+| 기능 정의 | `spec/F1~F10` 서술 + `spec/ac/*.json` |
+| 데이터 | F1·F4·F7·F8의 입력·출력·상태 표, `spec/ac`의 io, `ARCHITECTURE.md` 데이터 절 |
+| 인터페이스 | F1(차량 SDK 호출)·F7(서버 API·모바일 웹)·F8(웹 입력), `ARCHITECTURE.md` |
+| 통합 | F7(서버 연동)·F9(오프라인·폴백), ADR-03(포트와 대체 구현) |
+| 비기능 | `QUALITY.md`(수치 게이트·스코어카드) |
+| 보안 | F6(PIN·잠금)·F8(포인트 상한)·`QUALITY.md` 보안 점검 목록 |
+| 오류·예외 | 각 기능 문서의 오류·예외 절, F9(대체 구현) |
+| 화면 | F2(주행/정차 전환)·F3(퀴즈)·F10(화면 이동·머리말), README의 화면 소개 |
+| 운영 | F9(전송 대기열·오프라인), `EMULATOR_SETUP.md`, `QUALITY.md` 완료의 정의 |
+| 시험 | `SPEC_TRACE.md`(추적표)·`TRACEABILITY.md`(요구-구현-시험 대조표)·`QUALITY.md` |
+
+## 4. 방법론 적용 매트릭스
+
+| 방법론 | 적용 위치 | 판정 |
+|---|---|---|
+| SDD(명세 중심 설계 — 명세를 먼저 정하고 코드를 그에 맞춰 확인하는 방식) | `spec/` 전체(헌장·기능 명세·수용 기준 정본) | 적용 |
+| EARS(요구를 다섯 문장 유형으로 쓰는 형식) | `spec/ac/*.json`의 `pattern` 필드 129건 | 적용 |
+| ADR(설계 결정 기록) | `ADR.md` 14건 — 각 결정에 기각한 대안 포함 | 적용 |
+| 추적성(요구↔시험 대조) | `SPEC_TRACE.md`(도구 자동 생성)·`TRACEABILITY.md` | 적용 |
+| 품질 게이트·평가 지표 | `QUALITY.md` 수치 게이트·스코어카드 | 적용 |
+| 근거 검색(원하는 약속의 근거를 코드·문서에서 찾는 도구) | `tools/evidence_search.py` + `tools/eval_retrieval.py`·골든셋 42건 | 적용 |
+| RAG(검색한 근거를 답문 생성에 쓰는 방식) | `AI_SCOPE.md` — 가족 기록 검색의 2단계로만 (구상), 현재 쓰지 않음 | 비적용(이유 기록) |
+| 생성형 AI(LLM: 사람처럼 문장을 만드는 모델) | `AI_SCOPE.md` — 앱에 넣지 않음(개발 기록 F24·ADR-01) | 비적용(이유 기록) |
+| 멀티에이전트(여러 자율 실행체 협업) | `AI_SCOPE.md` — 불필요(순서가 고정된 결정적 흐름) | 비적용(이유 기록) |
+| 프로젝트 헌장·주제 평가·고영향 AI 점검 | `spec/00_CHARTER.md` | 적용 |
+
+## 5. 연결 그림 (글 대신 흐름)
+
+```
+헌장(00_CHARTER) — 무엇을 만들고 만들지 않는가
+  └→ 기능 명세(F1~F10 서술) — 기능별 목적·범위·오류 처리
+       └→ 수용 기준 정본(spec/ac/*.json) — 한 문장 요구 129건(EARS 형식)
+            └→ 추적표(SPEC_TRACE.md) — 요구 ↔ 시험 이름 대조(도구 생성)
+                 └→ 시험(앱 단위·서버 pytest·에뮬레이터 실측) — 실제 검증
+설계 결정(ADR.md 14건) — 왜 이렇게 만들었나(기각한 대안 포함)
+품질(QUALITY.md) — 수치 게이트·스코어카드·보안 점검
+드리프트 점검(tools/spec_drift_check.py) — 문서 숫자 ↔ 코드 숫자 자동 대조
+근거 검색(tools/evidence_search.py) — "이 약속의 근거가 어디 있나"
+AI 판정(AI_SCOPE.md) — AI를 어디에 쓰고 어디에 쓰지 않는가
+```
+
+## 6. 점검 명령 모음 (저장소 루트에서)
+
+| 명령 | 기대 결과 |
+|---|---|
+| `python -I -B -X utf8 tools/spec_check.py` | 오류 0건·시험 이름 "없음" 0건 |
+| `python -I -B -X utf8 tools/spec_check.py --write-trace` | `docs/SPEC_TRACE.md` 재생성 |
+| `python -I -B -X utf8 tools/spec_drift_check.py --repo . --rev HEAD --facts tools/facts.json` | 문서-코드 숫자 전부 일치 |
+| `python -I -B -X utf8 tools/eval_retrieval.py` | 근거 검색 Hit@5 ≥ 0.85(현재 1.000·MRR 0.818 — `QUALITY.md` 스코어카드) |
+| `cd backend && python -m pytest -q` | 전체 통과(건수는 실행 시점 집계) |
+| `cd android && ./gradlew testDebugUnitTest` | 전체 통과(건수는 실행 시점 집계) |
+| 내부 작업 흔적 검사(요구 문서 원본 경로·내부 용어 — 명령은 `DEV_LOG.md` 정리 절 참조) | 0건 — 서버 응답 모델 식별자 `HeritageBriefOut`만 대소문자 무시 일치로 예외(`DEV_LOG.md` P0-2 항목) |
+
+## 7. 문서별 요약
+
+| 문서 | 한 줄 설명 |
+|---|---|
+| `spec/00_CHARTER.md` | 목표·범위(Must/Should/Won't)·성공 지표·위험·열린 질문 |
+| `spec/F1~F10_*.md` | 기능별 목적·범위·입출력·오류 처리·시험 연결(정본 JSON 인용) |
+| `spec/ac/*.json` | 수용 기준 정본 129건(EARS 다섯 유형·확인 방법·상태) |
+| `SPEC_TRACE.md` | 수용 기준 ↔ 시험 추적표(도구 자동 생성 — 손으로 고치지 않는다) |
+| `ADR.md` | 설계 결정 14건(결정·근거·기각한 대안·결과) |
+| `QUALITY.md` | 시험 현황·수치 게이트·평가 지표 적용·스코어카드·보안 점검 |
+| `AI_SCOPE.md` | 생성형 AI·RAG·멀티에이전트를 어디에 쓰고 어디에 쓰지 않는가 판정 |
+| `TRACEABILITY.md` | 요구 문서(A1~A8·B1~B5·감사 수정) ↔ 구현 ↔ 시험 대조표 |
+| `tools/` | 명세 점검·사실 대장·드리프트 대조·근거 검색·검색 평가 도구 |
+| `DEV_LOG.md` | 개발 기록 — 확인된 사실(F)·열린 질문(Q)·실측 결과표(U) |
