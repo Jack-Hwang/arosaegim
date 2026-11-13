@@ -21,7 +21,7 @@
 첫째, SDK 호출은 모두 어댑터(포트) 인터페이스 뒤에 숨겼다. SDK 상태가 불확실해도 앱 전체가 멈추지 않는다.
 둘째, 앱은 서버 없이 내장 시드만으로 핵심 흐름이 끝까지 동작한다.
 셋째, 도착 판정·스탬프·퀴즈 상태 같은 규칙은 안드로이드 의존 없는 순수 Kotlin으로 분리해
-216개 단위 테스트로 검증했다(DEV_LOG 테스트 기록).
+220개 단위 테스트로 검증했다(DEV_LOG 테스트 기록).
 
 **실측까지 끝냈다.**
 Pleos Connect 에뮬레이터 v2.1.0에서 스모크 테스트 U1~U14를 실측했다.
@@ -368,7 +368,7 @@ VIN/CRN capability와 조회 메서드뿐이고 제조사·연식 getter는 존�
 **Q9. 왜 어댑터(포트)를 두었나?**
 SDK 동작이 불확실해도 앱이 멈추지 않게 하기 위해서다(00문서 2-3 #10).
 포트 하나에 Pleos 구현과 대체 구현을 두고, 시작 시 초기화 성공 여부로 선택해 사유를 기록한다(5절 표).
-부작용으로 순수 Kotlin 규칙과 SDK 결합이 분리되어 단위 테스트가 쉬워졌다(216개).
+부작용으로 순수 Kotlin 규칙과 SDK 결합이 분리되어 단위 테스트가 쉬워졌다(220개).
 
 **Q10. JSON 라이브러리로 kotlinx.serialization을 쓴 이유는?**
 org.json은 JVM 단위 테스트에서는 스텁이라 시드 파싱 테스트(SeedRepository)를 돌리려면
@@ -437,7 +437,7 @@ Back 키는 finish() 대신 moveTaskToBack(true)로 태스크를 보존해 재�
 ```bash
 cd android
 ./gradlew clean testDebugUnitTest assembleDebug
-# 기대 결과: BUILD SUCCESSFUL, 단위 테스트 216/216
+# 기대 결과: BUILD SUCCESSFUL, 단위 테스트 220/220
 #  SeedRepository·CourseProgress·Haversine·ModeStateMachine·StampBook(9)·StampEngine(6)
 #  ThenNowResolver(12)·TripSession(+tripKm/partySize 10케이스)·FamilyCodeValidator 등
 ```

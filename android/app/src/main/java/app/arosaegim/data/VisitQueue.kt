@@ -265,6 +265,27 @@ open class VisitQueue(
         }
     }
 
+    /**
+     * 메모리 상태만 비운다(T1 로그아웃 정리 일원화, 2026-11-14) — 파일(visit_queue.json)은
+     * 절대 건드리지 않는다. 파일 삭제는 로그아웃 흐름의 SignOutCleanup.deleteFiles 가 담당하고,
+     * 이 메서드는 큐가 화면·전송 경로에 들고 있는 메모리만 치운다:
+     *  - pendingPins — enqueue 로 잠깐 묶어 둔 방문별 PIN(00문서 10.6 메모리 전용 보관).
+     *  - rejectedPair — 서버가 거부한 (가족 코드, PIN) 조합의 마지막 기록(E⑤). 새 세션(새 가족
+     *    코드)은 새 조합이므로 이전 거부 기록이 재전송을 막으면 안 된다.
+     *  - pendingCount — 화면·진단이 보는 '미전송 건수'. 정리 후에는 0 이다. 파일은 로그아웃 흐름의
+     *    ②단계가 지우고, 만약 파일 삭제가 실패했어도 다음 flush 가 파일 사실로 카운트를 다시
+     *    맞춘다 — 메모리 상태와 파일 상태가 어긋나면 flush·refresh 가 진실로 되돌린다.
+     * 로그아웃 흐름(SignOutFlow)은 이 메서드를 파일 삭제 '뒤'에 부른다 — 순서 의존이 있어도
+     * 재호출(멱등)과 파일 없음 상태 모두 예외 없이 흡수된다.
+     */
+    open fun clearMemoryState() {
+        synchronized(lock) {
+            pendingPins.clear()
+            rejectedPair = null
+            _pending.value = 0
+        }
+    }
+
     /** 멱등 키가 같은 항목 1건을 큐에서 제거한다(flush 성공 경로 전용). */
     private fun removeByKey(key: String) {
         synchronized(lock) {

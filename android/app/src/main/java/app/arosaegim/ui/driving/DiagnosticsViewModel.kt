@@ -10,7 +10,6 @@ import app.arosaegim.SwitchableRouteService
 import app.arosaegim.data.AuthException
 import app.arosaegim.data.FamilySessionStore
 import app.arosaegim.data.SeedRepository
-import app.arosaegim.data.SignOutCleanup
 import app.arosaegim.domain.DrivingState
 import app.arosaegim.domain.Place
 import app.arosaegim.fallback.AssetAudioNarrator
@@ -20,7 +19,6 @@ import app.arosaegim.pleos.PleosTripSignalProvider
 import app.arosaegim.ports.Narrator
 import app.arosaegim.ui.ModeRouter
 import app.arosaegim.ui.parked.DiagnosticsMetrics
-import app.arosaegim.ui.parked.HeirQuestionMemory
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -239,7 +237,7 @@ class DiagnosticsViewModel(
     private val _sessionStatus = MutableStateFlow("")
     val sessionStatus: StateFlow<String> = _sessionStatus.asStateFlow()
 
-    /** '이 차에서 로그아웃' 결과 한 줄 목록(파일별 삭제 결과). */
+    /** '이 차에서 로그아웃' 결과 한 줄 목록(정리 단계별 — SignOutFlow.run 의 결과 줄). */
     private val _sessionResult = MutableStateFlow<List<String>>(emptyList())
     val sessionResult: StateFlow<List<String>> = _sessionResult.asStateFlow()
 
@@ -427,30 +425,27 @@ class DiagnosticsViewModel(
     }
 
     /**
-     * '이 차에서 로그아웃'(T9-1) — 가족 코드·세션 PIN·캐시·큐 삭제(A8 검증 대상 경로).
+     * '이 차에서 로그아웃'(T9-1) — 세션 상태 전체 정리(T1 일원화, 2026-11-14).
      *
-     * 삭제 대상 3가지(00문서 2-2·10.6):
-     *  1. 가족 코드 — FamilySessionStore.signOut() 이 SharedPreferences("family_session")에서 지운다.
-     *     (A8 강화: 같은 signOut() 이 세션 메모리 자격 증명(SessionCredentials 의 PIN·세션 내 코드)을
-     *      전부 해제한다 — '로그아웃 = 열람 권한 완전 상실'.)
-     *  2. 방문 기록 파일(visits.json)·전송 대기 큐(visit_queue.json) — [SignOutCleanup] 이
-     *     filesDir 아래에서 직접 지운다. VisitStore/VisitQueue 인스턴스를 만들지 않는다 —
-     *     인스턴스를 새로 만들면 메모리 캐시와 파일 상태가 어긋날 수 있기 때문이다. 파일만 지우면
-     *     다음 append 가 새 파일을 만들므로 기존 파이프라인 동작에 영향이 없다.
-     *  3. 세션 메모리(B1 '나중에 정하기' 플래그 등) — [HeirQuestionMemory.clearAll()] 로 소멸시킨다.
-     *     재방문 시 다시 물어도 되는 계약(세션 메모리만, 영속 금지)에 맞는 정리다.
+     * 정리 절차는 container.signOutFlow.run() 한 번이다. 기존에 이 메서드가 직접 부르던
+     * 가족 코드·PIN 해제, visits.json·visit_queue.json 삭제, '나중에 정하기' 메모리 소멸에
+     * 더해, 같은 프로세스에 남던 상태도 순서대로 지운다(같거나 더 많이 지운다):
+     *  - 여행 세션(스탬프·현재 목표·마지막 도착·주행거리·인원) — TripSession.stop → resetCourse.
+     *  - 퀴즈 진행(QuizStateHolder)·코스 시작·기록 열람 상태(CourseStartState).
+     *  - 전송 큐의 메모리 상태(대기 건수·거절 기록·PIN 보관) — VisitQueue.clearMemoryState.
+     * 이렇게 하지 않으면 로그아웃 뒤 다른 가족 코드로 접속했을 때 앞 가족의 진행이 화면에 남을 수
+     * 있었다. 서버의 가족 기록은 여전히 건드리지 않는다(가족 코드로 다른 차에서 이어 보기).
+     *
+     * 결과 줄(단계별 "…: 해제됨/초기화됨/없음/…실패")은 ⑤ 세션 결과 목록에 그대로 표시되고,
+     * SignOutCleanup.deleteFiles 의 파일별 줄 형식과 같은 규약으로 통일됐다.
      *
      * 완료 확인 절차(주석): 로그아웃 후 '파일 목록으로 확인' —
      *   adb shell run-as app.arosaegim ls files/
      * 완료 기준: 앱 데이터에 가족 코드(family_session)·방문 기록(visits.json)·큐가 남지 않는다.
-     * 삭제 로직 자체는 JVM 단위 테스트로 검증한다(SignOutCleanupTest).
+     * 정리 로직 자체는 JVM 단위 테스트로 검증한다(SignOutFlowTest).
      */
     fun signOutFromCar() {
-        sessionStore.signOut()
-        val lines = mutableListOf("가족 코드 삭제 완료") // PIN·세션 코드 해제는 signOut() 내부에서 함께 끝난다.
-        lines.addAll(SignOutCleanup.deleteFiles(appCtx.filesDir))
-        HeirQuestionMemory.clearAll()
-        _sessionResult.value = lines
+        _sessionResult.value = container.signOutFlow.run()
         refreshSessionState()
     }
 
@@ -660,7 +655,7 @@ class DiagnosticsViewModel(
     )
 
     private companion object {
-        // 로그아웃 삭제 파일명은 SignOutCleanup.FILES_TO_DELETE 로 한 곳에서 관리한다(A8).
+        // 로그아웃 정리 절차(대상 파일명 포함)는 AppContainer.signOutFlow(SignOutFlow)가 한 곳에서 관리한다(T1).
     }
 }
 

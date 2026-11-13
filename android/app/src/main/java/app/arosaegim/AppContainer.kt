@@ -30,6 +30,8 @@ import app.arosaegim.ports.RouteService
 import app.arosaegim.ports.TripSignalProvider
 import app.arosaegim.ports.VehicleInfoProvider
 import app.arosaegim.ports.VoiceLetterPlayer
+import app.arosaegim.session.FamilySessionCleaner
+import app.arosaegim.session.SignOutFlow
 import app.arosaegim.session.TripSession
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -250,6 +252,25 @@ class AppContainer(private val appContext: Context) {
             routeBecameReady = (routeService as? SwitchableRouteService)?.switched,
         )
     }
+
+    /**
+     * '이 차에서 로그아웃' 정리 흐름(T1, 2026-11-14) — 진단 화면(DiagnosticsViewModel.signOutFromCar)
+     * 가 이 흐름 한 번으로 가족 세션(코드·PIN)·로컬 파일·여행 세션(스탬프·진행)·퀴즈·코스 시작·
+     * 큐 메모리를 고정된 순서로 지운다. 결과 줄은 진단 화면 세션 결과 목록에 그대로 표시된다.
+     * tripSession·visitQueue 가 위 init 에서 만들어진 뒤에 초기화되도록 init 블록 뒤에 둔다
+     * (Kotlin 프로퍼티·init 블록은 선언 순서로 초기화된다).
+     * [FamilySessionCleaner] 는 FamilySessionStore 로의 좁은 위임 — 동작 변화는 없고, JVM 단위
+     * 시험(SignOutFlowTest)을 위한 기존 분리 규약(FamilyCodeValidator·SessionCredentials 와 같은 취지)이다.
+     */
+    val signOutFlow = SignOutFlow(
+        familyStore = object : FamilySessionCleaner {
+            override fun hasSession(): Boolean = familySessionStore.hasSession()
+            override fun signOut() = familySessionStore.signOut()
+        },
+        filesDir = appContext.filesDir,
+        tripSession = tripSession,
+        visitQueue = visitQueue,
+    )
 
     /** 내장 시드 전체를 읽는다. 읽기 실패(자산 누락·JSON 파싱 오류) 시 빈 코스로 복구한다. */
     private fun loadSeed(): SeedContent {
