@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -539,6 +540,14 @@ internal fun ThenNowExtrasColumn(
     seatTags: Map<String, String>?,
     seatAuthError: Boolean,
 ) {
+    // ── PIN 거절 안내(2026-11-14, GET 조회 경로 F102) ── 인증 실패(401·403·429)로 세션 PIN
+    // 거절 표시 중(familyStore.isPinRejected — ParkedScreen 이 markPinRejected 를 부른 뒤)이면
+    // ④의 기존 '가족 코드·PIN을 다시 확인' 안내 대신 strings.session_pin_rejected 문구를 보인다.
+    // FamilySessionStore 는 ParkedScreen 과 같은 패턴(rememberFamilyStore — SessionHold.kt)으로
+    // 얻는다. SharedPreferences·세션 메모리(companion)는 전역이라 어느 인스턴스로 읽어도 같은
+    // 거절 상태를 본다(FamilySessionStore 인스턴스화 규약). 거절 값은 seatAuthError 가 바뀔 때
+    // 재구성돼 다시 읽힌다.
+    val seatPinRejected = rememberFamilyStore(LocalContext.current).isPinRejected()
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // ① 유물×가족 타임라인 한 줄(정적). heritage 가 파싱되지 않은 장소면 숨는다.
         HeritageTimelineLine(heritage = place?.heritage, familyYear = familyYear)
@@ -552,14 +561,21 @@ internal fun ThenNowExtrasColumn(
         )
         // ③ 음성 편지(예시) — 정차 화면 전용. 주행 전환 시 ParkedActivity.onPause 에서 재생 중단.
         SectionCard { VoiceLetterCard(letter = voiceLetter, player = voiceLetterPlayer) }
-        // ④ 자리 이름표(T9-3) — 세션 없음·조회 실패면 숨김, 401/403 만 작은 안내 한 줄.
+        // ④ 자리 이름표(T9-3) — 세션 없음·조회 실패면 숨김, 인증 실패(401·403·429)는 작은 안내
+        // 한 줄. 거절 표시 중(PIN 이 치워진 상태 — F102)이면 strings.session_pin_rejected 를
+        // 보이고, 그 외(코드 불일치·거절 아님)는 기존 401/403 안내를 그대로 보인다.
         if (seatAuthError && seatTags.isNullOrEmpty()) {
             SectionCard {
                 Text(
-                    text = stringResource(R.string.parked_seat_names_auth_error),
+                    text = if (seatPinRejected) {
+                        stringResource(R.string.session_pin_rejected)
+                    } else {
+                        stringResource(R.string.parked_seat_names_auth_error)
+                    },
                     style = AroTextStyles.bodySmall,
                     color = MaterialTheme.aroColors.textTertiary,
-                    maxLines = 1,
+                    // 거절 문구가 더 길다 — 두 줄까지만(메모 2줄 규칙 준용).
+                    maxLines = if (seatPinRejected) 2 else 1,
                 )
             }
         } else {

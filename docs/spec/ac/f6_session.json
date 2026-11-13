@@ -205,7 +205,7 @@
       "numbers": [
         "2"
       ],
-      "note": "로그아웃 버튼은 지금 개발용 진단 화면에만 있고 릴리스 앱에서는 그 화면이 열리지 않습니다(설정 화면에 넣는 것은 계획)."
+      "note": "로그아웃 버튼은 지금 개발용 진단 화면에만 있고 릴리스 앱에서는 그 화면이 열리지 않습니다(설정 화면에 넣는 것은 계획). 지금의 로그아웃은 같은 프로세스 안의 진행 상태(TripSession·CourseStartState·QuizStateHolder)는 지우지 않습니다[코드 확인: DiagnosticsViewModel.signOutFromCar]."
     },
     {
       "id": "ARO-F6-AC11",

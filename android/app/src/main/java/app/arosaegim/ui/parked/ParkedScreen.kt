@@ -142,6 +142,19 @@ fun ParkedScreen(container: AppContainer, onExitToDriving: () -> Unit) {
     // 401/403(코드·PIN 불일치) 안내 플래그 — 이름표 대신 카드 안 작은 안내 한 줄. 진단 lastError 로는 가지 않는다.
     var seatAuthError by remember { mutableStateOf(false) }
 
+    // ── GET 조회 경로 PIN 거절 표시(2026-11-14, F102 — 전송 경로 F101 과 같은 안전장치) ──
+    // 가족 조회(members·then-now·prefs·heir·metrics)는 가족 코드+PIN 헤더를 실어 보낸다.
+    // 틀린 PIN 이 세션 메모리에 남아 있으면 조회 때마다 서버 실패 횟수를 올린다(5회 → 가족
+    // 전체 10분 잠금). 인증 실패(401·403·429 → AuthException)를 받으면 FamilySessionStore
+    // .markPinRejected 로 거절을 표시한다 — 세션 PIN 이 메모리에서 치워져(pinOrNull()=null)
+    // 아래 이펙트들의 '세션 없으면 호출하지 않는다' 규칙(00문서 13절)이 재조회를 자동으로
+    // 멈춘다. 표시는 메모리 전용이고 큐·방문 기록은 그대로다(VisitQueue F101 계약과 동일).
+    // [pin] 은 조회에 실어 보낸 값 그대로다 — SessionCredentials.markRejected 가 '지금 세션
+    // PIN 이 그 값일 때만' 표시하는 안전장치(사용자의 새 입력 보호)를 그대로 쓴다.
+    fun markPinRejectedOnAuthFailure(pin: String?, failure: Throwable) {
+        if (isAuthFailure(failure)) familyStore.markPinRejected(pin)
+    }
+
     // 도착 장소가 바뀔 때만 퀴즈 진행을 새로 시작하고, 문항 수 변화를 보정한다.
     // 같은 장소 재진입(주행 복귀)이면 QuizStateHolder 가 진행을 그대로 보존해 이어서 보여 준다.
     val quizzes = lastArrival?.quiz ?: emptyList()
@@ -172,8 +185,11 @@ fun ParkedScreen(container: AppContainer, onExitToDriving: () -> Unit) {
             },
             onFailure = { t ->
                 seatTags = null
+                markPinRejectedOnAuthFailure(pin, t) // GET 경로 PIN 거절 표시(세션 메모리 전용).
                 if (isAuthFailure(t)) {
                     // 코드·PIN 불일치 — 이름표 대신 카드 안 작은 안내. lastError 기록 없음.
+                    // 거절 표시로 PIN 이 치워진 상태면 ThenNowExtrasColumn 이 안내 문구를
+                    // strings.session_pin_rejected 로 바꿔 보여 준다(F102).
                     seatAuthError = true
                 } else {
                     // 그 외 실패(네트워크·서버) — 이름표 숨김 + 진단 화면 마지막 오류 1줄.
@@ -237,7 +253,10 @@ fun ParkedScreen(container: AppContainer, onExitToDriving: () -> Unit) {
         if (code == null || pin == null) return@LaunchedEffect
         container.apiClient.getThenNow(code, pin, placeId).fold(
             onSuccess = { body -> thenNowState = parseThenNowPlaceState(body) },
-            onFailure = { thenNowState = null }, // 실패 = 기능 숨김(기존 동작 유지 — 추측 금지).
+            onFailure = { t ->
+                thenNowState = null // 실패 = 기능 숨김(기존 동작 유지 — 추측 금지).
+                markPinRejectedOnAuthFailure(pin, t) // GET 경로 PIN 거절 표시.
+            },
         )
     }
 
@@ -254,7 +273,10 @@ fun ParkedScreen(container: AppContainer, onExitToDriving: () -> Unit) {
         if (code == null || pin == null) return@LaunchedEffect
         val fromServer = container.apiClient.getPrefs(code, pin).fold(
             onSuccess = { body -> parsePartyLinePrefs(body) },
-            onFailure = { null }, // 실패 = 로컬 폴백(가짜 서버 값 금지).
+            onFailure = { t ->
+                markPinRejectedOnAuthFailure(pin, t) // GET 경로 PIN 거절 표시.
+                null // 실패 = 로컬 폴백(가짜 서버 값 금지).
+            },
         )
         partyPrefs = fromServer ?: PartyLinePrefs(
             hiddenPlaceIds = PartyFoldLocalStore.readFoldedPlaceIds(context),
@@ -284,7 +306,10 @@ fun ParkedScreen(container: AppContainer, onExitToDriving: () -> Unit) {
                 serverPast = parseThenNowServerData(body)
                 serverPastPlaceId = placeId // 성공만 기록 — 파싱 실패(null)도 '과거 없음' 응답으로 본다.
             },
-            onFailure = { serverPast = null }, // 조용히 예시 폴백(기존 동작 유지 — 진단 미기록).
+            onFailure = { t ->
+                serverPast = null // 조용히 예시 폴백(기존 동작 유지 — 진단 미기록).
+                markPinRejectedOnAuthFailure(pin, t) // GET 경로 PIN 거절 표시.
+            },
         )
     }
 
@@ -308,15 +333,24 @@ fun ParkedScreen(container: AppContainer, onExitToDriving: () -> Unit) {
         }
         container.apiClient.getHeir(code, pin).fold(
             onSuccess = { body -> heirKnownStatus = parseHeirStatus(body) },
-            onFailure = { heirKnownStatus = null }, // 조회 실패 = 질문하지 않는다(추측 금지).
+            onFailure = { t ->
+                heirKnownStatus = null // 조회 실패 = 질문하지 않는다(추측 금지).
+                markPinRejectedOnAuthFailure(pin, t) // GET 경로 PIN 거절 표시.
+            },
         )
         container.apiClient.getMembers(code, pin).fold(
             onSuccess = { body -> heirCandidates = parseHeirCandidates(body) },
-            onFailure = { heirCandidates = emptyList() }, // 구성원을 못 읽으면 질문하지 않는다.
+            onFailure = { t ->
+                heirCandidates = emptyList() // 구성원을 못 읽으면 질문하지 않는다.
+                markPinRejectedOnAuthFailure(pin, t) // GET 경로 PIN 거절 표시.
+            },
         )
         container.apiClient.getMetrics(code, pin).fold(
             onSuccess = { body -> familyTotalKm = parseFamilyTotalTripKm(body) },
-            onFailure = { familyTotalKm = null }, // 누적값 없음 → 줄 숨김(가짜 값 금지).
+            onFailure = { t ->
+                familyTotalKm = null // 누적값 없음 → 줄 숨김(가짜 값 금지).
+                markPinRejectedOnAuthFailure(pin, t) // GET 경로 PIN 거절 표시.
+            },
         )
     }
 
@@ -331,7 +365,10 @@ fun ParkedScreen(container: AppContainer, onExitToDriving: () -> Unit) {
         if (code == null || pin == null) return@LaunchedEffect
         container.apiClient.getMetrics(code, pin).fold(
             onSuccess = { body -> familyTotalKm = parseFamilyTotalTripKm(body) },
-            onFailure = { }, // 실패 → 줄 숨김 유지(조용히 흡수).
+            onFailure = { t ->
+                markPinRejectedOnAuthFailure(pin, t) // GET 경로 PIN 거절 표시.
+                // 실패 → 줄 숨김 유지(조용히 흡수).
+            },
         )
     }
 

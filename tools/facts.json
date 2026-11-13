@@ -1,5 +1,5 @@
 {
-  "_설명": "사실 대장(fact registry) — arosaegim/tools 판. spec_drift_check.py가 이 파일의 measure(HEAD 기준 git 명령)로 저장소 코드의 값을 직접 재고, doc_patterns(정규식)로 저장소 안 현재 상태 문서에서 그 사실을 말하는 문장을 찾아 값이 어긋나면 drift 실패로 보고한다. 감시 대상 문서는 저장소 안 문서만이다: README.md · docs/ARCHITECTURE.md · docs/ADR.md · docs/TRACEABILITY.md · docs/spec/ 아래 문서. docs/DEV_LOG.md은 시간순 개발 기록이라 과거 시점의 실측 수치(옛 테스트 수 등)가 그대로 보존되므로 총계 문장 감시 대상에서 제외하고, 값·표기로 앵커한 정규식으로 최신 통합 검증 문장만 한정해 감시한다. docs/ATTRIBUTION.md은 출처 표기 문서라 수치 문장이 없다. 커밋 기준 2026-11-14(HEAD) 실측값: 앱 @Test 207 · 서버 def test_ 137 · 엔드포인트 37 · 라우터 11 · 모델 46 · strings 122 · 포트 7 · APK 40484425바이트. docs/TRACEABILITY.md 표가 이 숫자와 짝을 이룬다.",
+  "_설명": "사실 대장(fact registry) — arosaegim/tools 판. spec_drift_check.py가 이 파일의 measure(HEAD 기준 git 명령)로 저장소 코드의 값을 직접 재고, doc_patterns(정규식)로 저장소 안 현재 상태 문서에서 그 사실을 말하는 문장을 찾아 값이 어긋나면 drift 실패로 보고한다. 감시 대상 문서는 저장소 안 문서만이다: README.md · docs/ARCHITECTURE.md · docs/ADR.md · docs/TRACEABILITY.md · docs/spec/ 아래 문서. docs/DEV_LOG.md은 시간순 개발 기록이라 과거 시점의 실측 수치(옛 테스트 수 등)가 그대로 보존되므로 총계 문장 감시 대상에서 제외하고, 값·표기로 앵커한 정규식으로 최신 통합 검증 문장만 한정해 감시한다. docs/ATTRIBUTION.md은 출처 표기 문서라 수치 문장이 없다. 커밋 기준 2026-11-14(HEAD) 실측값: 앱 @Test 216 · 서버 def test_ 137 · 엔드포인트 37 · 라우터 11 · 모델 46 · strings 122 · 포트 7 · APK 40484425바이트. docs/TRACEABILITY.md 표가 이 숫자와 짝을 이룬다.",
   "exclude": [
     "/_backup/",
     "/_bak_pre_edit/",
@@ -48,11 +48,25 @@
       "id": "F-TEST-SERVER",
       "label": "서버 테스트 수",
       "measure": {
-        "type": "git_grep_count",
-        "pattern": "def test_",
-        "paths": [
-          "backend/tests"
-        ]
+        "type": "sum",
+        "parts": [
+          {
+            "type": "git_grep_count",
+            "pattern": "def test_",
+            "paths": [
+              "backend/tests",
+              ":!backend/tests/test_points_golden.py"
+            ]
+          },
+          {
+            "type": "git_grep_count",
+            "pattern": "\"id\"",
+            "paths": [
+              "backend/tests/data/points_golden.json"
+            ]
+          }
+        ],
+        "note": "골든셋 파라미터화(함수 1개·케이스 50건) 때문에 실행 시점 시험 수 = def test_(골든 함수 제외) + 케이스 수다."
       },
       "doc_patterns": [
         {

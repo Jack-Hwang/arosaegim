@@ -82,6 +82,18 @@ def measure(repo, rev, spec):
         if not m:
             return None, f'패턴 불일치 {spec["pattern"]!r}'
         return int(m.group(spec.get('group', 1)).replace(',', '')), f'git show {rev}:{spec["file"]} | regex group'
+    if t == 'sum':
+        # 여러 측정의 합 — 파라미터화된 시험(함수 1개·케이스 N건)처럼 소스 수와 실행 수가
+        # 어긋나는 경우 실행 총계를 정직하게 세기 위해 사용한다(예: 서버 시험 = def test_ 수
+        # + 골든셋 케이스 수). 하부 측정이 하나라도 실패하면 전체가 실패다.
+        total, parts = 0, []
+        for sub in spec['parts']:
+            v, desc = measure(repo, rev, sub)
+            if v is None:
+                return None, '합산 하부 측정 실패: ' + desc
+            total += v
+            parts.append(f'{desc}={v}')
+        return total, ' + '.join(parts)
     return None, f'알 수 없는 측정 유형 {t}'
 
 

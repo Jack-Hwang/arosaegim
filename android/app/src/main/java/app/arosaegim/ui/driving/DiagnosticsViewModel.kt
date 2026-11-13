@@ -7,6 +7,7 @@ import app.arosaegim.AssetAudioFirstNarrator
 import app.arosaegim.R
 import app.arosaegim.SwitchableNarrator
 import app.arosaegim.SwitchableRouteService
+import app.arosaegim.data.AuthException
 import app.arosaegim.data.FamilySessionStore
 import app.arosaegim.data.SeedRepository
 import app.arosaegim.data.SignOutCleanup
@@ -404,7 +405,16 @@ class DiagnosticsViewModel(
                     }
                 },
                 onFailure = { t ->
-                    setMetricsFetchFailed("지표 서버 조회 실패: ${t.javaClass.simpleName}")
+                    if (t is AuthException) {
+                        // GET 조회 경로 PIN 거절 표시(2026-11-14, F102 — 정차 화면 GET 경로·전송
+                        // 경로 F101 과 같은 안전장치). 세션 PIN 을 치워(pinOrNull()=null) 다음
+                        // 조회를 멈추고, ⑦ 안내 줄에 strings.session_pin_rejected 를 연결한다.
+                        // 로컬 지표·출처('로컬')는 그대로 유지한다(가짜 값 금지).
+                        sessionStore.markPinRejected(pin)
+                        _metricsNote.value = appCtx.getString(R.string.session_pin_rejected)
+                    } else {
+                        setMetricsFetchFailed("지표 서버 조회 실패: ${t.javaClass.simpleName}")
+                    }
                 },
             )
         }

@@ -1,269 +1,389 @@
 {
- "feature": "F10",
- "name": "화면 이동·메뉴·홈·설정",
- "acs": [
-  {
-   "id": "ARO-F10-AC01",
-   "pattern": "ubiquitous",
-   "text": "앱은 화면 위쪽에 아이콘과 \"아로새김 · 코스 이름\"만 있는 머리말을 두고, 드롭다운이나 사이드 메뉴 같은 탐색 요소를 그리지 않습니다.",
-   "io": [],
-   "verify": {
-    "kind": "code",
-    "refs": [
-     "Components.kt PageNavigationBar 소스 코드(114~188행)",
-     "앱 소스 전체에서 DropdownMenu·NavigationRail 검색 0건"
-    ]
-   },
-   "status": "[코드 확인]",
-   "numbers": []
-  },
-  {
-   "id": "ARO-F10-AC02",
-   "pattern": "ubiquitous",
-   "text": "정차 화면에서 앱은 스탬프·퀴즈·그때와 지금·스탬프북·오늘의 기록 5단계를 한 줄 세그먼트 머리말로 보여 줍니다.",
-   "io": [],
-   "verify": {
-    "kind": "code",
-    "refs": [
-     "ParkedComponents.kt ParkedPageNavigationBar 소스 코드"
-    ]
-   },
-   "status": "[코드 확인]",
-   "numbers": [
-    "5"
-   ]
-  },
-  {
-   "id": "ARO-F10-AC03",
-   "pattern": "state",
-   "text": "가족 세션이 없는 동안 앱은 정차 신호가 와도 화면을 정차 화면으로 전환하지 않고 시작 화면(가족 코드 입력)을 그대로 유지합니다.",
-   "io": [
+  "feature": "F10",
+  "name": "화면 이동·메뉴·홈·설정",
+  "acs": [
     {
-     "in": "세션 없음 + 정차 상태 수집",
-     "out": "화면 전환 없음(시작 화면 유지)"
-    }
-   ],
-   "verify": {
-    "kind": "unit",
-    "refs": [
-     "ModeRouterResolveTest 단위 테스트(\"정차 상태에서 세션이 없으면 전환을 보류한다(Q28 - 시작 화면 유지)\")"
-    ]
-   },
-   "status": "[코드 확인]",
-   "numbers": []
-  },
-  {
-   "id": "ARO-F10-AC04",
-   "pattern": "ubiquitous",
-   "text": "릴리스 빌드에서 앱은 \"이 차에서 로그아웃\" 버튼을 디버그 전용 진단 화면에만 두고, 다른 화면에는 두지 않습니다.",
-   "io": [],
-   "verify": {
-    "kind": "code",
-    "refs": [
-     "DiagnosticsScreen.kt 329행",
-     "DiagnosticsActivity.kt 30행(BuildConfig.DEBUG 분기)",
-     "AndroidManifest.xml 43~73행"
-    ]
-   },
-   "status": "[코드 확인]",
-   "numbers": []
-  },
-  {
-   "id": "ARO-F10-AC05",
-   "pattern": "unwanted",
-   "text": "가족 세션이 없는 상태에서 메뉴 버튼을 누르면 앱은 패널을 열지 않고 가족 코드·PIN 입력 화면으로 안내합니다.",
-   "io": [],
-   "verify": {
-    "kind": "none",
-    "refs": []
-   },
-   "status": "(계획)",
-   "numbers": [],
-   "note": "코드 구현 전, 화면 설계 단계"
-  },
-  {
-   "id": "ARO-F10-AC06",
-   "pattern": "event",
-   "text": "정차 중 [☰ 메뉴] 버튼을 누르면 앱은 화면 오른쪽에 홈·코스 선택·그때와 지금·설정 네 항목이 있는 패널을 엽니다.",
-   "io": [
-    {
-     "in": "정차 중 [☰ 메뉴] 버튼 누름",
-     "out": "오른쪽 패널 열림(네 항목 표시)"
-    }
-   ],
-   "verify": {
-    "kind": "none",
-    "refs": []
-   },
-   "status": "(계획)",
-   "numbers": [
-    "4"
-   ],
-   "note": "코드 구현 전, 화면 설계 단계"
-  },
-  {
-   "id": "ARO-F10-AC07",
-   "pattern": "event",
-   "text": "정차 중 열려 있던 메뉴 패널이 있는 상태에서 주행으로 바뀌면 앱은 패널을 닫고 메뉴 버튼도 함께 감춥니다.",
-   "io": [
-    {
-     "in": "메뉴 패널 열림 + 주행 전환",
-     "out": "패널 닫힘 + 메뉴 버튼 숨김"
-    }
-   ],
-   "verify": {
-    "kind": "none",
-    "refs": []
-   },
-   "status": "(계획)",
-   "numbers": [],
-   "note": "코드 구현 전, 주행 중 최소 정보 원칙에 따른 설계"
-  },
-  {
-   "id": "ARO-F10-AC08",
-   "pattern": "ubiquitous",
-   "text": "메뉴 패널의 네 항목 이름은 앱 전체에서 홈·코스 선택·그때와 지금·설정(모두 한글)으로 통일합니다.",
-   "io": [],
-   "verify": {
-    "kind": "none",
-    "refs": []
-   },
-   "status": "(계획)",
-   "numbers": [
-    "4"
-   ],
-   "note": "코드 구현 전, 문자열 리소스·다국어 원칙에 따른 설계"
-  },
-  {
-   "id": "ARO-F10-AC09",
-   "pattern": "state",
-   "text": "가족 세션이 있고 정차 중인 동안 앱은 홈을 첫 화면으로 보여 줍니다.",
-   "io": [],
-   "verify": {
-    "kind": "none",
-    "refs": []
-   },
-   "status": "(계획)",
-   "numbers": [],
-   "note": "코드 구현 전, 지금은 홈 화면 자체가 없음(소스 코드 전수 검색 0건)"
-  },
-  {
-   "id": "ARO-F10-AC10",
-   "pattern": "optional",
-   "text": "진행 중인 코스가 있는 경우 홈은 스탬프 진행과 다음 장소를 담은 \"이어서 하기\" 카드를 보여 줍니다.",
-   "io": [],
-   "verify": {
-    "kind": "none",
-    "refs": []
-   },
-   "status": "(계획)",
-   "numbers": [],
-   "note": "코드 구현 전, 수치는 예시"
-  },
-  {
-   "id": "ARO-F10-AC11",
-   "pattern": "optional",
-   "text": "지난 방문 기록이 없는 가족의 경우 홈은 \"오늘이 우리 가족의 첫 기록입니다\" 한 줄로 시작합니다.",
-   "io": [],
-   "verify": {
-    "kind": "none",
-    "refs": []
-   },
-   "status": "(계획)",
-   "numbers": [],
-   "note": "코드 구현 전, 같은 문구를 쓰는 기존 화면(시안 18)과 같은 설계"
-  },
-  {
-   "id": "ARO-F10-AC12",
-   "pattern": "event",
-   "text": "설정의 [가족 전환] 확인 화면에서 [로그아웃하고 바꾸기]를 선택하면 앱은 이 차량의 가족 코드·PIN·방문 기록·전송 대기 기록을 지우고 시작 화면으로 돌아갑니다.",
-   "io": [
-    {
-     "in": "가족 전환 확인 화면에서 [로그아웃하고 바꾸기] 선택",
-     "out": "가족 코드·PIN·방문 기록·전송 대기 기록 삭제 + 시작 화면"
-    }
-   ],
-   "verify": {
-    "kind": "code",
-    "refs": [
-     "삭제 동작은 기존 SignOutCleanup.kt 가 맡는다(로그아웃 시 삭제 대상 — 가족 전환 확인 화면 자체는 계획)"
-    ]
-   },
-   "status": "(계획)",
-   "numbers": [],
-   "note": "삭제 동작은 기존 로그아웃 정리 코드[코드 확인]를 그대로 쓰고, 확인 화면과 메뉴에서의 진입 경로만 새로 설계"
-  },
-  {
-   "id": "ARO-F10-AC13",
-   "pattern": "unwanted",
-   "text": "가족의 PIN이 5회 연속 틀리면 서버는 그 가족 전체를 10분 동안 잠그고, 앱은 설정·가족 전환 화면에 잠김 안내를 보여 줍니다.",
-   "io": [
-    {
-     "in": "같은 가족 코드로 PIN 5회 연속 오류",
-     "out": "서버 429(가족 잠김) + 화면에 10분 잠김 안내"
-    }
-   ],
-   "verify": {
-    "kind": "server",
-    "refs": [
-     "config.py 상수(PIN_LOCK_ATTEMPTS=5, PIN_LOCK_MINUTES=10)",
-     "security.py 잠금 판정 로직"
-    ]
-   },
-   "status": "(계획)",
-   "numbers": [
-    "5",
-    "10"
-   ],
-   "note": "서버의 5회·10분 잠금 자체는 코드로 확인됨[코드 확인]. 화면의 잠김 안내 문구와 배치는 설계 단계"
-  },
-  {
-   "id": "ARO-F10-AC14",
-   "pattern": "event",
-   "text": "설정에서 [가족 전환]을 누르면 앱은 이 차에서 지워지는 것과 그대로 남는 것을 먼저 보여 주는 확인 화면을 열고, [로그아웃하고 바꾸기]를 선택해야만 로그아웃을 실행합니다.",
-   "io": [
-    {
-     "in": "[가족 전환] 누름",
-     "out": "확인 화면 표시(삭제 전, 로그아웃 미실행)"
+      "id": "ARO-F10-AC01",
+      "pattern": "ubiquitous",
+      "text": "앱은 정차 화면과 시작 화면의 위쪽에 앱 아이콘·앱 이름·코스 부제로 이루어진 가이드의 머리말(Page Navigation)을 둡니다.",
+      "io": [],
+      "verify": {
+        "kind": "code",
+        "refs": [
+          "Components.kt PageNavigationBar 소스 코드(114~188행)"
+        ]
+      },
+      "status": "[코드 확인]",
+      "note": "머리말 오른쪽의 부가 기능 자리(trailingAction)는 지금 비어 있고, 여기에 [☰ 메뉴] 버튼을 두는 것이 새 계획(AC06)",
+      "numbers": []
     },
     {
-     "in": "확인 화면에서 [로그아웃하고 바꾸기] 선택",
-     "out": "로그아웃 실행 + 시작 화면"
+      "id": "ARO-F10-AC02",
+      "pattern": "ubiquitous",
+      "text": "정차 화면에서 앱은 스탬프·퀴즈·그때와 지금·스탬프북·오늘의 기록 5단계를 한 줄 세그먼트 머리말로 보여 줍니다.",
+      "io": [],
+      "verify": {
+        "kind": "code",
+        "refs": [
+          "ParkedComponents.kt ParkedPageNavigationBar 소스 코드"
+        ]
+      },
+      "status": "[코드 확인]",
+      "numbers": [
+        "5"
+      ]
+    },
+    {
+      "id": "ARO-F10-AC03",
+      "pattern": "state",
+      "text": "가족 세션이 없는 동안 앱은 정차 신호가 와도 화면을 정차 화면으로 전환하지 않고 시작 화면(가족 코드 입력)을 그대로 유지합니다.",
+      "io": [
+        {
+          "in": "세션 없음 + 정차 상태 수집",
+          "out": "화면 전환 없음(시작 화면 유지)"
+        }
+      ],
+      "verify": {
+        "kind": "unit",
+        "refs": [
+          "ModeRouterResolveTest 단위 테스트(\"정차 상태에서 세션이 없으면 전환을 보류한다(Q28 - 시작 화면 유지)\")"
+        ]
+      },
+      "status": "[코드 확인]",
+      "numbers": []
+    },
+    {
+      "id": "ARO-F10-AC04",
+      "pattern": "event",
+      "text": "정차 중 설정 화면에서 [이 차에서 로그아웃]을 선택하면 앱은 릴리스 빌드에서도 로그아웃을 실행합니다.",
+      "io": [
+        {
+          "in": "정차 중 설정에서 [이 차에서 로그아웃] 선택(릴리스 빌드)",
+          "out": "로그아웃 실행 + 시작 화면"
+        }
+      ],
+      "verify": {
+        "kind": "none",
+        "refs": []
+      },
+      "status": "(계획)",
+      "numbers": [],
+      "note": "코드 구현 전. 지금은 디버그 전용 진단 화면에만 있어 릴리스에서는 닿을 경로가 없음(DiagnosticsScreen.kt 194~201행(버튼)·329행(확인 뒤 실행), DiagnosticsActivity.kt 30행, AndroidManifest.xml 43~73행 [코드 확인])"
+    },
+    {
+      "id": "ARO-F10-AC05",
+      "pattern": "unwanted",
+      "text": "가족 세션이 없는 상태에서 메뉴 버튼을 누르면 앱은 패널을 열지 않고 가족 코드·PIN 입력 화면으로 안내합니다.",
+      "io": [],
+      "verify": {
+        "kind": "none",
+        "refs": []
+      },
+      "status": "(계획)",
+      "numbers": [],
+      "note": "코드 구현 전, 화면 설계 단계"
+    },
+    {
+      "id": "ARO-F10-AC06",
+      "pattern": "event",
+      "text": "정차 중 [☰ 메뉴] 버튼을 누르면 앱은 화면 오른쪽에 홈·코스 선택·그때와 지금·설정 네 항목이 있는 패널을 엽니다.",
+      "io": [
+        {
+          "in": "정차 중 [☰ 메뉴] 버튼 누름",
+          "out": "오른쪽 패널 열림(네 항목 표시)"
+        }
+      ],
+      "verify": {
+        "kind": "none",
+        "refs": []
+      },
+      "status": "(계획)",
+      "numbers": [
+        "4"
+      ],
+      "note": "코드 구현 전, 화면 설계 단계"
+    },
+    {
+      "id": "ARO-F10-AC07",
+      "pattern": "event",
+      "text": "정차 중 열려 있던 메뉴 패널이 있는 상태에서 주행으로 바뀌면 앱은 패널을 닫고 메뉴 버튼도 함께 감춥니다.",
+      "io": [
+        {
+          "in": "메뉴 패널 열림 + 주행 전환",
+          "out": "패널 닫힘 + 메뉴 버튼 숨김"
+        }
+      ],
+      "verify": {
+        "kind": "none",
+        "refs": []
+      },
+      "status": "(계획)",
+      "numbers": [],
+      "note": "코드 구현 전, 주행 중 최소 정보 원칙에 따른 설계"
+    },
+    {
+      "id": "ARO-F10-AC08",
+      "pattern": "ubiquitous",
+      "text": "메뉴 패널의 네 항목 이름은 앱 전체에서 홈·코스 선택·그때와 지금·설정(모두 한글)으로 통일합니다.",
+      "io": [],
+      "verify": {
+        "kind": "none",
+        "refs": []
+      },
+      "status": "(계획)",
+      "numbers": [
+        "4"
+      ],
+      "note": "코드 구현 전, 문자열 리소스·다국어 원칙에 따른 설계"
+    },
+    {
+      "id": "ARO-F10-AC09",
+      "pattern": "state",
+      "text": "가족 세션이 있고 정차 중인 동안 앱은 홈을 첫 화면으로 보여 줍니다.",
+      "io": [],
+      "verify": {
+        "kind": "none",
+        "refs": []
+      },
+      "status": "(계획)",
+      "numbers": [],
+      "note": "코드 구현 전, 지금은 홈 화면 자체가 없음(소스 코드 전수 검색 0건)"
+    },
+    {
+      "id": "ARO-F10-AC10",
+      "pattern": "optional",
+      "text": "진행 중인 코스가 있는 경우 홈은 스탬프 진행과 다음 장소를 담은 \"이어서 하기\" 카드를 보여 줍니다.",
+      "io": [],
+      "verify": {
+        "kind": "none",
+        "refs": []
+      },
+      "status": "(계획)",
+      "numbers": [],
+      "note": "코드 구현 전, 수치는 예시"
+    },
+    {
+      "id": "ARO-F10-AC11",
+      "pattern": "optional",
+      "text": "지난 방문 기록이 없는 가족의 경우 홈은 \"오늘이 우리 가족의 첫 기록입니다\" 한 줄로 시작합니다.",
+      "io": [],
+      "verify": {
+        "kind": "none",
+        "refs": []
+      },
+      "status": "(계획)",
+      "numbers": [],
+      "note": "코드 구현 전, 같은 문구를 쓰는 기존 화면(시안 18)과 같은 설계"
+    },
+    {
+      "id": "ARO-F10-AC12",
+      "pattern": "event",
+      "text": "설정의 [가족 전환] 확인 화면에서 [로그아웃하고 바꾸기]를 선택하면 앱은 이 차량의 가족 코드·PIN·방문 기록·전송 대기 기록과 진행 중이던 코스·퀴즈 상태를 지우고 시작 화면으로 돌아갑니다.",
+      "io": [
+        {
+          "in": "가족 전환 확인 화면에서 [로그아웃하고 바꾸기] 선택",
+          "out": "가족 코드·PIN·방문 기록·전송 대기 기록·진행 중 코스·퀴즈 상태 삭제 + 시작 화면"
+        }
+      ],
+      "verify": {
+        "kind": "code",
+        "refs": [
+          "SignOutCleanup.kt 소스 코드(삭제 대상 파일 2개)",
+          "DiagnosticsViewModel.kt 438~445행(지금 로그아웃이 하는 일)"
+        ]
+      },
+      "status": "(계획)",
+      "numbers": [],
+      "note": "지금 로그아웃은 가족 코드·PIN·파일 2개·'나중에 정하기' 기억만 지우고, 같은 프로세스 안의 스탬프·목표·거리·인원(TripSession), 코스 시작(CourseStartState), 퀴즈 진행(QuizStateHolder)은 지우지 않습니다[코드 확인]. 가족 전환에서는 이것까지 지우는 것이 새 계획입니다. 확인 화면과 메뉴에서의 진입 경로도 새로 설계합니다."
+    },
+    {
+      "id": "ARO-F10-AC13",
+      "pattern": "unwanted",
+      "text": "가족의 PIN이 5회 연속 틀리면 서버는 그 가족 전체를 10분 동안 잠그고, 앱은 설정·가족 전환 화면에 잠김 안내를 보여 줍니다.",
+      "io": [
+        {
+          "in": "같은 가족 코드로 PIN 5회 연속 오류",
+          "out": "서버 429(가족 잠김) + 화면에 10분 잠김 안내"
+        }
+      ],
+      "verify": {
+        "kind": "server",
+        "refs": [
+          "config.py 상수(PIN_LOCK_ATTEMPTS=5, PIN_LOCK_MINUTES=10)",
+          "security.py 잠금 판정 로직"
+        ]
+      },
+      "status": "(계획)",
+      "numbers": [
+        "5",
+        "10"
+      ],
+      "note": "서버의 5회·10분 잠금 자체는 코드로 확인됨[코드 확인]. 화면의 잠김 안내 문구와 배치는 설계 단계"
+    },
+    {
+      "id": "ARO-F10-AC14",
+      "pattern": "event",
+      "text": "설정에서 [가족 전환]을 누르면 앱은 이 차에서 지워지는 것과 그대로 남는 것을 먼저 보여 주는 확인 화면을 열고, [로그아웃하고 바꾸기]를 선택해야만 로그아웃을 실행합니다.",
+      "io": [
+        {
+          "in": "[가족 전환] 누름",
+          "out": "확인 화면 표시(삭제 전, 로그아웃 미실행)"
+        },
+        {
+          "in": "확인 화면에서 [로그아웃하고 바꾸기] 선택",
+          "out": "로그아웃 실행 + 시작 화면"
+        }
+      ],
+      "verify": {
+        "kind": "none",
+        "refs": []
+      },
+      "status": "(계획)",
+      "numbers": [],
+      "note": "코드 구현 전. 삭제 동작 자체는 기존 로그아웃 정리 코드(SignOutCleanup.kt)를 그대로 씀[코드 확인]"
+    },
+    {
+      "id": "ARO-F10-AC15",
+      "pattern": "ubiquitous",
+      "text": "릴리스 빌드에서도 앱은 설정 화면의 \"이 차에서 로그아웃\"을 통해 로그아웃 경로에 닿을 수 있게 합니다.",
+      "io": [],
+      "verify": {
+        "kind": "none",
+        "refs": []
+      },
+      "status": "(계획)",
+      "numbers": [],
+      "note": "코드 구현 전. 지금 릴리스 화면에는 로그아웃 경로가 없음(DiagnosticsActivity.kt 30행, AndroidManifest.xml 43~73행 [코드 확인])"
+    },
+    {
+      "id": "ARO-F10-AC16",
+      "pattern": "optional",
+      "text": "둘러보기로 쓰고 있던 경우에는 [가족 전환] 확인 화면이 가족 코드·PIN 대신 \"이 차에 남은 방문 기록\"만 지워진다고 보여 줍니다.",
+      "io": [],
+      "verify": {
+        "kind": "none",
+        "refs": []
+      },
+      "status": "(계획)",
+      "numbers": [],
+      "note": "코드 구현 전. 둘러보기는 별도 플래그로 가족 코드·PIN이 애초에 없음(FamilySessionStore.kt [코드 확인])"
+    },
+    {
+      "id": "ARO-F10-AC17",
+      "pattern": "state",
+      "text": "정차 중 세로(1:1) 창에서 메뉴 패널이 열려 있는 동안 앱은 패널을 본문 위에 겹쳐 보여 주고 본문 폭을 줄이지 않습니다.",
+      "io": [
+        {
+          "in": "세로(1:1) 창 + 메뉴 패널 열림",
+          "out": "패널이 본문 위에 겹침, 본문 폭 변화 없음"
+        }
+      ],
+      "verify": {
+        "kind": "none",
+        "refs": []
+      },
+      "status": "(계획)",
+      "numbers": [
+        "1:1"
+      ],
+      "note": "코드 구현 전. 세로 창의 가독성은 개발 기록 D6 항목으로 아직 재실측 전"
+    },
+    {
+      "id": "ARO-F10-AC18",
+      "pattern": "ubiquitous",
+      "text": "앱은 가족 코드를 화면에 보일 때 앞 2자리와 뒤 2자리만 보이고 가운데 자리는 가립니다.",
+      "io": [
+        {
+          "in": "가족 코드 A37K9Q2M",
+          "out": "A3••••2M"
+        }
+      ],
+      "verify": {
+        "kind": "none",
+        "refs": []
+      },
+      "status": "(계획)",
+      "numbers": [
+        "2"
+      ],
+      "note": "코드 구현 전. 시작 화면의 입력 칸은 입력 중이라 가리지 않는다(기존 설계 — 화면 가림이 노출 방지 장치)"
+    },
+    {
+      "id": "ARO-F10-AC19",
+      "pattern": "ubiquitous",
+      "text": "앱은 최근에 쓴 가족 코드의 목록을 저장하지 않습니다.",
+      "io": [],
+      "verify": {
+        "kind": "code",
+        "refs": [
+          "FamilySessionStore.kt 소스 코드(가족 코드 하나만 저장)"
+        ]
+      },
+      "status": "[코드 확인]",
+      "numbers": [],
+      "note": "지금 코드는 가족 코드를 하나만 저장한다. 가족 전환을 만들어도 이 성질을 지키는 것이 설계 원칙(계획)"
+    },
+    {
+      "id": "ARO-F10-AC20",
+      "pattern": "event",
+      "text": "도착으로 정차 화면이 올라오면 앱은 홈이 아니라 스탬프 획득 카드를 먼저 보여 줍니다.",
+      "io": [
+        {
+          "in": "도착 이벤트로 정차 화면이 올라옴",
+          "out": "스탬프 획득 카드(스텝 1)가 먼저 보임"
+        }
+      ],
+      "verify": {
+        "kind": "none",
+        "refs": []
+      },
+      "status": "(계획)",
+      "numbers": [],
+      "note": "코드 구현 전. 홈이 도착 장면을 가로채지 않게 하는 규칙"
+    },
+    {
+      "id": "ARO-F10-AC21",
+      "pattern": "state",
+      "text": "주행 중인 동안 앱은 설정 화면과 가족 전환 화면을 열지 않습니다.",
+      "io": [],
+      "verify": {
+        "kind": "none",
+        "refs": []
+      },
+      "status": "(계획)",
+      "numbers": [],
+      "note": "코드 구현 전. 정차 화면은 주행 최적화를 선언하지 않아 주행 중에는 시스템이 가리는 것이 지금의 동작이다[코드 확인]"
+    },
+    {
+      "id": "ARO-F10-AC22",
+      "pattern": "ubiquitous",
+      "text": "앱은 차량 시스템 프로필(상태바의 프로필)을 읽거나 저장하지 않습니다.",
+      "io": [],
+      "verify": {
+        "kind": "none",
+        "refs": []
+      },
+      "status": "(계획)",
+      "numbers": [],
+      "note": "코드 구현 전. 새 화면에서도 시스템 프로필을 쓰지 않는다는 설계 원칙"
+    },
+    {
+      "id": "ARO-F10-AC23",
+      "pattern": "optional",
+      "text": "서버에 닿지 않는 경우 홈은 기기에 있는 값만으로 이어서 하기 카드를 보여 주고 오류 문구를 만들지 않습니다.",
+      "io": [
+        {
+          "in": "서버 응답 없음 + 진행 중 코스 있음",
+          "out": "로컬 값으로 이어서 하기 카드 표시, 오류 문구 없음"
+        }
+      ],
+      "verify": {
+        "kind": "none",
+        "refs": []
+      },
+      "status": "(계획)",
+      "numbers": [],
+      "note": "코드 구현 전. 기존 화면의 오류 한 줄 + 계속 진행 규칙과 같은 방향(시안 23)"
     }
-   ],
-   "verify": {
-    "kind": "none",
-    "refs": []
-   },
-   "status": "(계획)",
-   "numbers": [],
-   "note": "코드 구현 전. 삭제 동작 자체는 기존 로그아웃 정리 코드(SignOutCleanup.kt)를 그대로 씀[코드 확인]"
-  },
-  {
-   "id": "ARO-F10-AC15",
-   "pattern": "ubiquitous",
-   "text": "릴리스 빌드에서도 앱은 설정 화면의 \"이 차에서 로그아웃\"을 통해 로그아웃 경로에 닿을 수 있게 합니다.",
-   "io": [],
-   "verify": {
-    "kind": "none",
-    "refs": []
-   },
-   "status": "(계획)",
-   "numbers": [],
-   "note": "코드 구현 전. 지금 릴리스 화면에는 로그아웃 경로가 없음(DiagnosticsActivity.kt 30행, AndroidManifest.xml 43~73행 [코드 확인])"
-  },
-  {
-   "id": "ARO-F10-AC16",
-   "pattern": "optional",
-   "text": "둘러보기로 쓰고 있던 경우에는 [가족 전환] 확인 화면이 가족 코드·PIN 대신 \"이 차에 남은 방문 기록\"만 지워진다고 보여 줍니다.",
-   "io": [],
-   "verify": {
-    "kind": "none",
-    "refs": []
-   },
-   "status": "(계획)",
-   "numbers": [],
-   "note": "코드 구현 전. 둘러보기는 별도 플래그로 가족 코드·PIN이 애초에 없음(FamilySessionStore.kt [코드 확인])"
-  }
- ]
+  ]
 }

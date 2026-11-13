@@ -15,7 +15,7 @@ PIN은 어디에도 저장되지 않고(세션 메모리만), 가족 코드만 �
 | 포함 | FamilyCodeValidator(6~8자리 영숫자·공백·특수문자·한글 거부), 입력 필터(문자 남김·8자 제한 — 형식 검사는 접속 시), PIN 입력(숫자 6자리·가려진 입력란), SessionCredentials(메모리 전용 PIN·거절 표시), FamilySessionStore(코드만 저장·대문자 정규화·guestMode), 라우팅 세션 게이트(hasSession), 로그아웃(파일 2개 삭제·부분 실패 계속), ApiClient의 401·403 → AuthException 계약, PIN 거절 표시(거부된 PIN의 메모리 삭제·재전송 중단·안내 한 줄) |
 | 제외 | 서버의 PIN 잠금·코드 재발급·물려주기(정본 기준은 [F7 문서](F7_가족기록서버모바일웹물려주기.md)), 전송 대기열의 FIFO·멱등키 세부([F9 문서](F9_오프라인대체구현.md)), 정차·주행 판정 자체(F2 문서 — 이 문서는 세션 유무에 따른 전환 분기만) |
 | 가정 | PIN은 식별이 아니라 열람·수정용이라 차량 기기에 영속 저장하면 탈거·공유 차량에서 유출 위험이 있습니다(docs/ADR.md ADR-003). 앱 재시작 시 PIN은 소실되고 재입력을 요구합니다(개발 기록 F59). 서버가 발급하는 코드는 8자리이므로 검증은 6~8자리를 허용합니다(개발 기록 F58 — docs/ADR.md ADR-009) |
-| 경계 | 코드는 기기에 남고 PIN은 남지 않습니다. 거절 표시 중에는 PIN 조회가 null이 되어 헤더·대기열·화면 조회가 재전송을 멈춥니다 — 소스 app/src/main/java/app/arosaegim/data/FamilySessionStore.kt(pinOrNull·markRejected 주석). 로그아웃 버튼은 지금 개발용 진단 화면에만 있고 릴리스 앱에서는 그 화면이 열리지 않습니다(정본 AC10 note — 설정 화면은 계획) |
+| 경계 | 코드는 기기에 남고 PIN은 남지 않습니다. 거절 표시 중에는 PIN 조회가 null이 되어 헤더·대기열·화면 조회가 재전송을 멈춥니다 — 소스 app/src/main/java/app/arosaegim/data/FamilySessionStore.kt(pinOrNull·markRejected 주석). 로그아웃 버튼은 지금 개발용 진단 화면에만 있고 릴리스 앱에서는 그 화면이 열리지 않습니다(정본 AC10 note — 설정 화면은 계획). 지금의 로그아웃은 같은 프로세스 안의 진행 상태(TripSession·CourseStartState·QuizStateHolder)는 지우지 않습니다(정본 AC10 note — 소스 DiagnosticsViewModel.signOutFromCar) |
 
 ## 3. 입력·출력·상태
 
@@ -93,6 +93,7 @@ PIN은 어디에도 저장되지 않고(세션 메모리만), 가족 코드만 �
 - PIN 거절 표시(2026-11-13 구현 — AC12를 [코드 확인]으로 갱신한 근거): 서버가 PIN을 거부하면 VisitQueue가 거부된 (가족 코드, PIN) 조합을 메모리에 기록하고 전송을 멈춘 채 큐를 보존합니다. FamilySessionStore.markRejected가 PIN 값을 메모리에서 즉시 지워(pinOrNull이 null) 같은 틀린 PIN의 재전송으로 서버 잠금 횟수(5회)를 채우는 일을 막습니다. 값 비교만 하고 저장·로그는 하지 않습니다 — 소스 data/VisitQueue.kt(PinRejectedException·rejectedPair), data/FamilySessionStore.kt(markRejected·rejectSessionPin), 단위 테스트 FamilySessionStoreTest("거절 표시하면 pinOrNull은 null이 되고 코드는 유지된다"), VisitQueueTest("11_서버가 PIN을 거부하면 같은 조합 재전송을 멈추고 큐는 보존된다"), TripSessionTest("15_큐 flush의 PIN 거절은 재입력 안내 한 줄을 남긴다").
 - 거절 상태는 사용자의 새 PIN 입력(setPin)·해제(clearPin)·로그아웃(signOut)에서 풀립니다. 거절 응답이 늦게 도착해 사용자의 새 PIN을 지우지 않도록, 거부된 값과 현재 세션 PIN이 같을 때만 거절로 처리합니다 — 소스 data/FamilySessionStore.kt(markRejected 주석), 단위 테스트 FamilySessionStoreTest("setPin으로 새 pin을 넣으면 거절이 풀린다").
 - 로그아웃 중 파일 하나가 삭제되지 않으면 나머지 삭제를 멈추지 않고 결과를 한 줄씩 남깁니다 — 단위 테스트 로그아웃 정리 단위 테스트("한 파일 삭제 실패가 나머지 삭제를 막지 않는다")(AC11).
+- 지금의 로그아웃이 지우는 범위는 가족 코드·세션 PIN·파일 2개까지입니다(AC10). 같은 프로세스 안의 진행 상태(TripSession·CourseStartState·QuizStateHolder가 가진 스탬프·코스 시작·퀴즈 진행)는 지우지 않습니다 — 소스 ui/driving/DiagnosticsViewModel.kt(signOutFromCar), 정본 AC10 note. 이것까지 지우는 가족 전환은 [F10 문서](F10_화면이동메뉴홈설정.md) AC12의 (계획) 항목입니다.
 - 세션이 없는 앱의 방문은 전송이 401로 보류되고 대기열에 남습니다. 서버 DB 대조에서 방문이 0건으로 확인됐습니다(전송 보류가 설계대로 동작한 대조 기록) — 개발 기록 F78, docs/ADR.md ADR-003의 결과 문단.
 
 ## 7. 시험·실측 연결
@@ -113,4 +114,4 @@ PIN은 어디에도 저장되지 않고(세션 메모리만), 가족 코드만 �
 **아직 실측 전**
 - 가족 코드·PIN 입력 → 출발 → geo fix 도착 → 서버 visits 행 반영의 전체 경로 실측(Q29 — 테스트 가족은 세션마다 새로 발급하고 값은 문서에 기록하지 않습니다).
 - AC03·AC04·AC06·AC09·AC13·AC14 — (설계) 상태의 화면 실측.
-- AC10 — 릴리스 화면 배치(정본 note — 진단 화면에만 있음·설정 화면은 계획).
+- AC10 — 릴리스 화면 배치(정본 note — 진단 화면에만 있음·설정 화면은 계획). 설정 화면의 로그아웃 경로와 진행 상태까지 지우는 가족 전환은 [F10 문서](F10_화면이동메뉴홈설정.md)의 (계획) 항목입니다(AC04·AC12·AC15).

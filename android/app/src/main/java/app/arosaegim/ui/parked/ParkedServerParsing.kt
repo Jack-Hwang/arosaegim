@@ -59,15 +59,18 @@ private fun decodeMembers(body: String): List<MemberNameDto> {
 }
 
 /**
- * 401/403(코드·PIN 불일치) 판정. ApiClient 기존 관례(postVisit)처럼 실패를
- * IOException("getMembers HTTP 401") 형태의 예외 메시지로 전달한다는 전제로 상태 코드만 본다.
- * 방어: 메시지에 코드가 없으면 '아니오'로 흘러 일반 실패(이름표 숨김 + lastError 1줄) 처리만 된다.
+ * 가족 인증 실패(401/403/429) 판정. ApiClient 의 실패 전달 관례("가족 인증 실패(HTTP 401)"·
+ * "getMembers HTTP 401" 형태의 예외 메시지)라는 전제로 상태 코드만 본다.
+ * 401·403 에 429(PIN 오류 잠금)도 함께 거절 대상으로 본다 — ApiClient.getJson 은 셋을
+ * 모두 AuthException 으로 답한다(2026-11-14 소스 재확인: 잠금 10분간은 올바른 PIN 으로도
+ * 거부되므로 거절 표시 대상이다). 방어: 메시지에 코드가 없으면 '아니오'로 흘러 일반 실패
+ * (기능 숨김 + lastError 1줄) 처리만 된다.
  * (Q20 파일 분리: 호출부 ParkedScreen.kt 와 파일이 갈라져 private → internal 로만 넓혔다.)
  */
 internal fun isAuthFailure(t: Throwable?): Boolean {
     val message = t?.message ?: return false
     // 숫자 일부 우연 일치(예: 1401)를 막기 위해 코드 앞뒤가 숫자가 아닐 때만 인정한다.
-    return Regex("(^|[^0-9])(401|403)([^0-9]|$)").containsMatchIn(message)
+    return Regex("(^|[^0-9])(401|403|429)([^0-9]|$)").containsMatchIn(message)
 }
 
 // ── E2 then-now 서버 응답 파싱(2026-11-11, kotlinx.serialization 로컬 DTO — 화면에 잠깐 쓰고 저장하지 않는다) ──
