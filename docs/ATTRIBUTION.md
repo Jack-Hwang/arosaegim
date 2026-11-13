@@ -23,8 +23,8 @@
 | Vehicle 문서 | https://document.pleos.ai/docs/pleos-only/connect-sdk-pleos/Vehicle/ | 도메인 객체·capability |
 | TextToSpeech 문서 | https://document.pleos.ai/docs/pleos-only/connect-sdk-pleos/TextToSpeech/ | 모드·locale·권한 |
 | 에뮬레이터 셋업 가이드 | https://document.pleos.ai/en/docs/connect/guide/getting-started/application-development/setup-connect-sdk-emulator | 03 문서 1절 체크리스트 |
-| **Pleos Connect UI Design Guide** | https://document.pleos.ai/docs/connect/guide/docs-design/Introduction/intro (하위 34쪽 포함, 2026-11-10 확인) | 화면 구조·설계 원칙·색/타이포 토큰·컴포넌트 규칙 — `glm/04_UI_GUIDE.md` 요약의 출처. 앱의 AroColors 토큰 구조와 3줄 규칙·76dp 버튼 등이 이 가이드를 따른다 |
-| Pleos Virtual Console 가이드 | Pleos 공식 문서 — `glm/01_PLEOS_SDK_INTERFACE.md` 8절에서 인용 정리 | 에뮬레이터 Virtual Console(adb forward tcp:8088) 조작 가능 항목 확인용 — 기어 전환(U7 완결)·Seat Occupancy(U11)·주행거리(U13) 실측 절차의 근거 |
+| **Pleos Connect UI Design Guide** | https://document.pleos.ai/docs/connect/guide/docs-design/Introduction/intro (하위 34쪽 포함, 2026-11-10 확인) | 화면 구조·설계 원칙·색/타이포 토큰·컴포넌트 규칙 — 요구 문서 04(UI 가이드) 요약의 출처. 앱의 AroColors 토큰 구조와 3줄 규칙·76dp 버튼 등이 이 가이드를 따른다 |
+| Pleos Virtual Console 가이드 | Pleos 공식 문서 — 요구 문서 01의 8절에서 인용 정리 | 에뮬레이터 Virtual Console(adb forward tcp:8088) 조작 가능 항목 확인용 — 기어 전환(U7 완결)·Seat Occupancy(U11)·주행거리(U13) 실측 절차의 근거 |
 
 ## 서체
 
@@ -45,7 +45,7 @@
 | seed.json 퀴즈·해설·코스·해설 문장 | 직접 작성(초안, reviewed=false) | 공식 자료 검수 전까지 '초안' 표시 유지 |
 | then_placeholder.png | 직접 생성한 1x1 픽셀 자리표시 이미지 | 저작권 문제 없음 |
 | 앱 로고 아이콘(ic_launcher) | 직접 제작한 단순 드로어블 | 저작권 문제 없음 |
-| **기획서·화면시안**(`기획서/화면시안/01~17*.png`) | 직접 제작(발주자 — HTML 원본 `make_mockups.py` 포함) | 화면 설계의 기준 자료. 시안 15~17은 구상·참고용이고 16·17은 구현 대상이 아니다(00 문서 14절). 저장소에는 넣지 않는다(00 문서 3절 저장소 위치 규칙) |
+| **화면 시안 이미지 01~17** | 직접 제작(발주자 — HTML 원본 `make_mockups.py` 포함) | 화면 설계의 기준 자료. 시안 15~17은 구상·참고용이고 16·17은 구현 대상이 아니다(00 문서 14절). 저장소에는 넣지 않는다(00 문서 3절 저장소 위치 규칙) |
 | **시드 heritage 내용** — 성덕대왕신종(주조 771년, 통일신라 · 국립경주박물관 소장) | 직접 작성(초안, `reviewed=false`) | 시드 `places[].heritage`에 사용(gj-museum). '공식 자료로 검수 필요' 표기를 시드·문서에 유지한다 — 소장처·연도는 공식 자료 확인 전까지 확정 서술하지 않는다 |
 | tools/ 시연 스크립트 3종·routes/gyeongju-demo.json | 직접 작성 | 참가팀 스크립트를 보고 베끼지 않고 03 문서 명세대로 작성 |
 | `letter_demo.ogg` (음성 편지 예시 오디오) | **미준비** | 파일이 아직 없다(DEV_LOG Q14). 발주자가 합성음성 또는 직접 녹음으로 준비하면 `android/app/src/main/assets/seed/letter_demo.ogg`로 넣는 순간 T9-2 재생 포트가 활성화된다. 넣을 때 이 표에 출처·제작 방식을 먼저 기록한다. 고인의 목소리를 AI로 만들거나 흉내 내지 않는다(00 문서 11-2) |

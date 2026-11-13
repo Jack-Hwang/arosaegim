@@ -182,7 +182,7 @@ CREATE TABLE IF NOT EXISTS folded_places (
     created_at  TEXT NOT NULL,
     PRIMARY KEY (family_code, place_id)
 );
--- 기획서 v10 15절①(glm/07 2절 B4): '오늘은 N명이 함께 왔어요. 그때는 M명…' 인원 비교
+-- 기획서 v10 15절①(요구 문서 07의 2절 B4): '오늘은 N명이 함께 왔어요. 그때는 M명…' 인원 비교
 -- 문장 접어 두기 가족 설정. 가족마다 한 행(간단 우선):
 -- - party_line_hidden_places: 문장을 접어 둔 장소 id 목록(콤마 구분 텍스트. 장소 id에는
 --   콤마가 없으므로 별도 표 없이 충분하다)

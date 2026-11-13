@@ -15,7 +15,7 @@ import java.io.File
  * kotlinx.serialization 만 사용(org.json 은 JVM 스텁이라 금지).
  * 실제 시드 파일 검증은 src/main/assets/seed/seed.json 이 있을 때만 수행하고,
  * 없으면 Assume 으로 스킵한다(다른 소유 파일에 의존하지 않음).
- * 2026-11-10 지시서 기준: stamp_books / partners_demo / then_now_demo.label 과
+ * 2026-11-10 요구 문서 기준: stamp_books / partners_demo / then_now_demo.label 과
  * 도메인 Place·QuizItem 의 검수 플래그(coordVerified·narrationReviewed·reviewed)를 함께 검증한다.
  */
 class SeedRepositoryTest {

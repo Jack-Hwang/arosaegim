@@ -204,7 +204,7 @@ fun DiagnosticsScreen(vm: DiagnosticsViewModel) {
         }
 
         // ⑥ 기어 상태(Vehicle·Gear) — 01문서 10절: CarInfo 에 제조사·연식이 없어 기존 '차종·연식'
-        // 행을 대체한다. Gear 는 주행 판정의 보조 신호이며 병합 로직은 주행 state 담당(병렬 작업).
+        // 행을 대체한다. Gear 는 주행 판정의 보조 신호이며 병합 로직은 주행 state 담당(CombinedDrivingState).
         SectionHeader("⑥ 기어 상태 (Vehicle·Gear)")
         ImplVerifyTags(
             impl = "PleosVehicleInfoProvider.readGearStateOnly (표시 전용·저장 금지)",

@@ -1,0 +1,237 @@
+{
+  "feature": "F7",
+  "name": "가족 기록 서버·모바일 웹·물려주기",
+  "acs": [
+    {
+      "id": "ARO-F7-AC01",
+      "pattern": "event",
+      "text": "가족 코드·PIN 발급을 요청하면 서버는 8자리 가족 코드와 숫자 6자리 PIN을 새로 만들어 응답에 담아 돌려줍니다.",
+      "io": [
+        {"in": "가족 생성 요청(기기 식별값 포함)", "out": "가족 코드(8자리)+PIN(6자리) 응답, 이후 조회 응답에 PIN 평문은 다시 나오지 않음"}
+      ],
+      "verify": {
+        "kind": "code",
+        "refs": ["소스 backend/app/security.py(generate_family_code — 8자리 문자집합·generate_pin — 6자리 0채움)", "소스 backend/app/config.py(FAMILY_CODE_LENGTH=8)", "개발 기록 F58(서버 발급 코드 8자리 실측)"]
+      },
+      "status": "(설계)",
+      "numbers": ["8", "6"]
+    },
+    {
+      "id": "ARO-F7-AC02",
+      "pattern": "unwanted",
+      "text": "같은 기기 식별값으로 하루에 두 번째 가족 코드를 발급받으려 하면 서버는 429(device_limit)로 거부합니다.",
+      "io": [
+        {"in": "같은 기기 식별값으로 가족 생성 2회 요청(같은 날)", "out": "1회차 200 성공, 2회차 429 device_limit"}
+      ],
+      "verify": {
+        "kind": "server",
+        "refs": ["서버 시험 test_family_code_device_token_daily_limit"]
+      },
+      "status": "[코드 확인]",
+      "numbers": ["1", "429"]
+    },
+    {
+      "id": "ARO-F7-AC03",
+      "pattern": "unwanted",
+      "text": "PIN을 5회 연속 틀리면 서버는 10분간 그 가족의 요청을 429(family_locked)로 막고, 그 안에는 올바른 PIN을 보내도 막습니다.",
+      "io": [
+        {"in": "잘못된 PIN으로 5회 연속 조회", "out": "매번 401 invalid_pin"},
+        {"in": "잠금 후 올바른 PIN으로 조회", "out": "429 family_locked"}
+      ],
+      "verify": {
+        "kind": "server",
+        "refs": ["서버 시험 test_pin_locks_after_five_failures", "서버 시험 test_pin_lock_records_locked_until_in_future", "소스 backend/app/config.py(PIN_LOCK_ATTEMPTS=5·PIN_LOCK_MINUTES=10)"]
+      },
+      "status": "[코드 확인]",
+      "numbers": ["5", "10분", "429"]
+    },
+    {
+      "id": "ARO-F7-AC04",
+      "pattern": "state",
+      "text": "가족이 PIN 잠금 상태인 동안 서버는 코드 재발급 요청만 예외로 받아들이고, 그 외 요청은 429로 거부합니다.",
+      "io": [
+        {"in": "잠금 중 코드 재발급 요청(PIN 함께 전달)", "out": "PIN 검증 후 재발급 허용"},
+        {"in": "잠금 중 일반 조회 요청", "out": "429 family_locked"}
+      ],
+      "verify": {
+        "kind": "code",
+        "refs": ["소스 backend/app/security.py(rotate-code 전용 — 잠금 중에도 PIN 검증 허용 경로)", "서버 시험 test_pin_locks_after_five_failures(잠금 중 일반 요청 거부)"]
+      },
+      "status": "(설계)",
+      "numbers": []
+    },
+    {
+      "id": "ARO-F7-AC05",
+      "pattern": "unwanted",
+      "text": "X-Family-Pin 헤더 없이 가족 데이터를 조회하면 서버는 401(pin_required)로 거부합니다.",
+      "io": [
+        {"in": "PIN 헤더 없는 지표 조회", "out": "401 pin_required"}
+      ],
+      "verify": {
+        "kind": "server",
+        "refs": ["서버 시험 test_missing_pin_header_rejected"]
+      },
+      "status": "[코드 확인]",
+      "numbers": ["401"]
+    },
+    {
+      "id": "ARO-F7-AC06",
+      "pattern": "event",
+      "text": "같은 분(초 단위는 무시) 안에 같은 장소·코스 방문을 다시 보내면 서버는 새 방문을 만들지 않고 기존 방문과 같은 스탬프 번호를 돌려줍니다.",
+      "io": [
+        {"in": "14:30:00 방문 전송 후 14:30:59 같은 방문 재전송", "out": "두 요청 모두 같은 방문, 스탬프 번호 1로 동일, 타임라인에 1건"},
+        {"in": "14:30:00과 14:31:00(다른 분) 방문 전송", "out": "서로 다른 방문, 스탬프 번호 1→2"}
+      ],
+      "verify": {
+        "kind": "server",
+        "refs": ["서버 시험 test_same_minute_is_idempotent", "서버 시험 test_different_minute_creates_new_visit"]
+      },
+      "status": "[코드 확인]",
+      "numbers": ["1", "2"]
+    },
+    {
+      "id": "ARO-F7-AC07",
+      "pattern": "ubiquitous",
+      "text": "서버는 저장하는 모든 사진에서 EXIF(위치·시각 등 메타데이터)를 제거하고 다시 저장합니다.",
+      "io": [
+        {"in": "방향 정보(EXIF Orientation)가 든 JPEG 업로드", "out": "저장된 파일에서 EXIF Orientation 값 없음"}
+      ],
+      "verify": {
+        "kind": "server",
+        "refs": ["서버 시험 test_exif_is_stripped", "소스 backend/app/services/photos.py(저장 전 EXIF 제거)"]
+      },
+      "status": "[코드 확인]",
+      "numbers": []
+    },
+    {
+      "id": "ARO-F7-AC08",
+      "pattern": "unwanted",
+      "text": "가족에 보호자 동의를 아직 받지 못한 미성년 구성원이 있으면 서버는 그 가족의 사진 업로드를 403(guardian_consent_required)으로 거부합니다.",
+      "io": [
+        {"in": "미성년 구성원 등록 후 보호자 동의 전 사진 업로드", "out": "403 guardian_consent_required"},
+        {"in": "보호자 동의 기록 후 같은 가족에서 사진 업로드", "out": "200 성공"}
+      ],
+      "verify": {
+        "kind": "server",
+        "refs": ["서버 시험 test_minor_photo_requires_guardian_consent"]
+      },
+      "status": "[코드 확인]",
+      "numbers": ["403"]
+    },
+    {
+      "id": "ARO-F7-AC09",
+      "pattern": "optional",
+      "text": "미성년 구성원이 있는 경우에도 사진이 없는 기억 기록은 보호자 동의와 무관하게 허용됩니다.",
+      "io": [],
+      "verify": {
+        "kind": "server",
+        "refs": ["서버 시험 test_minor_photo_requires_guardian_consent"]
+      },
+      "status": "[코드 확인]",
+      "numbers": []
+    },
+    {
+      "id": "ARO-F7-AC10",
+      "pattern": "event",
+      "text": "가족 데이터 내보내기를 요청하면 서버는 timeline.json·README.html·photos 폴더가 든 ZIP 파일 하나를 돌려줍니다.",
+      "io": [
+        {"in": "기억 1건(사진 포함)+방문 1건 상태에서 내보내기 요청", "out": "ZIP 안에 timeline.json·README.html·photos 사진 1장"}
+      ],
+      "verify": {
+        "kind": "server",
+        "refs": ["서버 시험 test_export_zip_is_selfcontained", "서버 시험 test_export_contains_b1_b5_fields"]
+      },
+      "status": "[코드 확인]",
+      "numbers": []
+    },
+    {
+      "id": "ARO-F7-AC11",
+      "pattern": "ubiquitous",
+      "text": "서버는 가족 단위 지표 응답에 가족이 함께 달린 누적 거리를 포함하고, 같은 날 같은 코스 주행에서 나온 거리는 한 번만 더합니다.",
+      "io": [
+        {"in": "같은 날 같은 코스의 두 장소 방문에 각각 132.5km 기록", "out": "가족 누적 거리 132.5km(중복 합산 없음)"},
+        {"in": "다음 날 같은 코스를 100.0km로 다시 주행", "out": "가족 누적 거리 232.5km로 증가"}
+      ],
+      "verify": {
+        "kind": "server",
+        "refs": ["서버 시험 test_metrics_total_trip_km_dedup_same_course_run", "서버 시험 test_metrics_total_trip_km_respects_course_run_id"]
+      },
+      "status": "[코드 확인]",
+      "numbers": ["132.5", "232.5"]
+    },
+    {
+      "id": "ARO-F7-AC12",
+      "pattern": "event",
+      "text": "차량 화면은 방문 전송에 함께 온 인원·거리·코스 주행 식별자를 같이 보내고 서버는 이를 방문 기록에 저장합니다.",
+      "io": [
+        {"in": "party_size·trip_km·course_run_id를 넣은 방문 전송", "out": "200 성공, 저장된 방문에서 값 조회 가능"}
+      ],
+      "verify": {
+        "kind": "server",
+        "refs": ["서버 시험 test_visit_accepts_party_size_and_trip_km", "단위 테스트 VisitPayloadContractTest.`응답 계약 - 실측 응답의 visit_id와 stamp_no 는 정수로 읽힌다`"]
+      },
+      "status": "[코드 확인]",
+      "numbers": []
+    },
+    {
+      "id": "ARO-F7-AC13",
+      "pattern": "event",
+      "text": "관리자(owner) 구성원이 다른 구성원을 이어받을 사람으로 지정하면 서버는 그 구성원의 역할을 바꾸고, 이전에 지정돼 있던 사람은 일반 구성원으로 되돌립니다.",
+      "io": [
+        {"in": "첫 구성원이 두 번째 구성원을 이어받을 사람으로 지정", "out": "두 번째 구성원 역할 = 이어받을 사람"},
+        {"in": "다른 구성원으로 재지정", "out": "이전 지정자는 일반 구성원으로 복귀, 새 지정자만 이어받을 사람"}
+      ],
+      "verify": {
+        "kind": "server",
+        "refs": ["서버 시험 test_heir_and_handover_flow", "서버 시험 test_heir_reassign_to_another_member"]
+      },
+      "status": "[코드 확인]",
+      "numbers": []
+    },
+    {
+      "id": "ARO-F7-AC14",
+      "pattern": "unwanted",
+      "text": "관리자 권한이 없는 PIN으로 이어받을 사람 지정을 요청하면 서버는 403(not_owner)으로 거부하고, PIN 헤더 자체가 없으면 401(pin_required)로 거부합니다.",
+      "io": [
+        {"in": "틀린 PIN으로 이어받을 사람 지정 요청", "out": "403 not_owner"},
+        {"in": "PIN 헤더 없이 같은 요청", "out": "401 pin_required"}
+      ],
+      "verify": {
+        "kind": "server",
+        "refs": ["서버 시험 test_heir_owner_auth_failure_is_403"]
+      },
+      "status": "[코드 확인]",
+      "numbers": ["403", "401"]
+    },
+    {
+      "id": "ARO-F7-AC15",
+      "pattern": "event",
+      "text": "차량 화면에서 코스를 완주한 직후(주행 중이 아니고, 이어받을 사람이 아직 없고, 지정할 구성원이 있을 때) 앱은 이어받을 사람을 묻는 질문을 보여줍니다.",
+      "io": [
+        {"in": "완주 + 비주행 + 이어받을 사람 미지정 + 구성원 있음", "out": "질문 표시"},
+        {"in": "같은 조건이지만 주행 중", "out": "질문 표시 안 함"}
+      ],
+      "verify": {
+        "kind": "unit",
+        "refs": ["단위 테스트 HeirQuestionTest.`완주 비주행 미지정 구성원있음이면 물어본다`", "단위 테스트 HeirQuestionTest.`주행 중에는 물어보지 않는다`", "단위 테스트 HeirQuestionTest.`이미 정해져 있으면 다시 물어보지 않는다 - 재문 금지 조건`"]
+      },
+      "status": "[코드 확인]",
+      "numbers": []
+    },
+    {
+      "id": "ARO-F7-AC16",
+      "pattern": "unwanted",
+      "text": "PIN이 세션 메모리에서 사라진 뒤(앱을 다시 켠 경우 등) 코스를 완주하면 앱은 서버 호출을 시도하지 않고 \"스마트폰의 가족 관리에서 정해 주세요\" 안내로 전환합니다.",
+      "io": [
+        {"in": "가족 연결됨 + PIN 없음 + 완주", "out": "안내 카드로 전환(질문 대신)"},
+        {"in": "가족 연결됨 + PIN 있음 + 완주", "out": "평소의 이어받을 사람 질문 경로"}
+      ],
+      "verify": {
+        "kind": "unit",
+        "refs": ["단위 테스트 HeirPinGuideTest.`가족에 연결됐고 PIN이 없으면 완주 직후 안내로 전환한다`", "단위 테스트 HeirPinGuideTest.`PIN이 있으면 안내가 아니라 정책 경로다`"]
+      },
+      "status": "[코드 확인]",
+      "numbers": []
+    }
+  ]
+}

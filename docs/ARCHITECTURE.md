@@ -21,7 +21,7 @@
 첫째, SDK 호출은 모두 어댑터(포트) 인터페이스 뒤에 숨겼다. SDK 상태가 불확실해도 앱 전체가 멈추지 않는다.
 둘째, 앱은 서버 없이 내장 시드만으로 핵심 흐름이 끝까지 동작한다.
 셋째, 도착 판정·스탬프·퀴즈 상태 같은 규칙은 안드로이드 의존 없는 순수 Kotlin으로 분리해
-72개 단위 테스트로 검증했다(DEV_LOG 테스트 기록).
+190개 단위 테스트로 검증했다(DEV_LOG 테스트 기록).
 
 **실측까지 끝냈다.**
 Pleos Connect 에뮬레이터 v2.1.0에서 스모크 테스트 U1~U14를 실측했다.
@@ -97,7 +97,7 @@ ui/
 
 [시드] assets/seed/seed.json → SeedRepository(kotlinx.serialization) → 코스·퀴즈·스탬프북·제휴처·heritage·음성 편지
 [서버] http://10.0.2.2:8000 (ApiClient) — 방문은 X-Family-Code 헤더로 POST /v1/visits.
-       백엔드 라우터 10개: families·courses·places·visits·memories·rewards·members·stamps·points·metrics
+       백엔드 라우터 11개: families·courses·places·visits·memories·rewards·members·stamps·points·metrics·preferences
        + ratelimit(기기당 코드 생성 하루 1회·IP 상한), services: then_now·points(순수 함수)·photos·album
 [웹]   /web 정적 서빙 — 7화면(가족코드·동의·코스·그때 기록·타임라인·가족 관리·영수증)
 ```
@@ -368,7 +368,7 @@ VIN/CRN capability와 조회 메서드뿐이고 제조사·연식 getter는 존�
 **Q9. 왜 어댑터(포트)를 두었나?**
 SDK 동작이 불확실해도 앱이 멈추지 않게 하기 위해서다(00문서 2-3 #10).
 포트 하나에 Pleos 구현과 대체 구현을 두고, 시작 시 초기화 성공 여부로 선택해 사유를 기록한다(5절 표).
-부작용으로 순수 Kotlin 규칙과 SDK 결합이 분리되어 단위 테스트가 쉬워졌다(72개).
+부작용으로 순수 Kotlin 규칙과 SDK 결합이 분리되어 단위 테스트가 쉬워졌다(190개).
 
 **Q10. JSON 라이브러리로 kotlinx.serialization을 쓴 이유는?**
 org.json은 JVM 단위 테스트에서는 스텁이라 시드 파싱 테스트(SeedRepository)를 돌리려면
@@ -437,7 +437,7 @@ Back 키는 finish() 대신 moveTaskToBack(true)로 태스크를 보존해 재�
 ```bash
 cd android
 ./gradlew clean testDebugUnitTest assembleDebug
-# 기대 결과: BUILD SUCCESSFUL, 단위 테스트 179/179
+# 기대 결과: BUILD SUCCESSFUL, 단위 테스트 190/190
 #  SeedRepository·CourseProgress·Haversine·ModeStateMachine·StampBook(9)·StampEngine(6)
 #  ThenNowResolver(12)·TripSession(+tripKm/partySize 10케이스)·FamilyCodeValidator 등
 ```
@@ -462,7 +462,7 @@ pytest                                # 기대: 51/51 (then_now·멱등·숙소 
 
 ### 10-3. 에뮬레이터 실행 (Pleos Connect v2.1.0)
 
-1. AVD: Automotive + Pleos Connect v2.1.0, **Cold boot 필수**, RAM 4096MB 이상 (`glm/05_INSTALL_EMULATOR.md` 참고 — Android Studio 없이도 구축 가능, F28)
+1. AVD: Automotive + Pleos Connect v2.1.0, **Cold boot 필수**, RAM 4096MB 이상 (절차는 `docs/EMULATOR_SETUP.md` — Android Studio 없이도 구축 가능, `docs/DEV_LOG.md` F28)
 2. 설치: `adb install -r app/build/outputs/apk/debug/app-debug.apk`
 3. 권한: `powershell ./tools/grant-permissions.ps1 -Package app.arosaegim`
    (dangerous 권한 UI 크래시 방지 — `pm grant --user 10` 사용)

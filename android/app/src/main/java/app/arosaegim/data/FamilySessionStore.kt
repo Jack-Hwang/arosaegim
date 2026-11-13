@@ -18,7 +18,7 @@ import kotlinx.coroutines.flow.asStateFlow
  * 규칙(00문서 T9-1·02문서 3-2): 가족 코드는 영숫자. VIN·실명 같은 개인 식별
  * 정보를 코드로 쓰지 않는다 — 코드는 '가족을 식별하는 용도'일 뿐이다.
  *
- * [F58 실측] 서버가 발급하는 코드는 8자리(예: 8XTPUG8N)다. 웹 초창기 가정(6자리)과의
+ * [F58 실측] 서버가 발급하는 코드는 8자리(예: A37K9Q2M)다. 웹 초창기 가정(6자리)과의
  * 호환을 위해 6~8자리를 모두 허용한다.
  */
 object FamilyCodeValidator {
@@ -40,6 +40,14 @@ object FamilyCodeValidator {
  * 재입력이 필요하다(휘발성 설계의 의도).
  *
  * 값 규칙: 공백만 있는 값은 '없음'과 같다(null 로 취급). 앞뒤 공백은 잘라 보관한다.
+ *
+ * 거절 상태(2026-11-13): 서버가 'PIN이 틀렸다'(401 invalid_pin)고 답한 PIN 을 세션 메모리에
+ * 남겨 두면, 도착마다 전송 큐(VisitQueue)·정차 화면 조회가 같은 틀린 PIN 을 반복 보내 서버의
+ * 실패 횟수(PIN_LOCK_ATTEMPTS=5)를 올리고 가족 전체를 10분 잠근다(PIN_LOCK_MINUTES=10).
+ * [markRejected] 로 거절을 표시하면 PIN 값도 메모리에서 즉시 지워 [pinOrNull] 이 null 이 된다
+ * — ApiClient 헤더 구성·VisitQueue flush·정차 화면 조회가 전부 재전송을 멈춘다. 거절 상태는
+ * PIN 해제([clearPin]·[clear])와 새 PIN 입력([setPin])에서 풀린다 — 사용자가 다시 입력하면
+ * 재개다. 거절 표시도 메모리 전용이며 저장·로그 경로가 없다(00문서 10.6 동일 규약).
  */
 class SessionCredentials(familyCode: String? = null, pin: String? = null) {
 
@@ -47,6 +55,9 @@ class SessionCredentials(familyCode: String? = null, pin: String? = null) {
 
     /** PIN 은 세션 메모리에만 존재한다 — 직렬화·저장·로그 경로가 이 클래스에는 없다. */
     @Volatile private var pin: String? = pin?.trim()?.takeIf { it.isNotEmpty() }
+
+    /** 서버가 거부한 PIN 을 보관 중인가. PIN 이 없으면(입력 전·해제) 거절은 의미가 없다. */
+    @Volatile private var rejected = false
 
     fun codeOrNull(): String? = code
 
@@ -56,21 +67,48 @@ class SessionCredentials(familyCode: String? = null, pin: String? = null) {
         code = newCode.trim().takeIf { it.isNotEmpty() }
     }
 
-    /** PIN 설정(덮어쓴다). 저장 계층이 아니므로 프로세스가 끝나면 사라진다. */
+    /**
+     * PIN 설정(덮어쓴다). 저장 계층이 아니므로 프로세스가 끝나면 사라진다.
+     * 새 PIN 입력은 거절 상태를 해제한다 — 사용자가 다시 입력했으면 재개다.
+     */
+    @Synchronized
     fun setPin(newPin: String) {
         pin = newPin.trim().takeIf { it.isNotEmpty() }
+        rejected = false
     }
 
-    /** PIN 만 해제한다 — 가족 코드는 유지한다(부분 갱신). */
+    /** PIN 만 해제한다 — 가족 코드는 유지한다(부분 갱신). 거절 상태도 함께 풀린다. */
+    @Synchronized
     fun clearPin() {
         pin = null
+        rejected = false
     }
 
-    /** 코드·PIN 을 모두 해제한다(로그아웃). */
+    /** 코드·PIN 을 모두 해제한다(로그아웃). 거절 상태도 함께 풀린다. */
+    @Synchronized
     fun clear() {
         code = null
         pin = null
+        rejected = false
     }
+
+    /**
+     * 서버가 거부한 PIN 을 거절 표시한다. PIN 값은 메모리에서도 즉시 지운다(다시 보낼
+     * 이유가 없다). [rejectedPin] 을 넘기면 '지금 세션에 있는 PIN 이 그 값일 때만' 표시한다 —
+     * 네트워크 응답(거절)이 사용자의 새 입력보다 늦게 도착했을 때 새 PIN 을 함부로 지우지
+     * 않게 하는 안전장치다. PIN 이 없거나(입력 전·해제) 새 값이 이미 들어왔으면 아무 일도
+     * 하지 않는다. 값 비교만 하고 저장·로그는 하지 않는다(00문서 10.6).
+     */
+    @Synchronized
+    fun markRejected(rejectedPin: String? = null) {
+        if (pin == null) return
+        if (rejectedPin != null && pin != rejectedPin) return // 이미 새 PIN — 새 값은 거르지 않는다.
+        pin = null // 값을 먼저 치운다 — [pinOrNull] 은 한 번의 읽기로 항상 일관된다.
+        rejected = true
+    }
+
+    /** 서버가 거부한 PIN 을 보관 중인가([setPin]·[clearPin]·[clear] 로 해제된다). */
+    fun isRejected(): Boolean = rejected
 }
 
 /**
@@ -89,7 +127,7 @@ class SessionCredentials(familyCode: String? = null, pin: String? = null) {
  *  - guestMode('가족 없이 둘러보기')는 데모/개인 모드 — 기록은 이 차에만 저장된다.
  *
  * 인스턴스화 규약: 이 클래스는 AppContainer 밖에서 직접 만든다. AppContainer 는
- * 다른 작업과 병렬 수정 중이라 건드리지 않기 위함이며, SharedPreferences 를 공유하므로
+ * 다른 작업과 동시에 수정 중이라 건드리지 않기 위함이며, SharedPreferences 를 공유하므로
  * 인스턴스가 여러 개여도 저장 상태는 서로 일치한다(메모리 StateFlow 만 인스턴스별이다).
  */
 class FamilySessionStore(context: Context) {
@@ -161,13 +199,39 @@ class FamilySessionStore(context: Context) {
         sessionCredentials.clearPin()
     }
 
-    /** 현재 세션 PIN(없으면 null) — ApiClient 헤더(X-Family-Pin) 구성용. 재시작 후에는 null. */
+    /** 현재 세션 PIN(없으면 null) — ApiClient 헤더(X-Family-Pin) 구성용. 재시작 후에는 null.
+     *  서버가 거부한 PIN 이 거절 표시 중이면(2026-11-13) null — 헤더·큐·화면 조회가 재전송을
+     *  멈춘다. */
     fun pinOrNull(): String? = sessionCredentials.pinOrNull()
 
-    private companion object {
-        const val PREFS_NAME = "family_session"
-        const val KEY_CODE = "family_code"
-        const val KEY_GUEST = "guest_mode"
+    /**
+     * 세션 PIN 거절 표시(2026-11-13 — 방문 전송 경로의 안전장치). 서버가 'PIN이 틀렸다'
+     * (401·403 → [AuthException])고 답했을 때 호출한다. 세션 PIN 이 메모리에서 지워져
+     * [pinOrNull] 이 null 이 되고, 거절 상태는 [setPin]·[clearPin]·[signOut] 에서 풀린다.
+     * [rejectedPin] 은 거부된 PIN 값(선택) — 지금 세션 PIN 이 그 값일 때만 표시한다.
+     */
+    fun markPinRejected(rejectedPin: String? = null) {
+        sessionCredentials.markRejected(rejectedPin)
+    }
+
+    /** 세션 PIN 거절 여부(2026-11-13). 거절 표시 중이면 true — [setPin] 으로 해제된다. */
+    fun isPinRejected(): Boolean = sessionCredentials.isRejected()
+
+    companion object {
+
+        /**
+         * 프로세스 전역 세션 PIN 거절 표시(2026-11-13). [VisitQueue] 의 거절 콜백 기본값이
+         * 쓴다 — 큐는 세션 저장소 인스턴스를 갖지 않으므로 companion 경유로 표시한다(세션
+         * PIN 이 companion 보관이라 인스턴스가 달라도 같은 상태를 보는 기존 규약과 같다).
+         * 메모리 전용 — 저장·로그 경로가 없다(00문서 10.6).
+         */
+        fun rejectSessionPin(rejectedPin: String? = null) {
+            sessionCredentials.markRejected(rejectedPin)
+        }
+
+        private const val PREFS_NAME = "family_session"
+        private const val KEY_CODE = "family_code"
+        private const val KEY_GUEST = "guest_mode"
 
         /**
          * 휘발성 세션 PIN 의 보관 장소(companion — 프로세스 수명의 메모리).
@@ -177,6 +241,6 @@ class FamilySessionStore(context: Context) {
          * setPin 하는 인스턴스와 pinOrNull 읽는 인스턴스가 달라도 같은 값을 본다(헤더 구성이
          * 어긋나 T9-3·T12 호출이 조용히 실패하는 것을 막는다). 프로세스가 죽으면 사라진다.
          */
-        val sessionCredentials = SessionCredentials()
+        private val sessionCredentials = SessionCredentials()
     }
 }

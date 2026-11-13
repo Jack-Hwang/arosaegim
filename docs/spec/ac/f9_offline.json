@@ -1,0 +1,182 @@
+{
+  "feature": "F9",
+  "name": "오프라인·대체 구현(포트·폴백)",
+  "acs": [
+    {
+      "id": "ARO-F9-AC01",
+      "pattern": "state",
+      "text": "서버가 없어도 앱은 APK에 내장한 시드(JSON)만으로 코스·퀴즈·스탬프북·제휴처를 읽고 스탬프→기록→음성→그때와 지금 흐름을 동작합니다.",
+      "io": [
+        {"in": "시드 파일 로드(서버 없음)", "out": "장소 3개·장소별 퀴즈 2개·스탬프북 1개·제휴처 4개·음성 편지 1개로 파싱"}
+      ],
+      "verify": {
+        "kind": "unit",
+        "refs": ["단위 테스트 SeedRepositoryTest.realSeedFile_parsesToExpectedContent(장소 3개·퀴즈 6문항·제휴처 4개 단언)", "소스 app/src/main/java/app/arosaegim/data/SeedRepository.kt", "소스 docs/ARCHITECTURE.md 9절 Q6"]
+      },
+      "status": "[코드 확인]",
+      "numbers": ["3", "2", "4", "1"]
+    },
+    {
+      "id": "ARO-F9-AC02",
+      "pattern": "unwanted",
+      "text": "시드 파일이 깨져 있어도 앱은 빈 코스로 복구하고 크래시하지 않습니다.",
+      "io": [
+        {"in": "형식이 깨진 시드 문자열 파싱", "out": "빈 내용 반환, 예외 전파 없음"}
+      ],
+      "verify": {
+        "kind": "unit",
+        "refs": ["단위 테스트 SeedRepositoryTest.corruptJson_returnsEmptyContentWithoutCrash(깨진 JSON → 빈 내용, 예외 없음)"]
+      },
+      "status": "[코드 확인]",
+      "numbers": []
+    },
+    {
+      "id": "ARO-F9-AC03",
+      "pattern": "event",
+      "text": "내비 초기화가 늦게 성공하면 앱은 대체 경로 구현에서 실제 구현으로 한 번만 전환하고, 전환 시점에 진행 중 목표로 경로를 다시 요청합니다.",
+      "io": [
+        {"in": "초기 Fake 선택 후 실제 구현의 늦은 ok 콜백", "out": "실제 구현으로 전환, 진행 중 목표 경로 재요청"},
+        {"in": "전환 후 두 번째 전환 시도", "out": "무시(일방향)"}
+      ],
+      "verify": {
+        "kind": "unit",
+        "refs": ["단위 테스트 SwitchableRouteServiceTest.`6_감시기는 늦은 ok에서 전환하고 콜백을 부른다`", "단위 테스트 SwitchableRouteServiceTest.`3_재전환은 일방향 — 두 번째 switchTo는 전부 무시된다`", "단위 테스트 TripSessionTest.`11_경로가 늦게 준비되면 전환 시점에 현재 목표를 다시 요청한다`"]
+      },
+      "status": "[코드 확인]",
+      "numbers": []
+    },
+    {
+      "id": "ARO-F9-AC04",
+      "pattern": "unwanted",
+      "text": "내비 초기화가 실패로 끝나면 앱은 대체 경로 구현을 유지하고 실제 구현으로 전환하지 않습니다.",
+      "io": [
+        {"in": "실제 구현의 늦은 failed 콜백", "out": "대체(Fake) 구현 유지, 전환 없음"}
+      ],
+      "verify": {
+        "kind": "unit",
+        "refs": ["단위 테스트 SwitchableRouteServiceTest.`7_감시기는 늦은 failed에서 전환하지 않고 Fake를 유지한다`"]
+      },
+      "status": "[코드 확인]",
+      "numbers": []
+    },
+    {
+      "id": "ARO-F9-AC05",
+      "pattern": "event",
+      "text": "포트 선택은 시작 때 즉시 판정하므로 콜드 부팅 직후 첫 실행도 앱이 멈추지 않고 열립니다.",
+      "io": [
+        {"in": "콜드 부팅 직후 첫 실행 2회", "out": "시작 완료 8.1~8.5초, ANR 0"}
+      ],
+      "verify": {
+        "kind": "emulator",
+        "refs": ["개발 기록 F61(콜드 스타트 교착 해소 — 동기 즉시 판정·늦은 초기화 일방향 업그레이드, TotalTime 8.1~8.5초 실측)"]
+      },
+      "status": "[확인]",
+      "numbers": ["8.1~8.5초", "0"]
+    },
+    {
+      "id": "ARO-F9-AC06",
+      "pattern": "unwanted",
+      "text": "포트 초기화 실패 시 앱은 대체 구현을 선택하고 선택 사유를 진단 화면에 표시합니다.",
+      "io": [
+        {"in": "내비 초기화 콜백 지연 → 포트 선택", "out": "대체(Fake) 구현 선택, 선택 사유 기록"},
+        {"in": "음성 초기화 실패·미확인", "out": "대체 구현 선택, 선택 사유 기록"},
+        {"in": "예시 오디오 파일 미준비", "out": "음성 편지 폴백(isAvailable=false) 선택"}
+      ],
+      "verify": {
+        "kind": "emulator",
+        "refs": ["개발 기록 F50(진단 화면이 어댑터 표를 구현/검증 분리로 렌더링하는 것 실측)", "개발 기록 F54(음성 합성 두 경로 초기화 실패 실측)", "개발 기록 F29(주행 규제 구현 등록 성공 실측)", "소스 docs/ARCHITECTURE.md 5절(실측 선택 결과 표)"]
+      },
+      "status": "[확인]",
+      "numbers": []
+    },
+    {
+      "id": "ARO-F9-AC07",
+      "pattern": "unwanted",
+      "text": "대체 구현이 선택돼 있으면 진단 화면과 화면 꼬리표가 그 사실을 보여주고, 대체 구현으로 찍은 영상을 실제 SDK 동작처럼 표기하지 않습니다.",
+      "io": [
+        {"in": "대체 구현 선택 상태", "out": "진단 화면 표·화면 꼬리표에 대체 사용 표시"}
+      ],
+      "verify": {
+        "kind": "code",
+        "refs": ["소스 docs/ARCHITECTURE.md 5절(대체 구현이 쓰이는 동안의 표시)", "소스 app/src/main/java/app/arosaegim/AppContainer.kt(adapterNotes)"]
+      },
+      "status": "(설계)",
+      "numbers": []
+    },
+    {
+      "id": "ARO-F9-AC08",
+      "pattern": "unwanted",
+      "text": "방문 전송이 실패해도 앱은 기록을 대기열에 유지하고, 다음 도착 시 대기열 순서대로 재전송합니다. 같은 멱등키의 중복 적재는 무시합니다.",
+      "io": [
+        {"in": "flush 실패", "out": "대기열 항목 유지"},
+        {"in": "대기열에 실패 건이 남은 상태에서 다음 도착", "out": "FIFO 순서대로 이어서 재전송"},
+        {"in": "같은 멱등키로 재적재 시도", "out": "무시"}
+      ],
+      "verify": {
+        "kind": "unit",
+        "refs": ["단위 테스트 VisitQueueTest.`3_flush 실패시 항목이 큐에 유지된다`", "단위 테스트 VisitQueueTest.`5_flush는 FIFO 순서를 지키고 부분 실패 후 이어서 재전송한다`", "단위 테스트 VisitQueueTest.`1_같은 멱등키의 중복 enqueue는 무시된다`", "개발 기록 F82(flush는 도착 1건당 1회 — 공회전 폴링 없음)"]
+      },
+      "status": "[코드 확인]",
+      "numbers": []
+    },
+    {
+      "id": "ARO-F9-AC09",
+      "pattern": "unwanted",
+      "text": "대기열에 넣은 PIN은 파일에 저장되지 않고 전송 요청 헤더로만 쓰입니다.",
+      "io": [
+        {"in": "PIN을 넘겨 대기열에 적재", "out": "대기열 파일에 PIN 없음"},
+        {"in": "전송(flush) 시점", "out": "세션 PIN이 X-Family-Pin 헤더로 전달"}
+      ],
+      "verify": {
+        "kind": "unit",
+        "refs": ["단위 테스트 VisitQueueTest.`7_enqueue 로 받은 PIN 은 파일에 저장되지 않고 전송에만 쓰인다`", "단위 테스트 VisitQueueTest.`6_pin 공급자의 세션 PIN 이 X-Family-Pin 값으로 전달된다`"]
+      },
+      "status": "[코드 확인]",
+      "numbers": []
+    },
+    {
+      "id": "ARO-F9-AC10",
+      "pattern": "state",
+      "text": "릴리스 앱은 평문 HTTP가 기본 금지이고 데모 서버 주소(10.0.2.2·localhost)만 예외로 허용합니다.",
+      "io": [
+        {"in": "릴리스 APK에서 http://10.0.2.2:8000 방문 전송", "out": "요청이 서버에 도달(수정 전에는 전부 차단됐음)"}
+      ],
+      "verify": {
+        "kind": "emulator",
+        "refs": ["소스 android/app/src/main/res/xml/network_security_config.xml(10.0.2.2·localhost만 허용)", "개발 기록 F71(릴리스 클리어텍스트 차단 발견·수정 후 재실측 — POST /v1/visits 도달 확인)"]
+      },
+      "status": "[확인]",
+      "numbers": []
+    },
+    {
+      "id": "ARO-F9-AC11",
+      "pattern": "event",
+      "text": "진단 관찰이 중단돼도 앱은 재감시 호출로 여정 감시와 도착 판정을 복구합니다.",
+      "io": [
+        {"in": "감지기가 외부에서 중단된 뒤 rewatch 호출", "out": "현재 목표 감시·도착 판정 복구"},
+        {"in": "세션 수집이 중단된 뒤 rewatch 호출", "out": "수집과 감시가 함께 복구"}
+      ],
+      "verify": {
+        "kind": "unit",
+        "refs": ["단위 테스트 TripSessionTest.`12_외부에서 감지기가 stop돼도 rewatch하면 현재 목표 감시와 도착 판정이 복구된다`", "단위 테스트 TripSessionTest.`13_세션 수집이 중단된 뒤 rewatch하면 수집과 감시가 함께 복구된다`", "개발 기록 F67"]
+      },
+      "status": "[코드 확인]",
+      "numbers": []
+    },
+    {
+      "id": "ARO-F9-AC12",
+      "pattern": "state",
+      "text": "포트 전환은 일방향이고 초기 대체 구현 자신으로의 전환은 무시합니다.",
+      "io": [
+        {"in": "대체 구현으로 이미 전환한 뒤 같은 구현으로 재전환", "out": "무시"},
+        {"in": "초기 위임자 자신으로 전환 시도", "out": "무시"}
+      ],
+      "verify": {
+        "kind": "unit",
+        "refs": ["단위 테스트 SwitchableRouteServiceTest.`3_재전환은 일방향 — 두 번째 switchTo는 전부 무시된다`", "단위 테스트 SwitchableRouteServiceTest.`4_초기 위임자 자신으로의 전환은 무시된다`", "단위 테스트 SwitchableNarratorTest.`전환은 일방향 - ready가 false로 되돌아가도 Pleos를 유지한다`"]
+      },
+      "status": "[코드 확인]",
+      "numbers": []
+    }
+  ]
+}

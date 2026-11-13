@@ -30,6 +30,17 @@ private data class QueuedVisit(
 )
 
 /**
+ * PIN 거절(2026-11-13 — 방문 전송 경로의 안전장치 전용 실패). 서버가 가족 코드·PIN 이 모두
+ * 실린 전송을 거부했거나(401·403 — [AuthException]), 서버가 거부한 조합의 자동 재전송을
+ * [VisitQueue] 가 막았을 때 flush 의 실패 타입으로 돌아온다. 호출부(TripSession)는 이 타입을
+ * 보고 화면 한 줄에 'PIN 재입력' 안내를 고른다. 메시지에 가족 코드·PIN 은 담지 않는다.
+ */
+class PinRejectedException(
+    message: String = "PIN이 거부됐습니다(재입력 필요)",
+    cause: Throwable? = null,
+) : Exception(message, cause)
+
+/**
  * 오프라인 전송 큐(T8) — 서버에 아직 못 보낸 방문 기록을 로컬 파일에 보존한다.
  *
  * 설계 의도(02문서 4절: "전송 실패 시 로컬 큐, 다음 기회 재전송"):
@@ -59,15 +70,33 @@ private data class QueuedVisit(
  *    '전송 트리거 횟수'(= enqueue 횟수)다 — 백그라운드 폴링으로 소모되지 않는다.
  *  - 이 절은 확인 결과의 문서화만이다. 오프라인 우선 계약 보호를 위해 로직은 변경하지 않았다.
  *
+ * PIN 오입력 반복 방지(E⑤, 2026-11-13): 서버가 가족 코드·PIN 이 모두 실린 전송을 거부하면
+ * (401·403 → [AuthException] — 서버 계약상 'PIN이 틀렸다'의 신호이며 실패 1회를 기록한다),
+ *  1. 거부된 (가족 코드, PIN) 조합을 메모리에 기록하고([rejectedPair] — 파일에 쓰지 않는다),
+ *  2. 메모리에 묶어 둔 같은 값의 PIN([pendingPins])을 치워 재입력된 새 값이 흐르게 하고,
+ *  3. 세션 자격 증명에도 거절을 표시한다([onAuthRejected] — 기본값은 FamilySessionStore 의
+ *     프로세스 전역 표시. 현재 세션 PIN 이 거부된 값과 같을 때만 — 사용자가 이미 새 PIN 을
+ *     넣었으면 새 값은 거르지 않는다).
+ * 이후 flush 는 그 조합을 다시 보내지 않는다 — 같은 코드에 PIN 이 없으면(재입력 전) 전송을
+ * 생략하고([PinRejectedException] 으로 큐를 보존한 채 실패로 답한다), 다른 PIN 이 들어오면
+ * 재개한다. 이 안전장치 없이는 도착마다 같은 틀린 PIN 이 재전송돼 서버 실패 횟수(5회)를
+ * 채우고 가족 전체가 10분 잠긴다. 큐 파일은 절대 지우지 않는다(재입력 후 재전송 계약 유지).
+ *
  * @param file        visit_queue.json 파일(테스트는 임시 파일을 직접 지정한다).
  * @param api         전송 담당 클라이언트. flush 가 유일한 호출자다.
  * @param pinProvider 전송 시점의 세션 PIN 공급자(예: { sessionStore.pinOrNull() }).
  *                    null·빈값이면 X-Family-Pin 없이 보낸다(서버 401 — 큐는 보존된다).
+ * @param onAuthRejected 서버 거부 시 거절을 표시하는 콜백(거부된 PIN 값 인자). 기본값은
+ *                    FamilySessionStore.rejectSessionPin — 프로세스 전역 세션 자격 증명에
+ *                    표시한다(큐는 저장소 인스턴스를 갖지 않으므로 companion 경유).
  */
 open class VisitQueue(
     private val file: File,
     private val api: ApiClient,
     private val pinProvider: () -> String? = { null },
+    private val onAuthRejected: (rejectedPin: String) -> Unit = { rejectedPin ->
+        FamilySessionStore.rejectSessionPin(rejectedPin)
+    },
 ) {
 
     /** 앱에서 쓰는 표준 생성자 — filesDir/visit_queue.json 을 가리킨다. */
@@ -85,6 +114,13 @@ open class VisitQueue(
      * (00문서 10.6). flush 가 성공해 큐에서 빠지거나 clear 되면 함께 지운다.
      */
     private val pendingPins = mutableMapOf<String, String>()
+
+    /**
+     * 서버가 거부한 (가족 코드, PIN) 조합의 마지막 기록(E⑤). 메모리 전용 — 파일에 쓰지 않는다.
+     * null = 거부 기록 없음. 같은 코드의 항목은 이 조합으로 다시 보내지 않는다(클래스 주석 E⑤).
+     */
+    @Volatile
+    private var rejectedPair: Pair<String, String>? = null
 
     private val _pending = MutableStateFlow(0)
 
@@ -139,9 +175,11 @@ open class VisitQueue(
     /**
      * 큐의 앞에서부터 순서대로 전송한다. 성공한 항목만 큐에서 제거하고, 하나라도 실패하면
      * 중단해 나머지를 유지한다(재전송 대기). 서버가 없으면 첫 항목에서 실패로 끝난다.
+     * 서버가 거부한 (가족 코드, PIN) 조합은 다시 보내지 않는다(E⑤ — 클래스 주석 참조).
      *
      * @return 성공 시 전송한 건수, 실패 시 Result.failure(전송된 건수는 유실되지 않는다 —
-     *         이미 큐에서 제거됐으므로 pendingCount 가 사실을 유지한다).
+     *         이미 큐에서 제거됐으므로 pendingCount 가 사실을 유지한다). 거절 관련 실패는
+     *         [PinRejectedException], 그 외는 원래 예외다.
      */
     open suspend fun flush(): Result<Int> = withContext(Dispatchers.IO) {
         // 전송 루프 전에 스냅샷을 읽는다. 루프 중 enqueue 되는 항목은 다음 flush 가 맡는다.
@@ -165,6 +203,18 @@ open class VisitQueue(
             // 전송 순간에 다시 읽는 이유 — 도착 때 PIN 이 없었다가 재입력돼 있을 수 있기 때문이다.
             val key = item.idempotencyKey()
             val pin = synchronized(lock) { pendingPins[key] } ?: pinProvider()
+
+            // E⑤ 안전장치: 서버가 거부한 조합은 다시 보내지 않는다. 같은 가족 코드의 항목이
+            // PIN 없이(재입력 전) 오거나 거부된 값 그대로 오면 전송 자체를 생략한다 — 서버의
+            // 실패 횟수를 올리지 않고, 큐는 그대로 보존한다. 다른 PIN 이 들어왔으면(재입력)
+            // 이 분기에 걸리지 않아 재개된다.
+            val latch = synchronized(lock) { rejectedPair }
+            if (latch != null && latch.first == item.familyCode &&
+                (pin.isNullOrBlank() || pin == latch.second)
+            ) {
+                return@withContext Result.failure(PinRejectedException("PIN 재입력 대기 중"))
+            }
+
             val result = try {
                 api.postVisit(item.toPayload(), item.familyCode, pin)
             } catch (t: Throwable) {
@@ -172,13 +222,31 @@ open class VisitQueue(
                 Result.failure(t)
             }
             if (result.isFailure) {
+                val failure = result.exceptionOrNull() ?: IOException("전송 실패")
+                // 가족 코드·PIN 이 모두 실린 전송만 'PIN 거부'로 본다 — 둘 중 하나가 빠진 401 은
+                // 서버가 PIN 을 검증하기 전의 거절(코드·PIN 헤더 누락)이라 실패 횟수와 무관하다.
+                val rejectedCode = item.familyCode?.takeIf { it.isNotBlank() }
+                val rejectedPin = pin?.takeIf { it.isNotBlank() }
+                if (failure is AuthException && rejectedCode != null && rejectedPin != null) {
+                    // 서버가 (가족 코드, PIN) 조합을 거부했다(실패 1회 기록 — 반복하면 잠금).
+                    // 같은 조합의 자동 재전송을 멈춘다: 조합 기록 → 메모리 PIN 치우기 → 세션
+                    // 거절 표시(현재 세션 PIN 이 이 값일 때만). 큐는 유지된다(재입력 후 재전송).
+                    synchronized(lock) {
+                        rejectedPair = Pair(rejectedCode, rejectedPin)
+                        pendingPins.entries.removeAll { it.value == rejectedPin }
+                    }
+                    if (rejectedPin == pinProvider()) {
+                        runCatching { onAuthRejected(rejectedPin) } // 콜백 실패도 흡수한다(offline-first).
+                    }
+                    return@withContext Result.failure(PinRejectedException(cause = failure))
+                }
                 // 하나라도 실패하면 중단 — 이 항목부터 끝까지 큐에 유지(순서 보장).
-                return@withContext Result.failure(
-                    result.exceptionOrNull() ?: IOException("전송 실패"),
-                )
+                return@withContext Result.failure(failure)
             }
             sent++
             removeByKey(key)
+            // E⑤: 전송이 성공했으면 거부 기록은 더 필요 없다(조합이 서버에 통과했다).
+            synchronized(lock) { rejectedPair = null }
         }
         Result.success(sent)
     }
@@ -192,6 +260,7 @@ open class VisitQueue(
                 // 삭제 실패도 흡수한다. pendingCount 는 0 으로 본다(다음 flush 가 정리).
             }
             pendingPins.clear() // 메모리 PIN 도 함께 버린다(로그아웃 = 열람 권한 상실).
+            rejectedPair = null // E⑤: 거부 기록도 함께 버린다(새 세션은 새 조합이다).
             _pending.value = 0
         }
     }

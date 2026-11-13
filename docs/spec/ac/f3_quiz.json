@@ -1,0 +1,148 @@
+{
+  "feature": "F3",
+  "name": "박물관 퀴즈",
+  "acs": [
+    {
+      "id": "ARO-F3-AC01",
+      "pattern": "event",
+      "text": "고른 보기가 정답이면 앱은 \"정답이에요!\" 한 줄과 해설을 보여줍니다.",
+      "io": [],
+      "verify": {
+        "kind": "code",
+        "refs": ["소스 android/app/src/main/res/values/strings.xml(parked_quiz_correct)", "소스 app/src/main/java/app/arosaegim/ui/parked/ParkedScreen.kt(QuizStep)"]
+      },
+      "status": "(설계)",
+      "numbers": []
+    },
+    {
+      "id": "ARO-F3-AC02",
+      "pattern": "event",
+      "text": "고른 보기가 오답이면 앱은 올바른 보기 문장을 \"정답: …\" 형태로 함께 보여줍니다.",
+      "io": [
+        {"in": "3개 보기 중 오답 선택", "out": "\"정답: (실제 정답 보기 문장)\" 한 줄 표시"}
+      ],
+      "verify": {
+        "kind": "code",
+        "refs": ["소스 android/app/src/main/res/values/strings.xml(parked_quiz_wrong)", "소스 app/src/main/java/app/arosaegim/ui/parked/ParkedScreen.kt(QuizStep)"]
+      },
+      "status": "(설계)",
+      "numbers": ["3"]
+    },
+    {
+      "id": "ARO-F3-AC03",
+      "pattern": "state",
+      "text": "차가 주행 중인 동안 앱은 퀴즈가 있는 정차 화면으로 전환하지 않습니다.",
+      "io": [],
+      "verify": {
+        "kind": "unit",
+        "refs": ["단위 테스트 ModeRouterResolveTest.`주행 상태는 세션이 있어도 주행 화면으로 라우팅한다`", "단위 테스트 ModeRouterResolveTest.`주행 상태는 세션이 없어도 주행 화면으로 라우팅한다`"]
+      },
+      "status": "[코드 확인]",
+      "numbers": []
+    },
+    {
+      "id": "ARO-F3-AC04",
+      "pattern": "event",
+      "text": "차가 정차하고 가족 세션이 있으면 앱은 퀴즈 단계를 포함한 정차 화면으로 전환합니다.",
+      "io": [
+        {"in": "기어 P 진입 + 가족 세션 있음", "out": "정차 화면(퀴즈 탭 포함)으로 전환"}
+      ],
+      "verify": {
+        "kind": "unit",
+        "refs": ["단위 테스트 ModeRouterResolveTest.`정차 상태에서 세션이 있으면 정차 화면으로 라우팅한다`"]
+      },
+      "status": "[코드 확인]",
+      "numbers": []
+    },
+    {
+      "id": "ARO-F3-AC05",
+      "pattern": "unwanted",
+      "text": "차가 정차했지만 가족 세션이 없으면 앱은 정차 화면 전환을 보류하고 시작 화면을 유지합니다.",
+      "io": [
+        {"in": "기어 P 진입 + 가족 세션 없음", "out": "시작 화면 유지, 정차 화면(퀴즈 포함) 전환 보류"}
+      ],
+      "verify": {
+        "kind": "unit",
+        "refs": ["단위 테스트 ModeRouterResolveTest.`정차 상태에서 세션이 없으면 전환을 보류한다(Q28 - 시작 화면 유지)`", "개발 기록 Q28"]
+      },
+      "status": "[코드 확인]",
+      "numbers": []
+    },
+    {
+      "id": "ARO-F3-AC06",
+      "pattern": "ubiquitous",
+      "text": "앱은 경주 코스 3곳(국립경주박물관·대릉원·첨성대)마다 퀴즈 2문항씩, 코스 전체 6문항을 내장해 제공합니다.",
+      "io": [
+        {"in": "국립경주박물관 장소 도착", "out": "그 장소에 묶인 퀴즈 2문항이 순서대로 노출"}
+      ],
+      "verify": {
+        "kind": "unit",
+        "refs": ["단위 테스트 SeedRepositoryTest.realSeedFile_parsesToExpectedContent(장소별 퀴즈 2개·전체 초안 키 6개 단언)", "소스 android/app/src/main/assets/seed/seed.json"]
+      },
+      "status": "[코드 확인]",
+      "numbers": ["3", "2", "6"]
+    },
+    {
+      "id": "ARO-F3-AC07",
+      "pattern": "state",
+      "text": "문항이 검수 전(reviewed=false)이면 시드 파서는 그 문항을 초안 목록에 넣고, 지금 6문항 전부가 이 상태입니다.",
+      "io": [],
+      "verify": {
+        "kind": "unit",
+        "refs": ["단위 테스트 SeedRepositoryTest.realSeedFile_parsesToExpectedContent(전 문항 reviewed=false·draftQuizKeys 6개 단언)"]
+      },
+      "status": "[코드 확인]",
+      "numbers": ["6"]
+    },
+    {
+      "id": "ARO-F3-AC08",
+      "pattern": "optional",
+      "text": "검수 전 문항에는 화면에 \"초안\" 꼬리표를 붙여 보여줍니다.",
+      "io": [],
+      "verify": {
+        "kind": "code",
+        "refs": ["소스 android/app/src/main/res/values/strings.xml(parked_quiz_draft_tag=\"초안\")", "소스 app/src/main/java/app/arosaegim/data/SeedRepository.kt(draftQuizKeys)"]
+      },
+      "status": "(설계)",
+      "numbers": []
+    },
+    {
+      "id": "ARO-F3-AC09",
+      "pattern": "unwanted",
+      "text": "도착한 장소에 준비된 퀴즈가 없으면 앱은 안내 문구 한 줄만 보여주고 화면을 멈추지 않습니다.",
+      "io": [],
+      "verify": {
+        "kind": "code",
+        "refs": ["소스 android/app/src/main/res/values/strings.xml(parked_quiz_empty=\"이 장소에는 준비된 퀴즈가 없어요\")", "소스 app/src/main/java/app/arosaegim/ui/parked/ParkedScreen.kt(QuizStep)"]
+      },
+      "status": "(설계)",
+      "numbers": []
+    },
+    {
+      "id": "ARO-F3-AC10",
+      "pattern": "event",
+      "text": "그 장소의 마지막 문항에 답하면 앱은 자동으로 \"그때와 지금\" 단계로 넘어갑니다.",
+      "io": [],
+      "verify": {
+        "kind": "code",
+        "refs": ["소스 app/src/main/java/app/arosaegim/ui/parked/ParkedScreen.kt(QuizStep — 다음 단계 전환)"]
+      },
+      "status": "(설계)",
+      "numbers": []
+    },
+    {
+      "id": "ARO-F3-AC11",
+      "pattern": "state",
+      "text": "퀴즈를 풀고 있는 동안 주행으로 화면이 가려졌다가 정차로 돌아오면 앱은 같은 장소의 같은 문항과 고른 보기부터 이어서 보여줍니다.",
+      "io": [
+        {"in": "1번 문항 풀이 중 주행 전환 → 재정차", "out": "1번 문항·고른 보기·채점 결과가 유지된 채 다시 표시"}
+      ],
+      "verify": {
+        "kind": "code",
+        "refs": ["소스 app/src/main/java/app/arosaegim/ui/parked/QuizState.kt(QuizStateHolder — 같은 장소면 진행 보존)", "소스 docs/ARCHITECTURE.md 9절 Q13"]
+      },
+      "status": "(설계)",
+      "numbers": []
+    }
+  ]
+}

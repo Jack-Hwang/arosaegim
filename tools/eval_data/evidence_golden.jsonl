@@ -1,0 +1,42 @@
+{"id":"EV-001","query":"정차 화면 자동 전환 세션 게이트","gold":[{"path":"docs/DEV_LOG.md","all":["F80","sessionExists"]}]}
+{"id":"EV-002","query":"기어 D 시속 40km 도착 기록 다음 목적지 경로 요청 실측","gold":[{"path":"docs/DEV_LOG.md","all":["F68"]}]}
+{"id":"EV-003","query":"PIN은 세션 메모리에만 보관 저장 금지","gold":[{"path":"FamilySessionStore.kt","all":["PIN","메모리"]}]}
+{"id":"EV-004","query":"가족 코드 입력 칸 8자리 6자리 호환","gold":[{"path":"strings.xml","all":["8자리"]},{"path":"StartScreen.kt","all":["8"]}]}
+{"id":"EV-005","query":"숙소 캐시백 인정 기간 체크인 체크아웃 최대 3박","gold":[{"path":"docs/ARCHITECTURE.md","all":["최대 3박"]},{"path":"docs/DEV_LOG.md","all":["최대 3박"]}]}
+{"id":"EV-006","query":"릴리스 APK 클리어텍스트 차단 network_security_config","gold":[{"path":"docs/DEV_LOG.md","all":["F71"]}]}
+{"id":"EV-007","query":"연료 capability 실패 EV 배터리 지원 확인","gold":[{"path":"docs/DEV_LOG.md","all":["F76"]}]}
+{"id":"EV-008","query":"좌석 3명 주입 도착 카드에 1명 표시","gold":[{"path":"docs/DEV_LOG.md","all":["F73"]}]}
+{"id":"EV-009","query":"Pleos TTS onReady 미수신 음성 합성 실패","gold":[{"path":"docs/DEV_LOG.md","all":["onReady"]},{"path":"docs/ADR.md","all":["onReady"]}]}
+{"id":"EV-010","query":"주행 최적화 DO 선언 DrivingActivity만","gold":[{"path":"docs/ARCHITECTURE.md","all":["DrivingActivity"]},{"path":"AndroidManifest.xml","all":["distractionOptimized"]}]}
+{"id":"EV-011","query":"도착 판정 반경 120m 125m 알림 없음","gold":[{"path":"docs/DEV_LOG.md","all":["120m"]}]}
+{"id":"EV-012","query":"미성년 사진 보호자 동의 403 guardian_consent_required","gold":[{"path":"backend/","all":["guardian_consent_required"]}]}
+{"id":"EV-013","query":"사진 업로드 EXIF 제거","gold":[{"path":"backend/","all":["EXIF"]},{"path":"docs/","all":["EXIF"]}]}
+{"id":"EV-014","query":"접어 둔 장소 prefs API 인원 비교 문장","gold":[{"path":"preferences.py","all":["prefs"]}]}
+{"id":"EV-015","query":"ModeRouter resolveTarget 단위 테스트 세션 없음","gold":[{"path":"ModeRouterResolveTest.kt","all":["resolveTarget"]}]}
+{"id":"EV-016","query":"textQuaternary 6C655E 색 대비 AA","gold":[{"path":"AroColors.kt","all":["6C655E"]}]}
+{"id":"EV-017","query":"headline 48sp bodySmall 26sp 글자 크기","gold":[{"path":"Type.kt","all":["26.sp"]}]}
+{"id":"EV-018","query":"성덕대왕신종 771년 heritage 시드","gold":[{"path":"seed","all":["771"]}]}
+{"id":"EV-019","query":"퀴즈 reviewed false 초안 꼬리표 표시","gold":[{"path":"ParkedSteps.kt","all":["초안","reviewed"]},{"path":"ParkedComponents.kt","all":["꼬리표"]},{"path":"seed.json","all":["reviewed"]}]}
+{"id":"EV-020","query":"야간 자동 전환 refreshByClock 19시 7시","gold":[{"path":"ThemeState.kt","all":["refreshByClock"]}]}
+{"id":"EV-021","query":"사전 제작 오디오 기본 경로 3단 체인 Pleos TTS Android TTS","gold":[{"path":"docs/DEV_LOG.md","all":["사전 제작"]},{"path":"docs/ADR.md","all":["AssetAudioNarrator"]}]}
+{"id":"EV-022","query":"family_total_trip_km 가족 누적 거리 파서","gold":[{"path":"FamilyApiParsers.kt","all":["family_total_trip_km"]},{"path":"FamilyApiParsersTest.kt","all":["family_total_trip_km"]},{"path":"backend/","all":["family_total_trip_km"]}]}
+{"id":"EV-023","query":"NaviHelper requestRoute 경로 요청","gold":[{"path":"PleosNaviRouteService.kt","all":["requestRoute"]},{"path":"docs/DEV_LOG.md","all":["requestRoute"]}]}
+{"id":"EV-024","query":"고인의 목소리 흉내 내지 않는다","gold":[{"path":"ATTRIBUTION.md","all":["고인"]},{"path":"seed","all":["고인"]}]}
+{"id":"EV-025","query":"위치는 도착 판정에만 사용하고 저장 전송하지 않는다","gold":[{"path":"README.md","all":["위치"]},{"path":"docs/ARCHITECTURE.md","all":["위치"]}]}
+{"id":"EV-026","query":"이 차에서 로그아웃 로컬 파일 삭제 visits.json visit_queue.json","gold":[{"path":"DiagnosticsScreen.kt","all":["이 차에서 로그아웃"]},{"path":"SignOutCleanup.kt","all":["이 차에서 로그아웃"]},{"path":"SignOutCleanup.kt","all":["visit_queue.json"]},{"path":"SignOutCleanup.kt","all":["FILES_TO_DELETE"]},{"path":"FamilySessionStore.kt","all":["이 차에서 로그아웃"]}]}
+{"id":"EV-027","query":"오프라인 전송 큐 서버에 못 보낸 방문 기록 로컬 보존 재전송","gold":[{"path":"VisitQueue.kt","all":["visit_queue.json"]},{"path":"session/TripSession.kt","all":["오프라인"]}]}
+{"id":"EV-028","query":"PIN 5회 실패 잠금 429 잠금 중 올바른 PIN도 막힌다","gold":[{"path":"test_family.py","all":["test_pin_locks_after_five_failures"]}]}
+{"id":"EV-029","query":"하루 두 번째 가족 코드 발급 거부 device_limit","gold":[{"path":"test_doc02_features.py","all":["device_token_daily_limit"]}]}
+{"id":"EV-030","query":"가족 데이터 내보내기 ZIP 하나로 완결","gold":[{"path":"test_family.py","all":["test_export_zip_is_selfcontained"]}]}
+{"id":"EV-031","query":"상속자 heir 지정 관리 권한 이전 기록은 삭제되지 않는다","gold":[{"path":"test_family.py","all":["test_heir_and_handover_flow"]},{"path":"web/js/screens/family.js","all":["이어받을 사람 지정"]}]}
+{"id":"EV-032","query":"사진 이름표 마커 최대 10명 제한","gold":[{"path":"test_b_features.py","all":["markers_limit_is_10"]}]}
+{"id":"EV-033","query":"포인트 캐시백 금액 상한 100만원 초과 rejected","gold":[{"path":"points.py","all":["MAX_AMOUNT_KRW"]},{"path":"docs/ADR.md","all":["MAX_AMOUNT_KRW","invalid_amount"]}]}
+{"id":"EV-034","query":"도착 판정 거리 계산 하버사인 대원거리","gold":[{"path":"Haversine.kt","all":["distanceM"]}]}
+{"id":"EV-035","query":"헬스체크 health 인증 없이 ok true","gold":[{"path":"backend/app/main.py","all":["health"]},{"path":"backend/README.md","all":["health"]}]}
+{"id":"EV-036","query":"경주 코스 국립경주박물관 대릉원 첨성대 시드","gold":[{"path":"seed.json","all":["대릉원"]}]}
+{"id":"EV-037","query":"포트별 구현 선택 사유 진단 화면 기록","gold":[{"path":"AppContainer.kt","all":["adapterNotes"]},{"path":"docs/ADR.md","all":["AppContainer"]}]}
+{"id":"EV-038","query":"단위 테스트 실행 방법 gradlew","gold":[{"path":"README.md","all":["./gradlew test"]}]}
+{"id":"EV-039","query":"코스 완주 후 도착 신호 무시 감시 중단","gold":[{"path":"StampEngine.kt","all":["currentTargetPlaceId"]}]}
+{"id":"EV-040","query":"가족 모바일 웹 타임라인 해시 라우터","gold":[{"path":"web/js/app.js","all":["timeline"]}]}
+{"id":"EV-041","query":"재시작 시 방문 기록으로 스탬프 진행 복원","gold":[{"path":"TripSessionTest.kt","all":["visits_json"]}]}
+{"id":"EV-042","query":"방문 멱등 같은 분 다시 보내면 새로 만들지 않는다","gold":[{"path":"test_visits.py","all":["idempotent"]},{"path":"backend/app/routers/visits.py","all":["멱등"]},{"path":"docs/ADR.md","all":["멱등키"]}]}

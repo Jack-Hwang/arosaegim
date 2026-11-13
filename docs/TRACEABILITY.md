@@ -1,14 +1,14 @@
 # TRACEABILITY — 요구 ↔ 구현 ↔ 시험 대조표
 
-> 본 문서의 숫자는 코드 기준(커밋 `d4eb823`, 2026-11-13)이며 docs/DEV_LOG.md 표와 짝을 이룬다.
-> 앱 단위 테스트 179건·서버 테스트 87건은 커밋 기준값(HEAD 측정)이고,
+> 본 문서의 숫자는 코드 기준(HEAD 측정)이며 docs/DEV_LOG.md 표와 짝을 이룬다. 현재 값은 `tools/spec_drift_check.py`로 확인한다.
+> 앱 단위 테스트 190건·서버 테스트 87건은 커밋 기준값(HEAD 측정)이고,
 > 서버 실행 총합 87건은 본 문서 작성 시 추가한 잠금 시각 검증 1건을 포함한 실측값이다(`pytest tests -q`, 2026-11-13).
 > 상태 표기: [실측 PASS] = 에뮬레이터 실측 완료, [코드 확인] = 코드·단위 테스트로 확인(에뮬레이터 실측 전),
 > [앱 구현·실측 전] = 구현 완료·화면 실측 대기, [실측 부분] = 일부만 실측. 과장 없이 DEV_LOG의 F번호·Q번호를 따른다.
 
-## 1. 07문서 기능(A1~A8·B1~B5) ↔ 구현 ↔ 시험
+## 1. 다음 과제 기능(A1~A8·B1~B5) ↔ 구현 ↔ 시험
 
-근거 문서: glm/07_NEXT_TASKS_2026-11-11.md. 구현 위치는 `android/app/src/main/java/app/arosaegim/`(이하 `app/`)과 `backend/` 기준.
+근거: docs/DEV_LOG.md 의 F·Q 번호. 구현 위치는 `android/app/src/main/java/app/arosaegim/`(이하 `app/`)과 `backend/` 기준.
 
 | 항목 | 요구 요지 | 구현 위치(파일·클래스) | 시험(테스트 클래스 · 케이스 수) | 상태 |
 |---|---|---|---|---|
@@ -52,5 +52,5 @@
 ## 4. 검증 명령
 
 - 서버: `cd arosaegim/backend && python -m pytest tests -q` — 87 passed(2026-11-13, 신규 1건 포함).
-- 앱: `cd arosaegim/android && ./gradlew test` — 179/179(2026-11-13 오후 기준 — Q26·Q27 테스트 포함).
+- 앱: `cd arosaegim/android && ./gradlew test` — 190/190(2026-11-13 밤 기준 — Q26·Q27 테스트 포함).
 - 숫자 대조: `cd arosaegim/tools && python -I -B -X utf8 spec_drift_check.py --repo .. --rev HEAD --facts facts.json` — 9개 사실 전부 OK.

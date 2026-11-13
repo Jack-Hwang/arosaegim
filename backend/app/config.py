@@ -17,7 +17,7 @@ UPLOAD_DIR: str = os.environ.get("AROSAEGIM_UPLOADS", str(BASE_DIR / "uploads"))
 # 단일 폴더 배포를 원하면 환경변수 AROSAEGIM_WEB 으로 덮어쓴다.
 WEB_DIR: str = os.environ.get("AROSAEGIM_WEB", str(BASE_DIR.parent / "web"))
 
-# 시드 데이터 경로 (glm/seed/seed.json 의 사본)
+# 시드 데이터 경로 (backend/seed/seed.json — 앱 내장 시드 android/assets/seed 와 동일)
 SEED_PATH: str = os.environ.get("AROSAEGIM_SEED", str(BASE_DIR / "seed" / "seed.json"))
 
 # 사진 업로드 제한: 최대 5MB, JPEG/PNG 만 허용 (02문서 6-2)

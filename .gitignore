@@ -27,3 +27,7 @@ demo/raw/
 # OS 잡동사니
 Thumbs.db
 .DS_Store
+
+# drift gate 실행 결과(작업 폴더 경로·문장 조각이 들어갈 수 있다) — 저장소 제외
+tmp/
+tools/drift-results.json

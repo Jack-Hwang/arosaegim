@@ -1,4 +1,4 @@
-# 기획서 v10 15절①(glm/07 2절 B4): 인원 비교 문장 접어 두기 가족 설정(prefs) 테스트.
+# 기획서 v10 15절①(요구 문서 07의 2절 B4): 인원 비교 문장 접어 두기 가족 설정(prefs) 테스트.
 # + 방문 순번(visit_ordinal)의 타임라인 반영과 family_total_trip_km 합계 재확인.
 # B2(방문 순번)·B3(누적 거리) 자체 규칙은 test_b_features.py가 이미 검증하며,
 # 이 파일은 계약 위치(then-now·타임라인·metrics·export)를 한 번에 훑는다.

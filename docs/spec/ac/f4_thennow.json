@@ -1,0 +1,189 @@
+{
+  "feature": "F4",
+  "name": "그때와 지금",
+  "acs": [
+    {
+      "id": "ARO-F4-AC01",
+      "pattern": "event",
+      "text": "지난 방문 연도 기록이 있으면 앱은 올해 연도에서 그 연도를 뺀 햇수를 계산해 \"○년 전\"으로 보여줍니다.",
+      "io": [
+        {"in": "pastYear=1975, nowYear=2025", "out": "yearsAgo=50년"},
+        {"in": "과거 후보 1995·1975·2010년 중 선택", "out": "1975년(가장 오래된 값)만 \"그때\" 기록으로 채택"}
+      ],
+      "verify": {
+        "kind": "unit",
+        "refs": ["단위 테스트 ThenNowResolverTest.`과거가 있으면 yearsAgo를 계산해 반환한다`", "단위 테스트 ThenNowResolverTest.`여러 과거 후보 중 가장 오래된 것을 선택한다`", "서버 시험 test_memory_becomes_past_with_server_years_ago(서버가 years_ago를 계산)"]
+      },
+      "status": "[코드 확인]",
+      "numbers": ["50"]
+    },
+    {
+      "id": "ARO-F4-AC02",
+      "pattern": "unwanted",
+      "text": "지난 연도가 올해보다 미래이거나 0 이하로 기록돼 있으면 앱은 그 값을 쓰지 않고 첫 방문으로 처리합니다.",
+      "io": [
+        {"in": "pastYear=2030, nowYear=2025", "out": "null 반환 → 첫 방문 안내"}
+      ],
+      "verify": {
+        "kind": "unit",
+        "refs": ["단위 테스트 ThenNowResolverTest.`nowYear보다 과거 연도가 크면 미래 과거로 보고 null을 반환한다`", "단위 테스트 ThenNowResolverTest.`pastYear가 0 이하면 null을 반환한다`"]
+      },
+      "status": "[코드 확인]",
+      "numbers": ["0"]
+    },
+    {
+      "id": "ARO-F4-AC03",
+      "pattern": "event",
+      "text": "오늘 좌석 점유로 읽은 인원과 그때 기록된 인원이 둘 다 있으면 앱은 \"오늘은 N명이 함께 왔어요. 그때는 M명이었어요.\"를 보여줍니다.",
+      "io": [
+        {"in": "오늘 인원 3명, 그때 인원 5명", "out": "\"오늘은 3명이 함께 왔어요. 그때는 5명이었어요.\" 표시"}
+      ],
+      "verify": {
+        "kind": "code",
+        "refs": ["소스 android/app/src/main/res/values/strings.xml(parked_party_line)", "소스 app/src/main/java/app/arosaegim/ui/parked/ThenNowExtras.kt(PartySizeLine)", "개발 기록 F73(주입 3명 도착 카드 문장 표시 실측 — 값 불일치는 Q27)"]
+      },
+      "status": "(설계)",
+      "numbers": []
+    },
+    {
+      "id": "ARO-F4-AC04",
+      "pattern": "unwanted",
+      "text": "오늘 인원 또는 그때 인원 중 하나라도 읽지 못하면 앱은 인원 비교 문장을 통째로 숨기고 값을 지어내지 않습니다.",
+      "io": [
+        {"in": "오늘 인원=null(좌석 신호 없음)", "out": "인원 비교 문장 전체가 화면에 없음"}
+      ],
+      "verify": {
+        "kind": "code",
+        "refs": ["소스 app/src/main/java/app/arosaegim/ui/parked/ThenNowExtras.kt(PartySizeLine — 값 하나라도 없으면 숨김)", "소스 docs/ARCHITECTURE.md 6절 U11 표(partySize=null → 문장 숨김 설계 동작)"]
+      },
+      "status": "(설계)",
+      "numbers": []
+    },
+    {
+      "id": "ARO-F4-AC05",
+      "pattern": "optional",
+      "text": "가족이 차 안에서 인원 비교 문장을 접어 두면 서버는 그 장소의 조회 응답에 접힘 표시를 붙입니다.",
+      "io": [
+        {"in": "POST folded-places(gj-museum) 후 재조회", "out": "gj-museum then-now 응답 folded=true"}
+      ],
+      "verify": {
+        "kind": "server",
+        "refs": ["서버 시험 test_folded_place_add_remove", "서버 시험 test_then_now_folded_flag"]
+      },
+      "status": "[코드 확인]",
+      "numbers": []
+    },
+    {
+      "id": "ARO-F4-AC06",
+      "pattern": "event",
+      "text": "가족이 가족 모바일 웹에서 접어 둔 장소를 되돌리면 서버는 그 장소의 접힘 표시를 다시 내려줍니다.",
+      "io": [
+        {"in": "DELETE folded-places/gj-museum 후 재조회", "out": "gj-museum then-now 응답 folded=false"}
+      ],
+      "verify": {
+        "kind": "server",
+        "refs": ["서버 시험 test_folded_place_add_remove", "서버 시험 test_then_now_folded_flag"]
+      },
+      "status": "[코드 확인]",
+      "numbers": []
+    },
+    {
+      "id": "ARO-F4-AC07",
+      "pattern": "state",
+      "text": "가족이 문장 접기를 전체로 켜 둔 동안 서버는 모든 장소의 then-now 응답에 접힘 표시를 붙입니다.",
+      "io": [
+        {"in": "설정 fold_all=true 저장 후 장소별 조회", "out": "모든 장소의 then-now 응답 folded=true"}
+      ],
+      "verify": {
+        "kind": "server",
+        "refs": ["서버 시험 test_settings_fold_person_comparison_all", "단위 테스트 PartyPrefsTest.`모든 장소 끄기면 어느 장소에서나 숨긴다`"]
+      },
+      "status": "[코드 확인]",
+      "numbers": []
+    },
+    {
+      "id": "ARO-F4-AC08",
+      "pattern": "ubiquitous",
+      "text": "앱은 오늘 함께 달린 거리를 읽으면 숫자 한 줄로 보여주고, 읽지 못하거나 0 이하이면 그 줄을 보여주지 않습니다.",
+      "io": [
+        {"in": "가족 누적 거리 값 없음(0)", "out": "\"오늘 함께 달린 거리\" 줄 없음"}
+      ],
+      "verify": {
+        "kind": "server",
+        "refs": ["서버 시험 test_metrics_total_trip_km_zero_without_trip_km", "단위 테스트 FamilyApiParsersTest.`km 이 0 이하 또는 비정상이면 null - 누적 줄 숨김`", "단위 테스트 FamilyApiParsersTest.`family_total_trip_km 이 없거나 이상하면 null - 누적 줄 숨김`"]
+      },
+      "status": "[코드 확인]",
+      "numbers": ["0"]
+    },
+    {
+      "id": "ARO-F4-AC09",
+      "pattern": "event",
+      "text": "이 장소에 지난 방문이 전혀 없다고 서버가 확인하면(첫 방문) 앱은 \"오늘이 우리 가족의 첫 기록입니다\" 문구로 바꿔 보여줍니다.",
+      "io": [
+        {"in": "해당 장소 첫 방문(visit_ordinal=1)", "out": "첫 기록 문구 표시"}
+      ],
+      "verify": {
+        "kind": "server",
+        "refs": ["서버 시험 test_then_now_visit_ordinal_counts_per_place", "서버 시험 test_then_now_without_visits_is_honest", "단위 테스트 FamilyApiParsersTest.`then-now 의 visit_ordinal 이 없으면 null - 기능 숨김`"]
+      },
+      "status": "[코드 확인]",
+      "numbers": ["1"]
+    },
+    {
+      "id": "ARO-F4-AC10",
+      "pattern": "ubiquitous",
+      "text": "유물 정보가 공식 자료로 검수되지 않았으면(지금 3곳 전부) 시드는 검수 필요 메모를 함께 담고, 화면은 유물·가족 연도 줄 아래 그 메모를 보여줍니다.",
+      "io": [
+        {"in": "heritage.reviewed=false + 검수 필요 메모(3곳 모두)", "out": "유물 줄 아래 메모 한 줄 표시"}
+      ],
+      "verify": {
+        "kind": "unit",
+        "refs": ["단위 테스트 SeedRepositoryTest.realSeedFile_parsesToExpectedContent(3곳 heritage 전부 reviewed=false·메모 비어 있지 않음 단언)", "소스 app/src/main/java/app/arosaegim/ui/parked/ThenNowExtras.kt(HeritageTimelineLine)"]
+      },
+      "status": "[코드 확인]",
+      "numbers": ["3"]
+    },
+    {
+      "id": "ARO-F4-AC11",
+      "pattern": "optional",
+      "text": "가족이 모바일 웹에서 사진에 이름표를 붙이면 서버는 이름표를 저장하고, 한 기억당 최대 10명까지만 받습니다.",
+      "io": [
+        {"in": "이름표 11개 등록 요청", "out": "400 invalid_markers"},
+        {"in": "이름표 10개 등록·수정", "out": "200 성공, 저장된 이름표 조회 가능"}
+      ],
+      "verify": {
+        "kind": "server",
+        "refs": ["서버 시험 test_markers_saved_and_shown", "서버 시험 test_markers_limit_is_10_on_update_and_create"]
+      },
+      "status": "[코드 확인]",
+      "numbers": ["10"]
+    },
+    {
+      "id": "ARO-F4-AC12",
+      "pattern": "event",
+      "text": "앱은 가족 누적 거리를 소수점 정리와 천 단위 콤마가 붙은 문자열로 바꿔 보여줍니다.",
+      "io": [
+        {"in": "가족 누적 거리 1240.5", "out": "\"1,240.5\""},
+        {"in": "가족 누적 거리 12.0", "out": "\"12\""}
+      ],
+      "verify": {
+        "kind": "unit",
+        "refs": ["단위 테스트 FamilyApiParsersTest.`km 표시 문자열은 소수점 정리와 천 단위 콤마를 적용한다`"]
+      },
+      "status": "[코드 확인]",
+      "numbers": ["1,240.5"]
+    },
+    {
+      "id": "ARO-F4-AC13",
+      "pattern": "state",
+      "text": "창 너비가 600dp 이상인 동안 앱은 \"그때\"와 \"지금\" 카드를 좌우로 나란히 보여주고, 그보다 좁은 동안은 위아래로 쌓아 보여줍니다.",
+      "io": [],
+      "verify": {
+        "kind": "code",
+        "refs": ["소스 app/src/main/java/app/arosaegim/ui/parked/ParkedScreen.kt(isWide = maxWidth >= 600.dp)"]
+      },
+      "status": "(설계)",
+      "numbers": ["600dp"]
+    }
+  ]
+}

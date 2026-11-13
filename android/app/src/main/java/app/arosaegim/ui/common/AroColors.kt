@@ -9,12 +9,12 @@ import androidx.compose.ui.graphics.Color
  * 규칙:
  *  - Pleos Connect System Color 토큰 이름(Background/Surface/Button/Text/Informative)을 따른다.
  *    16진수 색은 이 파일에만 존재하며 화면 코드에서 직접 쓰지 않는다.
- *  - 주간(Light)/야간(Dark) 두 벌을 모두 제공한다(00_BRIEF 5절 "다크 고대비 고정"은 폐기).
+ *  - 주간(Light)/야간(Dark) 두 벌을 모두 제공한다(요구 문서 00의 5절 "다크 고대비 고정"은 폐기).
  *  - 포인트 색은 스탬프 인주색(stampPoint) 하나뿐이다. 과한 색 사용 금지.
  *  - regulation 색은 주행 규제·경고 전용이다. 장식(꾸밈)에는 절대 쓰지 않는다.
  *  - 본문·아이콘 대비는 4.5:1 이상(04문서 2절). 아래 주석의 명암비는 WCAG 상대 휘도 공식으로
  *    backgroundPrimary 위에서 계산한 값이며, 실제 값은 D4(가이드 Colors 이미지)로 재확인한다.
- *    (2026-11-12 대비 점검 반영 — 09문서 색 대비 절. 계산기: 제출용/_work/spec/contrast_calc.py.
+ *    (2026-11-12 대비 점검 반영 — 09문서 색 대비 절.
  *    ① 라이트 textQuaternary #756E66→#6C655E — surfaceLow 위 4.30:1 미달을 4.91:1로.
  *    ② 다크 stampPoint #D8552B→#DF7451 — surfaceAccent 위 3.55:1·surfaceBase 위 4.33:1 미달을
  *    AA 엄격(4.5:1 무조건) 기준으로 해소. 라이트 stampPoint #B3401C는 이미 합격이라 그대로다.)

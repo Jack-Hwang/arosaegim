@@ -1,6 +1,7 @@
 package app.arosaegim.session
 
 import app.arosaegim.data.LocalVisit
+import app.arosaegim.data.PinRejectedException
 import app.arosaegim.data.VisitQueue
 import app.arosaegim.data.VisitStore
 import app.arosaegim.domain.Course
@@ -306,9 +307,17 @@ class TripSession(
             pin = pinProvider(),
         )
         scope.launch {
-            val sent = visitQueue?.flush()
-            if (sent?.isFailure == true) {
-                _lastEventLine.value = QUEUE_OFFLINE_LINE
+            // 실패 사유(없으면 성공 — 또는 큐 미주입). 실패 시 화면에 안내 한 줄만 남긴다.
+            val failure = visitQueue?.flush()?.exceptionOrNull()
+            if (failure != null) {
+                // PIN 거절(E⑤, 2026-11-13)은 안내를 갈린다 — 서버가 같은 틀린 PIN 을 다시
+                // 받지 않도록 큐가 전송을 멈춘 상태다. 재입력은 시작(가족 코드) 화면에서 한다.
+                // 그 외 실패(오프라인·서버 오류)는 기존 안내 그대로다.
+                _lastEventLine.value = if (failure is PinRejectedException) {
+                    PIN_REJECTED_LINE
+                } else {
+                    QUEUE_OFFLINE_LINE
+                }
             }
         }
 
@@ -377,5 +386,13 @@ class TripSession(
 
         /** T8: 서버 전송 실패 시 화면 한 줄 — 기록이 큐에 남아 재전송 대기임을 알린다. */
         const val QUEUE_OFFLINE_LINE = "서버 미연결, 기록은 이 기기에 저장됐어요"
+
+        /**
+         * E⑤(2026-11-13): 서버가 PIN 을 거부했을 때의 화면 한 줄. 큐가 같은 조합의 자동
+         * 재전송을 멈췄음을 알리고, 재입력 화면(가족 코드·PIN 입력)으로 안내한다. 문구는
+         * strings.xml 의 session_pin_rejected 와 같은 문장이다(세션은 Context 가 없어 상수
+         * 경로 — 문구 리소스화는 T9 정리 대상).
+         */
+        const val PIN_REJECTED_LINE = "PIN이 맞지 않아요. 가족 코드 화면에서 다시 입력해 주세요"
     }
 }

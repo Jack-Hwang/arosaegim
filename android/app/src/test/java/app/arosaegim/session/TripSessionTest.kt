@@ -2,6 +2,7 @@ package app.arosaegim.session
 
 import app.arosaegim.data.ApiClient
 import app.arosaegim.data.LocalVisit
+import app.arosaegim.data.PinRejectedException
 import app.arosaegim.data.VisitQueue
 import app.arosaegim.data.VisitStore
 import app.arosaegim.domain.Course
@@ -133,6 +134,9 @@ class TripSessionTest {
         private val _pending = MutableStateFlow(0)
         override val pendingCount: StateFlow<Int> = _pending.asStateFlow()
 
+        /** flush 결과의 실패 사유(기본: 항상 오프라인). E⑤ PIN 거절 문구 검증에서 갈아끼운다. */
+        var flushFailure: Throwable = IOException("테스트: 항상 오프라인")
+
         override fun enqueue(
             visit: LocalVisit,
             familyCode: String?,
@@ -148,7 +152,7 @@ class TripSessionTest {
         override suspend fun flush(): Result<Int> {
             flushCalls++
             delay(1) // 실제 네트워크처럼 잠깐 걸리게 — 도착 문장 이후 안내 문장 순서 재현.
-            return Result.failure(IOException("테스트: 항상 오프라인"))
+            return Result.failure(flushFailure)
         }
 
         override fun clear() {
@@ -532,6 +536,45 @@ class TripSessionTest {
         awaitUntil { session.stampedCount.value == 2 }
         assertEquals("복원 뒤 진행도 정상", "p3", session.currentTarget.value?.id)
         assertEquals("이어진 도착만 기록에 추가된다", 1, store.appended.size)
+    }
+
+    /**
+     * E⑤(2026-11-13): 큐가 PIN 거절로 전송을 멈췄을 때 화면 한 줄은 오프라인 안내가 아니라
+     * 'PIN 재입력' 안내다 — 같은 틀린 PIN 의 자동 재전송이 서버 실패 횟수를 채우지 않게
+     * 멈춘 상태이므로, 사용자가 시작(가족 코드) 화면에서 다시 입력해야 재개된다.
+     */
+    @Test
+    fun `15_큐 flush의 PIN 거절은 재입력 안내 한 줄을 남긴다`() = runBlocking {
+        val queue = RecordingVisitQueue()
+        queue.flushFailure = PinRejectedException()
+        val f = Fixture(course(), queue = queue)
+
+        f.fused.emit("p1")
+        awaitUntil {
+            f.session.lastEventLine.value == "PIN이 맞지 않아요. 가족 코드 화면에서 다시 입력해 주세요"
+        }
+        assertEquals("기록은 큐에 남는다(보존)", 1, queue.pendingCount.value)
+        assertEquals("주행 진행은 영향 없음", 1, f.session.stampedCount.value)
+    }
+
+    /**
+     * E④(2026-11-13 고정): 도착(enqueue) 1건당 flush 는 1회다. 전송이 실패해도 세션은 재시도
+     * 루프·타이머를 돌리지 않는다 — 다음 전송 기회는 다음 도착뿐이다(큐 공회전 없음).
+     */
+    @Test
+    fun `16_도착 1건당 flush는 1회만 호출된다 — 실패해도 재시도 루프는 없다`() = runBlocking {
+        val queue = RecordingVisitQueue() // flush 는 항상 실패로 답한다.
+        val f = Fixture(course(), queue = queue)
+
+        f.fused.emit("p1")
+        awaitUntil { queue.flushCalls >= 1 }
+        delay(200) // 세션에 재시도 타이머가 있다면 이 사이에 추가 flush 가 관측된다.
+        assertEquals("도착 1건 → flush 1회(실패 후 재호출 없음)", 1, queue.flushCalls)
+
+        f.fused.emit("p2") // 다음 도착이 다음 전송 기회다.
+        awaitUntil { queue.flushCalls >= 2 }
+        delay(200)
+        assertEquals("도착 2건 → flush 2회", 2, queue.flushCalls)
     }
 }
 

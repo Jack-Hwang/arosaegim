@@ -9,29 +9,29 @@
 - 결과/증거: `.pleos-download/d1_result.png`·`d2_result.png`·`u15_result.png`·`u16_result.png`(진단 판정 화면), `launched_drawer3.png`(스탬프 2/3·다음 첨성대)
 - 확인된 사실(F-번호):
   - **F76 D실측 4항목 완료(07문서 3절 약속 이행 — capability 확인만, 값 미읽음)**: D1 연료 capability **FAIL**(`Fuel.checkFuelPercentCapabilities` → `FAILED: ERROR_NOT_SUPPORTED_PROPERTY` — 에뮬레이터 VHAL이 연료 속성 미지원)·D2 EV 배터리 capability **PASS**(`EvBattery.checkEvBatteryStateOfChargeCapabilities` → **READ**)·U15 연료 지원(Vehicle 직접) **FAIL**(동일 사유)·U16 EV 배터리 지원 **PASS**(확인함). 판정은 08:09~08:11 실측. → 기획서 반영 요청: "그때는 휘발유차, 오늘은 전기차" 문장의 연료 쪽은 이 에뮬레이터에서 불가(EV 쪽만 가능) — 기획서 담당 소유.
-  - **F77 연속 도착 1→2 독립 관찰**: U10 관찰 중 geo fix 이동 경로가 대릉원을 지나가자 도착이 자동 발행돼 스탬프 2/3·다음 목표 첨성대로 진행 — 같은 아래쪽 (아침) 섹션 F74(병렬 세션 기록)와 동일 사실의 독립 재관찰로, 재시작·수동 개입 없는 자동 진행을 다시 확인. F68(1건)의 연장 실측.
+  - **F77 연속 도착 1→2 독립 관찰**: U10 관찰 중 geo fix 이동 경로가 대릉원을 지나가자 도착이 자동 발행돼 스탬프 2/3·다음 목표 첨성대로 진행 — 같은 아래쪽 (아침) 섹션 F74(별도 실측 기록)와 동일 사실의 독립 재관찰로, 재시작·수동 개입 없는 자동 진행을 다시 확인. F68(1건)의 연장 실측.
   - **F78 서버 DB visits 0건 대조**: 기존 설치 릴리스 APK(네트워크 보안 설정 이전 빌드)의 방문이 서버에 1건도 없었다 — 아래쪽 (아침) 섹션 F71(릴리스 클리어텍스트 차단)과 정확히 일치하는 서버 쪽 대조 기록. 가족 세션이 없는 앱은 방문을 큐에 보류한다(설계대로 — 00문서 10.6). E1 전체 재실측(코드·PIN 입력→출발→도착→서버 행)은 Q28의 진입점 문제와 함께 GUI 세션 항목으로 남는다.
   - **F79 진단 화면 진입 경로 확정**: 디버그 빌드는 런처=진단 화면이지만, 기어 D 상태에서는 시스템이 비(DO) 창 전환을 제한해 시작/정차 화면이 계속 최상단을 덮는다(아래쪽 (아침) 섹션 Q26의 DO 잔존과 같은 맥락). 기어 P 복구(콘솔 REST `PUT /vehicle/controls {speed:0,brake:100}` → `PUT /vehicle/gear?gear=Park`) 후 `am start --activity-reorder-to-front`로 진입이 안정화됐다. 진단 화면 ⑤ 차량 세션 카드의 '가족 코드 입력 화면' 버튼이 StartActivity의 유일한 adb 진입로다(StartActivity는 exported=false — Q28의 일반 흐름 진입점 보완과 별개). 릴리스 빌드는 진단 화면이 즉시 시작 화면으로 넘어가므로(설계) 진단 실측은 반드시 디버그 APK로 한다(서명이 달라 `install -r`로 덮어쓸 수 없음 — `uninstall` 후 재설치, 앱 데이터 초기화; 아래쪽 F75의 pm clear --user 10 참고).
 - Open Questions(Q-번호):
-  - **Q29** E1 전체 경로(가족 코드·PIN 입력 → 출발 → geo fix 도착 → 서버 visits 행·스탬프 반영) 실측 — GUI 세션. 서버에 테스트 가족 `UJ2AUXS9`(발급 2026-11-13)가 있으니 그대로 쓰면 된다. **Q18 정리 대상에 UJ2AUXS9 추가**(기존 8XTPUG8N와 함께 제출 전 삭제). Q28(가족 코드 진입점 보완) 선행.
+  - **Q29** E1 전체 경로(가족 코드·PIN 입력 → 출발 → geo fix 도착 → 서버 visits 행·스탬프 반영) 실측 — GUI 세션. 테스트 가족은 세션마다 서버에서 새로 발급해 쓰고, 코드·PIN 값은 문서에 기록하지 않는다. (Q18 정리 — 제출 전 삭제까지 완료: DB 0건) Q28(가족 코드 진입점 보완) 선행.
   - U11(좌석 4석에서의 문장 표시)·U13(주행거리 문장)·U6(음성 청취) 유지 — GUI 세션.
-- 다음: 미커밋 배치(네트워크 보안 설정·FuelBatteryProbe·스탬프 복원·마커·U9 lastRouted)는 병렬 세션이 커밋함(327158a, 2026-11-13 08:15). 본 섹션은 DEV_LOG만 커밋
+- 다음: 미커밋 배치(네트워크 보안 설정·FuelBatteryProbe·스탬프 복원·마커·U9 lastRouted)는 이후 커밋(327158a, 2026-11-13 08:15)에 포함됐다. 본 섹션은 DEV_LOG만 커밋
 
 ---
 
-## 2026-11-13 (오후) — 미구현 요구 전수 조사·병렬 구현(Q26·Q27·Q20·09문서 7번·지시서 E문서화)
+## 2026-11-13 (오후) — 미구현 요구 전수 조사·작업 단위 구현(Q26·Q27·Q20·09문서 7번·요구 E항목 문서화)
 
-- 한 일: glm/ 갱신(11-12 20:57 이후 없음)을 확인하고 남은 구현 과제를 DEV_LOG·감사·지시서 후보에서 전수 추려 4개 작업 단위로 병렬 구현해 통합. 통합 검증: **앱 단위 테스트 179/179(163+7+9, 실패 0)**·백엔드 **pytest 87/87(+1)**·assembleDebug·assembleRelease 성공, `apk/arosaegim_아로새김_release.apk` 갱신(40,483,945바이트)
+- 한 일: 요구 문서 갱신(11-12 20:57 이후 없음)을 확인하고 남은 구현 과제를 개발 기록·감사·요구 후보에서 전수 추려 4개 작업 단위로 구현해 통합. 통합 검증: **앱 단위 테스트 179/179(163+7+9, 실패 0)**·백엔드 **pytest 87/87(+1)**·assembleDebug·assembleRelease 성공, `apk/arosaegim_아로새김_release.apk` 갱신(40,483,945바이트)
 - 확인된 사실(F-번호):
   - **F81 Q26 해소 — 기어 P 지속 시 주행 해제 타임아웃**: DrivingStateMerger에 정차 유지 해제 규칙 추가 — 보조(기어)가 false(P)로 확인된 지속 시간이 5초(`PARK_RELEASE_HOLD_MS`, 2초 폴링 3회) 이상이면 1차(DO)가 주행을 주장해도 PARKED로 판정. 근거: 기어 P에서 차가 움직일 수 없다는 물리 사실(DO 잔존은 오류 — Q26 실증). 시계(`nowMs`)·보류 시간 주입으로 순수 유지, CombinedDrivingState는 무변경. 테스트 +7(기존 7 유지)
   - **F82 Q27 완화 — 좌석 집계 부분 합산 차단**: 집계를 순수 함수 `countOccupied`로 추출하고 **응답률 50% 미달(`MIN_RESPONSE_RATIO=0.5`)이면 null**(F73의 "주입 3명→표시 1명"은 capability 일부 목록·부분 응답의 부분 합산 경로와 일치 — 확정 실측은 여전히 사용자 Virtual Console 세션 필요). `lastSeatDiagnostics`(요청/성공/실패 좌석 수 한 줄 — 표시 전용·저장 없음)를 진단 U11 상세에 연결. VisitQueue(E④)는 flush 호출자가 TripSession enqueue 직후 1회뿐임을 확인 — 공회전 폴링 없음(설계 요건 충족), KDoc에 전송 시점·재시도 예산 절 추가. 테스트 +9
   - **F83 Q20 부분 해소 — ParkedScreen 분리**: 1094줄 → ParkedScreen 596 + ParkedSteps 143 + ParkedRecordStep 219 + ParkedServerParsing 200(순수 이동 — git diff로 바이트 대조, private→internal 5개 최소 확장만). ParkedScreen 컴저블 하나가 상태를 클로저로 캡처해 596줄이 순수 이동 한계 — 이하 정리는 상태 끌어올림 리팩터가 필요(별도 과제)
   - **F84 09문서 7번 해소**: `assets/seed/then_placeholder.png` 1×1 순녹색 → 960×720 중립 자리표시(배경 #F0EDE8·'사진 자리' 안내, 13,246바이트) — ThenPhoto 코드 무변경, 에셋 교체만
-  - **F85 지시서 E항목 직접 수행(문서·가드 확인)**: E③ 포인트 가드 **이미 구현 확인**(services/points.py: 건당 MAX_AMOUNT_KRW=1,000,000·가족당 하루 5건 daily_limit — 테스트 존재)·E⑤ PIN 잠금 **이미 구현 확인**(security.py: 5회 실패 10분 — locked_until 미래 시각 검증 테스트 +1)·E④ 확인(위 F82)·E① `docs/TRACEABILITY.md`(요구↔구현↔시험 표 3개)·E② `docs/ADR.md`(실제 결정 14건, 코드 근거 경로 포함)·E⑥ `tools/`(숫자 자동 대조 도구 + facts.json — d4eb823 기준 9/9 OK)
+  - **F85 요구 E항목 직접 수행(문서·가드 확인)**: E③ 포인트 가드 **이미 구현 확인**(services/points.py: 건당 MAX_AMOUNT_KRW=1,000,000·가족당 하루 5건 daily_limit — 테스트 존재)·E⑤ PIN 잠금 **이미 구현 확인**(security.py: 5회 실패 10분 — locked_until 미래 시각 검증 테스트 +1)·E④ 확인(위 F82)·E① `docs/TRACEABILITY.md`(요구↔구현↔시험 표 3개)·E② `docs/ADR.md`(실제 결정 14건, 코드 근거 경로 포함)·E⑥ `tools/`(숫자 자동 대조 도구 + facts.json — d4eb823 기준 9/9 OK)
 - Open Questions(Q-번호):
-  - **Q30(신규)**: `tools/spec_drift_check.py`는 HEAD 기준 측정 — 이번 커밋 후 F-TEST-APP(179)·F-TEST-SERVER(87)·F-APK-BYTES는 **기획서·제출용 문서가 163/86에서 갱신될 때까지 잠정 FAIL**이 정상(인수인계 예고 조항: HEAD가 바뀌면 문서 숫자 재대조 — 기획서 담당 소유). 저장소 내 README·ARCHITECTURE·TRACEABILITY는 이미 179/87로 갱신함
-  - Q27 확정 실측·U11 문장 표시·U6 음성 — 사용자 Virtual Console 세션(테스트 가족 UJ2AUXS9/PIN 739749)
-  - Q14(letter_demo 오디오 — 발주자 준비 시 assets/audio 자동 활성)·Q18(테스트 가족 정리: 8XTPUG8N·UJ2AUXS9)·Q20 잔여(ParkedScreen 596줄 상태 끌어올림)
+  - **Q30(신규)**: `tools/spec_drift_check.py`는 HEAD 기준 측정 — 이번 커밋 후 F-TEST-APP(179)·F-TEST-SERVER(87)·F-APK-BYTES는 문서의 숫자는 이 도구로 코드에서 센 값과 대조하며, 문서가 옛 값을 유지하는 동안에는 잠정 FAIL이 정상이다(HEAD가 바뀌면 문서 숫자를 재대조한다). 저장소 내 README·ARCHITECTURE·TRACEABILITY는 이미 179/87로 갱신함
+  - Q27 확정 실측·U11 문장 표시·U6 음성 — 사용자 Virtual Console 세션(테스트 가족은 세션에서 새로 발급 — 값은 문서에 기록하지 않는다)
+  - Q14(letter_demo 오디오 — 발주자 준비 시 assets/audio 자동 활성)·Q18(테스트 가족 정리 — 완료: DB 0건)·Q20 잔여(ParkedScreen 596줄 상태 끌어올림)
 - 다음: 커밋·푸시
 - 확인된 사실(추가):
   - **F80 Q28 수정 — 정차 자동 전환의 세션 게이트**: 새 설치에서 첫 상태 수집(PARKED)이 정차 화면을 곧바로 최상단으로 올려 시작 화면(가족 코드 입력)의 진입점이 사라졌다(위 (아침) 섹션 Q28). 수정: ModeRouter에 `sessionExists` 게이트 — 정차로의 자동 전환은 세션(가족 코드·둘러보기)이 있을 때만; 주행 화면은 DO 안전 화면이므로 세션과 무관하게 항상 허용. 순수 판정 `ModeRouter.resolveTarget` 분리 + 단위 테스트 4케이스(`ModeRouterResolveTest`), `FamilySessionStore.hasSession()` 신설, 진단 U9의 `forceBringTo`는 게이트 우회(개발자 명시 전환 보호). ArosaegimApp에서 `container.familySessionStore.hasSession()` 배선. 실측 검증(08:30): 수정분 debug APK 재설치 후 콜드 스타트 → 6초 경과 시 `topResumedActivity`가 여전히 런처(진단 화면)이고 ParkedActivity가 뜨지 않았다(수정 전에는 몇 초 안에 정차 화면이 덮였다) — `.pleos-download/q28_verify.png`. 앱 테스트 163/163(신규 4케이스 포함)·assembleDebug·assembleRelease 성공, `apk/arosaegim_아로새김_release.apk` 갱신.
@@ -42,7 +42,7 @@
 
 - 한 일:
   - **에뮬레이터를 CLI로 끝까지 구축해 실제 부팅·앱 실행까지 완료** — Android Studio 없이 가능함을 확인
-  - 백엔드(T8+T10)·웹(T9+T10·진행 중)·앱 동기화(T7+T8)·차량 세션(T9-1)·문서(T12) 병렬 구현 통합
+  - 백엔드(T8+T10)·웹(T9+T10·진행 중)·앱 동기화(T7+T8)·차량 세션(T9-1)·문서(T12) 작업 단위 구현 통합
 - 결과/증거:
   - 구축: emulator 37.2.13 설치 → `crp_car_emulator.zip`(4,087,751,964B) 다운로드 → **sha1 일치**(b4f858d5…) →
     `system-images/android-34/pleos_car_emulator/x86_64/` 배치 + package.xml 작성 → AVD **PleosConnect** 생성
@@ -59,7 +59,7 @@
   - **F29** 실기동 첫 어댑터 선택 결과: **DrivingState=UxRestrictionsDrivingState 등록 성공**(표준 CarUxRestrictions가 Pleos 에뮬레이터에서 획득·리스너 등록 됨 — U7 전반부 통과, 실제 restrict 수신은 기어 전환 필요), VehicleInfo=ProfileVehicleInfo(예상대로), RouteService=Fake(NaviHelper 초기화 콜백 1500ms 미수신 — U1/U2에서 naviRoute 직접 재검증 필요), Narrator=폴백(F30)
   - **F30** **Pleos TTS는 initialize 전에 addEventListener를 호출하면 UninitializedPropertyAccessException** — 순서를 뒤집어(initialize 먼저) 수정 후 초기화는 성공. 다만 onReady가 1.5초 내 미수신 → 폴백 선택. onReady 지연 여부는 U6 버튼(speak 직접 시도)으로 재검증 필요(Q13)
   - **F31** Connect-S 윈도잉: 다크 windowBackground가 비칠 수 있어 각 화면 루트는 반드시 `background(colorScheme.background)`를 채워야 한다(3개 화면 수정). 또한 앱 재시작 후 내비 앱이 창을 가져가는 동작 확인 — am start 재호출로 복귀 가능
-  - **F32** 시드가 재변경됨(제휴처 `p-demo-stay` 추가, 총 4개) — glm·android assets·backend seed를 동기화(sha1 19dbf8ab…)하고 테스트 단언(3→4) 갱신
+  - **F32** 시드가 재변경됨(제휴처 `p-demo-stay` 추가, 총 4개) — 요구 문서·android assets·backend seed를 동기화(sha1 19dbf8ab…)하고 테스트 단언(3→4) 갱신
   - **F33** VisitQueue 테스트의 Fake가 실패 시도까지 `received`에 기록해 단언과 어긋났던 버그 수정(성공 전송만 기록) — flush 구현 자체는 사양대로(실패 시 즉시 중단·순서 보장)
   - **F34** **U8 실측 PASS**: 에뮬레이터 앱 → `http://10.0.2.2:8000/health` → 200 `{"ok":true}`(debug cleartext 동작 확인). 백엔드는 uvicorn 호스트 구동, **pytest 28/28**. 웹(T9+T10)도 완성 — 백엔드가 `/web` 정적 서빙.
   - **F35** **U1 실측 PASS + U2 실측 PASS**: `requestRoute(RouteInfo(latitude=…, poiId="", poiSubId="", poiProvider=""))` 호출 접수 성공(예외 없음·Error 미수신), NaviHelper 초기화 콜백 ok. 단 AppContainer 선택 대기 1.5초엔 늦어 RouteService는 Fake로 선택 — U1/U2는 naviRoute 직접 검증으로 커버됨. 선택 대기 3초 확대 검토.
@@ -72,10 +72,10 @@
 
 ---
 
-## 2026-11-10 (야간) — 지시서 갱신 반영 + T5·T6 병렬 구현 완료
+## 2026-11-10 (야간) — 요구 문서 갱신 반영 + T5·T6 작업 단위 구현 완료
 
 - 한 일:
-  - 갱신 지시서 반영(모델·시드·테마)과 T5(주행 화면+도착 스탬프)·T6(정차 화면)을 4개 작업 단위로 병렬 구현 후 통합
+  - 갱신 요구 반영(모델·시드·테마)과 T5(주행 화면+도착 스탬프)·T6(정차 화면)을 4개 작업 단위로 구현 후 통합
   - TripSession(도착 파이프라인: arrivals → StampEngine 순서·중복 규칙 → VisitStore 로컬 기록 → 도착 음성 → 다음 목표 watch 재등록) 신설, 세션 수명은 Application과 동일(어떤 Activity도 stop 하지 않음)
   - VisitStore(filesDir/visits.json, 좌표 저장 없음), FusedArrivalDetector에 latestLocation 노출(거리 표시용, 저장 금지)
   - StampBook 도메인+9테스트, ThenNowResolver 확장(여러 과거→가장 오래된 것, label 우선)+12테스트, 시드 stamp_books·partners_demo·label 매핑
@@ -98,15 +98,15 @@
 
 ---
 
-## 2026-11-10 (야간) — 지시서 갱신 반영 (glm/ 문서 대폭 수정)
+## 2026-11-10 (야간) — 요구 문서 갱신 반영(요구 문서 대폭 수정)
 
-- 한 일: glm/의 00~03 문서가 20:55에 대폭 갱신되고 04_UI_GUIDE.md가 신설되어, 차이를 분석하고 P0 범위를 코드에 반영 시작
+- 한 일: 요구 문서의 00~03 문서가 20:55에 대폭 갱신되고 04_UI_GUIDE.md가 신설되어, 차이를 분석하고 P0 범위를 코드에 반영 시작
 - 결과/증거: 아래 F19~F23. 갱신 작업은 도메인·시드 저장소 담당과 테마 담당 2개 작업 단위로 병렬 진행
 - 확인된 사실(F-번호):
   - **F19** 도메인 모델 변경(00문서 4절): `QuizItem.reviewed`, `Place.coordVerified`, `Place.narrationReviewed` 필드가 모델로 이동. ThenNow는 10.4에 따라 `label` 표시용 필드를 둔다.
   - **F20** 시드 구조 확장: `stamp_books`(스탬프북 정의 + 완성 배지), `partners_demo`(제휴처·적립률 1%/2%), `then_now_demo.label`("1990년대 중반") 신설. `years_ago`는 35→32로 변경됐고 시드 주석에 "연도는 1994~1996 사이로 발주자 확인 필요(임시값)" — **사용자 확인 대상**.
   - **F21** 신규 작업(T9-1 가족 계승·차량 세션 = P1, T10 스탬프북·맛집·포인트 = P1+)과 섹션 10 보완사항(가족 코드 PIN, 보호자 동의, '관리 권한 이전' 용어, 영수증 입력은 모바일 웹 전용) 추가. 기존 "T10 혜택 미리보기(P2)"는 T10으로 흡수됨.
-  - **F22** UI 방침 대체: 04_UI_GUIDE에 따라 **밝은 테마 기본 + 주·야간 모두 지원**, 색은 토큰 구조(AroColors light/dark), 포인트 색은 인주 하나, 버튼 높이 76dp 이상, Page Navigation 헤더, 가로·세로 레이아웃 모두 지원. 화면 기준은 `기획서/화면시안/01~06*.png`.
+  - **F22** UI 방침 대체: 04_UI_GUIDE에 따라 **밝은 테마 기본 + 주·야간 모두 지원**, 색은 토큰 구조(AroColors light/dark), 포인트 색은 인주 하나, 버튼 높이 76dp 이상, Page Navigation 헤더, 가로·세로 레이아웃 모두 지원. 화면 기준은 화면 시안 이미지 01~06이다.
   - **F23** 03문서 5-1 단위 테스트 목록 확장: ThenNowResolver에 "여러 과거 → 가장 오래된 것", "label 우선 연도 표시" 규칙, StampBook(진행률·배지·중복 무시) 추가. 포인트 규칙은 서버 쪽(P1+). 01문서는 U1~U10 표 변경 없음, Gleo Interface 절(6-1, P2 선택)만 추가.
   - **F24** 01문서 6-1: Gleo Interface는 App Schema(assets/schema.json) 선언 → Intent 호출 → Callback 응답 방식(function calling). LLM SDK는 릴리스 노트에서 제공 종료 안내. P2 선택 과제로 지금은 구현하지 않는다.
 - Open Questions(Q-번호):
@@ -115,9 +115,9 @@
   - **Q11** 앱 카테고리(00문서 10.2): 주행 화면의 공식 허용 카테고리가 미확정 — ARCHITECTURE.md 작성 시 후보(Maps/Navigation 또는 Music/Audio 성격)와 근거를 적어야 한다.
 - 다음: P0 반영(모델·시드·StampBook·테마) 완료 후 재빌드·재테스트 → T5/T6에서 04문서 화면 명세 적용
 
-## 2026-11-10 (심야 2차) — 지시서 3차 갱신(11~13절) 반영 착수
+## 2026-11-10 (심야 2차) — 요구 문서 3차 갱신(11~13절) 반영 착수
 
-- 한 일: glm/ 문서 재갱신(00: 37.6KB·01·02·03·04·05_INSTALL_EMULATOR 신설·seed 23:04)을 읽고 델타를 4개 작업 단위로 병렬 구현 시작
+- 한 일: 요구 문서 재갱신(00: 37.6KB·01·02·03·04·05_INSTALL_EMULATOR 신설·seed 23:04)을 읽고 델타를 4개 작업 단위로 구현 시작
 - 확인된 사실(F-번호):
   - **F37** 새 포트 2개(00문서 4절): `TripSignalProvider{partySize(): Int?; odometerKm(): Double?}`(Pleos: Seat·Odometer / 대체: 수동·null), `VoiceLetterPlayer{isAvailable; play(letterId); stop()}`(정차 전용). 새 도메인 `TripSignals(partySize, odometerKm)`.
   - **F38** **Seat API를 Vehicle 2.3.2 AAR javap로 직접 확정**: `checkSeatOccupancyCapabilities(onComplete:(List<SeatArea>), onFailed)` 2종 오버로드 + `getCurrentSeatOccupancy(SeatArea, (Boolean)->Unit, (Exception)->Unit)`. SeatArea는 `SeatArea(SeatValue.ROW_1_LEFT…ROW_3_*)` 가변인자 — partySize는 점유 좌석 수 합산.
@@ -133,7 +133,7 @@
 
 ## 2026-11-11 (00시) — 3차 갱신 통합 완료 + 릴리스 APK
 
-- 한 일: 4개 병렬 작업(앱 코어·앱 UI·백엔드 10/11절·웹) 통합 + 릴리스 APK 서명 빌드
+- 한 일: 4개 작업(앱 코어·앱 UI·백엔드 10/11절·웹) 통합 + 릴리스 APK 서명 빌드
 - 결과/증거:
   - 앱: **단위 테스트 72/72 통과**(+heritage·voiceLetters·seatRoles·party_size·year 1994·TripSession tripKm/partySize 10케이스), assembleDebug 성공
   - 백엔드: **pytest 51/51 통과**(+숙소 기간·사진 필수·pending·device_limit 등 23개 신규), uvicorn 재기동 — health 200·/web 200
@@ -172,7 +172,7 @@
   - **F61** E1 원인: 앱 전송 필드 카멜케이스+PIN 헤더 누락+응답 파싱 불일치 — 서버는 규격대로 동작(사용자 직접 호출 확인). 계약 테스트로 재발 방지
   - **F62** E2 원인: ThenNowStep이 시드 예시 전용이었음 — 서버 past 우선 표기로 수정(예시는 폴백)
   - **F63** Connect-S 창 관리: force-stop 후 재실행 시 내비가 앱 창을 선점하며 am start 복귀가 지연될 수 있다 — GNB 앱 서랍(격자) 경로가 안전한 대안(실측)
-  - **F64** 백엔드 감사 기준선은 73(지시서 51은 구시점), 현재 76. 앱은 138(감사 시점 129+보강)
+  - **F64** 백엔드 감사 기준선은 73(요구 문서 51은 구시점), 현재 76. 앱은 138(감사 시점 129+보강)
 - Open Questions(Q-번호):
   - **Q18 유지**(테스트 가족 정리) + **Q19**: 에뮬레이터 간헐 재부팅 원인(Pleos 하드웨어 서비스 SIGABRT — Android Studio 설치·리소스 경합 가능성, 재부팅 후 재현 여부 관찰)
 - 다음:
@@ -183,7 +183,7 @@
 
 ## 2026-11-12 (밤) — 요구 갱신(09문서·07문서) 통합 완료
 
-- 한 일: 09_UI_FINDINGS(색 대비 3쌍·글자 크기·야간 정책)·07_NEXT_TASKS(B1·B3·B4·A1·A3)를 4개 작업 단위로 병렬 구현해 통합
+- 한 일: 09_UI_FINDINGS(색 대비 3쌍·글자 크기·야간 정책)·07_NEXT_TASKS(B1·B3·B4·A1·A3)를 4개 작업 단위로 구현해 통합
 - 결과/증거:
   - 앱: **단위 테스트 158/158 통과**(신규: PartyPrefs 13·HeirPinGuide 6·TripSession A3 2·SessionCredentials 등), assembleDebug·**assembleRelease 성공**, `apk/arosaegim_아로새김_release.apk` 갱신, 에뮬레이터 재설치·실행 확인(pid 생존)
   - 백엔드: **pytest 86/86 통과**(prefs 10 신규) — B4 prefs API(GET/PUT/POST /v1/families/me/prefs)·visit_ordinal(then-now·visits·타임라인·export)·family_total_trip_km(metrics+export) 착지
@@ -234,11 +234,11 @@
   - **Q17** Pleos TTS onReady 미수신 — initialize(onInitializeListener) 콜백 형태 재시도로 달라지는지
 - 추가 통합 완료(같은 세션): T9-3/T12+ 서버 연결 — ApiClient에 **getMembers·getMetrics·getVoiceLetters**(401/403은 AuthException 신호), FamilySessionStore에 **PIN 휘발성 보관**(SessionCredentials companion — SharedPreferences·파일·로그 경로 코드상 없음, 00문서 10.6 준수), TripSession partySize를 **매 도착 시점 재조회**로 개선, ParkedScreen 이름표 실데이터(driver/navigator/explorer→nickname, 401/403 안내 카드), Diagnostics 지표 [서버 값 가져오기](성공 시 출처 '서버'), 문서 3종 최신화(ARCHITECTURE 507줄 — U1~U14 실측표·신규 Q&A 3·어댑터 실측 표 / README 완료 상태 / ATTRIBUTION heritage 출처).
 - 확인된 사실(F-번호):
-  - **F58** 서버가 발급하는 가족 코드는 **8자리**(실측 8XTPUG8N) — FamilyCodeValidator를 6~8자리로 확장(테스트 갱신: 7자리 유효·9자리 무효).
+  - **F58** 서버가 발급하는 가족 코드는 **8자리**(형식 예시: A3K7Q9M2) — FamilyCodeValidator를 6~8자리로 확장(테스트 갱신: 7자리 유효·9자리 무효).
   - **F59** PIN은 세션 메모리(SessionCredentials companion)에만 존재 — 앱 재시작 시 소실(재입력 설계). members/metrics 조회는 코드+PIN 헤더가 모두 있어야 하며 401/403은 AuthException으로 구분된다.
   - **F60** U-tap 실측 방법(input tap + 스크린샷 좌표 측정)으로 진단 화면의 카드를 직접 조작할 수 있다 — U4·U5·U8·U9·U11·U13·U10이 사용자 없이 실측됐다.
 - Open Questions(Q-번호):
-  - Q13~Q17 유지. **Q18**: 백엔드 DB에 라이브 검증용 테스트 가족(8XTPUG8N) 1건 남아 있음 — 제출 전 `DELETE /v1/families/me` 또는 DB 삭제로 정리 권장.
+  - Q13~Q17 유지. **Q18**: 백엔드 DB의 라이브 검증용 테스트 가족은 정리 완료다(DB 0건 — 2026-11-13 재확인). 테스트 세션이 필요하면 그때 새로 발급한다.
 - 다음:
   - 사용자 Virtual Console 세션(U7·U11·U13 완결)과 기획서 문장 최종 확정만 남음. 앱 80/80·백엔드 51/51·릴리스 APK 재빌드(apk/arosaegim_아로새김_release.apk, 39.7MB) 완료.
 
@@ -246,7 +246,7 @@
 
 ## 2026-11-11 (심야) — 07문서(기획서 v10) 통합: A1~A8·D·B1~B5 구현 + 콜드 스타트 P0 해소 + A4 실측
 
-- 배경: `기획서/고도화_가점_후보_2026-11-11.md`의 조치를 병렬 에이전트로 구현(안드로이드 A1~A3·A8·D스모크·B1~B4 / 백엔드 B1~B5 서버 / 웹 B4 되돌리기·B5 사진 이름표). 섹션 6 규칙 준수 — 기획서 원본(`제출용/_work/`·`기획서/`)은 건드리지 않고 맨 아래 "기획서 반영 요청"으로 기록한다.
+- 배경: 기획서의 고도화·가점 후보 조치를 작업 단위로 구현(안드로이드 A1~A3·A8·D스모크·B1~B4 / 백엔드 B1~B5 서버 / 웹 B4 되돌리기·B5 사진 이름표). 요구 원본은 건드리지 않고 맨 아래 "기획서 반영 요청"으로 기록한다.
 - 확인된 사실(F-번호):
   - **F61 콜드 스타트 교착(P0) 발견·해소**: release APK 첫 실행이 `AppContainer.selectRouteService()`의 `runBlocking { withTimeoutOrNull(3s) … }`에서 영구 파킹(타임아웃 미발화) → 시스템이 "failed to complete startup"으로 강제 종료(dropbox data_app_anr 스택 3건, main park @selectRouteService — /data/anr 은 production 빌드라 비루트 읽기 불가, dumpsys dropbox로 확보). 아침 스모크 세션에도 동일 ANR 흔적 — 재시도 성공으로 마스킹돼 있었다. **수정**: 포트 선택을 동기 즉시 판정으로 바꾸고 늦은 초기화 성공 시 일방향 업그레이드(SwitchableRouteService 패턴을 Narrator로 일반화). **실측**: `-no-snapshot` 콜드 부팅 직후 첫 실행 2회 연속 `Status: ok, TotalTime 8.1~8.5s`, ANR 0.
   - **F62 A2 정차 자동 전환(기어 병합)**: `CombinedDrivingState`(1차 CarUxRestrictions + 기어 보조 2초 폴링, 어긋나면 더 제한적(주행) 우선). 실측: 앱 로그캣에서 `VENDOR_GEAR_SELECTION` 2초 주기 조회 확인(23:12~23:13 구간). D→P 자동 복귀의 시각 증명은 미확보(에뮬레이터 불안정 — Q19).
@@ -268,7 +268,7 @@
   2. BOX5 '[미확인] 기어 D 상태의 도착 기록' → '[확인: 기어 D·40km/h 주행 상태에서 반경에 들어서면 도착·스탬프가 기록되고 다음 목표로 진행된다. 그동안 화면은 시스템이 가린다(F68)]' 제안.
   3. BOX3 '좌석 점유' — 근원이 권한 누락이었음이 확인됐고 수정으로 조회 성공(F67). '값을 바꿔 넣어 문장이 나오는 것' 실측 후 갱신.
   4. BOX7 APK 크기 39.6MB → 40.3MB(현재 빌드 기준, 최종 빌드 후 재확인).
-  5. captions.json의 시안5 캡션 수정분은 `기획서/화면시안/make_mockups.py`에도 반영 필요(재생성 시 덮인다).
+  5. captions.json의 시안5 캡션 수정분은 시안 생성 스크립트(make_mockups.py)에도 반영 필요(재생성 시 덮인다).
 
 ---
 
@@ -311,10 +311,10 @@
 
 ---
 
-## 2026-11-10 — T0~T4 병렬 구현·통합 빌드
+## 2026-11-10 — T0~T4 작업 단위 구현·통합 빌드
 
 - 한 일:
-  - T1(스캐폴드)·T2(어댑터+Diagnostics)·T3(도메인+테스트)·T4(시드)를 4개 작업 단위로 병렬 구현 후 통합
+  - T1(스캐폴드)·T2(어댑터+Diagnostics)·T3(도메인+테스트)·T4(시드)를 4개 작업 단위로 구현 후 통합
   - Android SDK 설치(cmdline-tools + platform-35 + build-tools 35.0.0 + platform-tools, `C:\tools\android-sdk`)
   - `tools/` 시연 스크립트 3개 작성(UTF-8 BOM 적용, PowerShell 5.1/7 구문검증 PASS) + `tools/routes/gyeongju-demo.json`
 - 결과/증거:
@@ -379,7 +379,7 @@
   - **Q6** android.car.jar 획득 경로: Android SDK platforms/<api>/optional/ 에서 확보 예정. 없으면 리플렉션 우회(통합 단계 결정, DEV_LOG 후속 기록).
   - **Q7** 에뮬레이터 설치 여부 — 사용자 확인 필요(03 문서 1절 체크리스트).
 - 다음:
-  - T1~T4 병렬 구현(4개 작업 단위) → 통합 빌드(assembleDebug·test)
+  - T1~T4 구현(4개 작업 단위) → 통합 빌드(assembleDebug·test)
   - Android SDK(cmdline-tools + platform 35 + build-tools) 설치는 진행 중
   - U1~U10은 에뮬레이터 준비 후 사용자와 함께 실행
 
@@ -425,3 +425,53 @@
   - **Q27**: partySize 불일치(F73 — 주입 3 vs 표시 1) — SeatArea(ROW_1~3×L/C/R)와 VHAL areaId(1/4/16/32/64) 대응표·점유 값 의미(1/2) 스모크 확정 필요.
   - **Q28**: 새 설치 플로우에서 가족 코드 입력 화면(StartActivity) 진입점이 보이지 않음 — fresh install이 곧바로 ParkedActivity 코스 선택. 세션(PIN) 없이는 방문 동기화(401)·B2/B4 표시가 불가능하다. UI 진입점 확인·보완 필요. → **해소(2026-11-13 오전, 위 오전 섹션 F80)**: ModeRouter 세션 게이트 — 세션 없는 정차 상태에서는 자동 전환을 보류해 시작 화면을 유지. 남은 검증: 새 설치 후 시작 화면이 유지되는지 GUI 재확인.
 - 테스트: 앱 ./gradlew test 159/159(네트워크 설정 포함 재빌드), 백엔드 pytest 76/76. release APK 재빌드·apk/ 재복사(40.45MB).
+
+---
+
+## 2026-11-13 (밤) — 12번 문서 §3 수행 1: P0-1 tools/ 저장소 내부화 완료
+
+- 배경: 요구 문서 12번 §3(P0-1 → P0-5 순서 수행 지시). 로직 변경 없음 — 도구·문서·추적 설정만 고쳤다. F 번호는 F85 다음부터(F86~).
+- 확인된 사실(F-번호):
+  - **F86 P0-1 완료**: ① 저장소 밖 작업 폴더 경로 검색(tools 한정) **0건**(tools/README.md의 옛 문구와 커밋 번호·낡은 수치(163·86·d4eb823)를 지우고 "현재 값은 도구를 돌려 확인한다"로 교체, drift-results.json의 작업 폴더 경로 38건은 파일째 추적 제외). ② 숫자 대조 도구(spec_drift_check.py) 실행 **10개 사실 전부 OK·문서 일치 17곳** — 0매칭이던 F-ENDPOINTS(37)·F-ROUTERS(11)·F-MODELS(46)·F-STRINGS(121)·F-TESTFILES-APP(22)·F-TESTFILES-SERVER(9)는 README에 "현재 값" 문단을 새로 두고 규칙을 등록해 실제로 잡힌다. ARCHITECTURE 구성도의 "백엔드 라우터 10개"를 **11개로 갱신**(preferences 추가)하고 facts.json의 skip 규칙을 해제했다. ③ 실행 결과 파일(drift-results.json)을 **추적에서 제외**(git rm --cached·.gitignore에 tmp/·tools/drift-results.json 추가)하고 도구 기본 출력 경로를 으로 바꿨다(결과 파일에 문장 조각이 남지 않게). ④ tools/README.md 재작성(도구 2종 용법·표준 라이브러리 전용·읽기 전용 명시), Q30 문구를 "문서의 숫자는 이 도구로 코드에서 센 값과 대조한다"로 교체.
+  - 참고: facts.json의 doc_patterns 저장소 내부화는 이미 선행 반영돼 있어 이번에는 0매칭 규칙 보강만 수행했다. README의 릴리스 APK 크기 표기(39.6MB→40.4MB)도 함께 정정했다.
+- 시험: 해당 없음(도구·문서 변경 — 코드 미변경). 도구 자체 검증은 위 ②로 대신한다.
+
+---
+
+## 2026-11-13 (밤) — 12번 문서 §3 수행 2: P0-2 작업 방식 흔적·깨진 참조 제거 완료
+
+- 확인된 사실(F-번호):
+  - **F87 P0-2 완료**: ③ 작업 방식 흔적 검사(요구 문서 12 §7 명령 ③)의 결과를 다음과 같이 정리했다. (a) 신설 `docs/EMULATOR_SETUP.md` — 에뮬레이터 요구 사항·설치 순서·자주 막히는 곳·adb 명령 모음·수동 확인 목록·릴리스 체크리스트를 사실만 모아 한 문서로 만들었고(심사용 계정 초대 항목은 제외 — 비공개 제출 시 불필요), README·ARCHITECTURE의 에뮬레이터 구축 참조를 이 문서로 연결했다. (b) TRACEABILITY 머리말의 커밋 번호 제거("현재 값은 tools/spec_drift_check.py로 확인"), 표 1 제목을 "다음 과제 기능(A1~A8·B1~B5)"으로, 근거 줄을 "docs/DEV_LOG.md 의 F·Q 번호"로 교체. (c) ADR.md 전면 정비 — 내부 문서 번호(00문서 2-3절·10.6·9절·7절 B3·11-2, 02문서 11절)를 요구 내용+DEV_LOG F·Q 번호·코드 경로로 교체(ADR-001·003·005·007·010·011·013·014), ADR-005 상태 문구를 현재 사실로(F81 코드 반영·DrivingStateMergerTest 검증·실측 미완료), ADR-009에 "안내 문구는 서버 발급 형식(8자리), 검증은 구형 6자리 호환을 위해 6~8자리 허용" 한 줄 추가. (d) 코드 주석 5곳의 작업 방식 표현 제거(DiagnosticsScreen·ParkedScreen 3곳·ThenNowExtras — 주석 글만, 로직·식별자 무변경). (e) docs/DEV_LOG.md의 표현 20줄을 사실 보존 원칙으로 재표현("병렬 구현"→"작업 단위 구현", 내부 문서 경로→일반 명칭 — 수치·링크·F/Q 무변경, UTF-8 무결성 검증 포함). (f) 작업 폴더 경로 표기 3곳 제거(ATTRIBUTION 화면 시안 출처 행·DEV_LOG F22·기획서 반영 요청 5호 — 경로 대신 일반 명칭).
+  - **남는 검색 결과의 성격**: 명령 ③의 대소문자 무시 검사에서 서버 응답 모델 식별자 HeritageBriefOut(backend/app/models.py 3줄·services/then_now.py 2줄)이 "BRIEF" 단어로만 남는다. API 스키마 이름이라 식별자 변경은 금지(요구 문서 12 §2·P0-2.1)이므로 예외로 남긴다 — 실제 작업 방식 문장은 0건이다.
+  - **링크 검증**: docs/ 안 모든 상대 .md 링크가 실제 파일을 가리킨다(0건 끊김 — EMULATOR_SETUP.md 포함). UTF-8 무결성도 검증(DEV_LOG·models.py·then_now.py).
+  - **README 보강**: "현재 값" 문단 아래에 코드 주석의 "NN문서 …" 표기가 요구 문서 번호이며 저장소에 포함되지 않는다는 안내 한 줄 추가(P0-2.4 — 코드 주석 자체는 유지).
+- 시험: 해당 없음(문서·주석 변경 — 코드 미변경).
+
+---
+
+## 2026-11-13 (밤) — 12번 문서 §3 수행 3: P0-3 테스트 가족·PIN 실제 값 제거 완료
+
+- 확인된 사실(F-번호):
+  - **F88 P0-3 완료**: 실제 테스트 가족 코드 2종과 PIN 값 1종이 남아 있던 곳은 docs/ADR.md(ADR-009 맥락)·docs/DEV_LOG.md 5줄(Q29·남은 실측·Q14/Q18·F58·Q18)의 6곳이었고, 코드 파일(FamilySessionStore.kt KDoc·FamilySessionStoreTest·VisitQueueTest)은 선행 커밋에서 이미 예시 값으로 바뀌어 있었다. 남은 6곳을 명백한 예시 값(형식 예시: A3K7Q9M2)으로 교체하거나 "세션마다 새로 발급·값은 문서에 기록하지 않는다"로 재표현했다. 시험의 의미(8자리 형식 검증 등)는 그대로다.
+  - **Q18 완료 재확인**: 서버 DB의 테스트 가족은 0건이다(직접 조회 — families·visits·members 모두 0). `git ls-files`에서 DB 파일은 추적되지 않으며 uploads/는 .gitkeep만 추적된다(내용 없음).
+  - **시험 수 기록**: 앱 단위 테스트 **190/190**·서버 pytest **87/87** 통과. 앱 시험 수는 이 문서 작성 기준 179에서 190으로 늘어 있다(선행 커밋의 신규 시험 포함 — 이번 P0-3은 문서 변경이라 개수 무관). README·ARCHITECTURE·TRACEABILITY·facts.json의 숫자를 190으로 갱신 — **기획서 반영 요청:** 기획서의 테스트 수 표기를 179→190(앱)으로 맞춘다.
+
+---
+
+## 2026-11-13 (밤) — 12번 문서 §3 수행 4: P0-4 수용 기준 정본·점검 도구·추적표 완료
+
+- 확인된 사실(F-번호):
+  - **F89 P0-4 완료**: 수용 기준 정본을 `docs/spec/ac/`에 두고(기능 F1~F9 · 9파일 · **수용 기준 122건**), `tools/spec_check.py`(표준 라이브러리만 — 기존) 실행 결과 **오류 0건 · 시험 이름 '없음' 0건**(시험 이름 실존 자동 확인 138건·점검 제외 128건). `--write-trace`로 `docs/SPEC_TRACE.md`(기능별 표 + 실존 열 자동 점검)를 생성했고 `--counts`는 앱 190건(22파일)·서버 87건(9파일)을 출력한다.
+  - **정본 경로 정리**: 수용 기준 초안이 두 곳에 있었다(요구 문서 11 첨부 ac/f1~f7 초안 vs docs/spec/ 루트의 야간 재검증판 f1~f9). 비교 결과 루트 판이 상위 집합이다(F1 11→14·F2 13→14·F3 10→11·F4 11→13·F5 11→13·F6 14→15·F7 15→16 — F77·F80 실측을 반영한 AC 신설 포함) therefore 루트 판을 `docs/spec/ac/` 정본으로 옮기고 f8_cashback·f9_offline(F8·F9 초안)도 함께 옮겼다. 요구 문서 11 첨부의 구형 초안은 저장소 밖이라 그대로 둔다.
+  - **ac_final 대기**: 요구 문서 12 §5의 `glm/12_attachments/ac_final/`(기획서 검증 최종본)는 아직 미도착 — 도착하면 정본을 덮어쓰고 차이를 별도 F 번호로 보고한다.
+  - **F9 유형 보고**: F9(오프라인·대체 구현)는 항상·선택 유형만 있고 사건·상태·원치 않는 상황이 없다(보고만 — 오류 아님). 시험이 없는 수용 기준은 P2 "시험 추가" 후보다.
+- 시험: 신규 추가 없음(정본·도구·추적표 작업). 점검기 기준: 오류 0건.
+
+---
+
+## 2026-11-13 (밤) — 12번 문서 §3 수행 5: P0-5 ADR 기각한 대안 보강 완료
+
+- 확인된 사실(F-번호):
+  - **F90 P0-5 완료**: ADR-001~014 전체(14건)에 `- 기각한 대안:` 줄을 추가했다(번호·제목 무변경 — 기획서가 같은 번호로 인용). 실제로 검토·배제한 근거가 있는 것(ADR-001 Hilt 미사용·ADR-005 DO/기어 단독 판정 기각·ADR-006 NEW_TASK 누락·ADR-008 대기 시간 연장·ADR-010 평문 저장·ADR-012 카멜케이스 유지·ADR-014 SDK 직접 호출)은 DEV_LOG F·Q 번호와 함께 기록했고, 검토 기록이 없는 것(ADR-002 큐 비동기 소비·ADR-003 암호화 영속 저장·ADR-004 UUID 멱등키·ADR-007 음성 경로 없음·ADR-009 8자리 강제·ADR-011 제휴처별 상한·ADR-013 Room·ADR-014 선구현)은 "(검토 기록 없음) 대안으로 생각할 수 있는 것: …" 형식으로 구분해 거짓 이력을 만들지 않았다.
+  - 상태 문구: ADR-005의 진행 문구는 F81 반영 사실로 교체돼 있다(위 P0-2.3 정비와 동일 판).
+- 시험: 해당 없음(문서 변경).

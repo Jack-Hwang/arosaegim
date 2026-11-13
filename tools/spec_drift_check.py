@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
 """spec_drift_check.py — 명세(문서)와 코드의 숫자 정합을 점검한다 (SDD drift 게이트).
 
-배경: 기획서·명세 문장에 적힌 숫자(테스트 수, 엔드포인트 수 …)가 코드가 바뀐 뒤 낡아서
+배경: 문서에 적힌 숫자(테스트 수, 엔드포인트 수 …)가 코드가 바뀐 뒤 낡아서
       같은 장 안에서 서로 다른 값이 공존하는 일이 반복됐다. 이 도구는
-      '사실 대장'(sdd/04_verify/facts.json)에 적힌 측정 방법으로 코드에서 값을 직접 재고,
+      '사실 대장'(tools/facts.json)에 적힌 측정 방법으로 코드에서 값을 직접 재고,
       문서 원본에서 그 사실을 말하는 모든 문장을 정규식으로 찾아 값이 다르면 실패로 보고한다.
 
 사용:
-  python -I -B -X utf8 proof/spec_drift_check.py                 # 기본: HEAD 기준, 사실 대장 전체
-  python -I -B -X utf8 proof/spec_drift_check.py --rev d4eb823   # 특정 커밋 기준
-  python -I -B -X utf8 proof/spec_drift_check.py --out tmp/drift-results.json
+  python -I -B -X utf8 tools/spec_drift_check.py --repo . --rev HEAD --facts tools/facts.json
+  python -I -B -X utf8 tools/spec_drift_check.py --rev ba96030   # 특정 커밋 기준
+  python -I -B -X utf8 tools/spec_drift_check.py --quiet          # 결과 파일만 기록
 
 종료 코드: 0 = 모두 일치, 1 = 불일치 있음, 2 = 측정 실패(--strict 일 때만 실패로 취급)
 읽기 전용이다: 저장소는 git grep/show/ls-tree 로만 읽고(--no-optional-locks), 문서는 열어서 읽기만 한다.
@@ -133,12 +133,11 @@ def scan_docs(fact, excludes):
 
 def main():
     ap = argparse.ArgumentParser(description='명세-코드 숫자 정합 점검 (SDD drift gate)')
-    # proof/ 원본(sdd/04_verify/facts.json)을 arosaegim/tools 로 복사한 판 — 저장소 안에서
-    # 스스로를 가리키도록 기본 경로만 조정했다(측정 로직·스키마는 원본과 동일).
+    # 저장소 안 기준(tools/facts.json)으로 기본 경로를 조정한 판 — 측정 로직·스키마는 동일하다.
     ap.add_argument('--repo', default=ROOT)
     ap.add_argument('--rev', default='HEAD')
     ap.add_argument('--facts', default=os.path.join(ROOT, 'tools', 'facts.json'))
-    ap.add_argument('--out', default=os.path.join(ROOT, 'tools', 'drift-results.json'))
+    ap.add_argument('--out', default=os.path.join(ROOT, 'tmp', 'drift-results.json'))
     ap.add_argument('--strict', action='store_true', help='측정 실패도 실패로 취급')
     ap.add_argument('--quiet', action='store_true')
     args = ap.parse_args()

@@ -156,12 +156,19 @@
     <string name="session_pin_hint">여섯 자리 숫자</string>
     <string name="session_pin_required">이어 보기에는 6자리 PIN이 필요해요</string>
     <string name="session_connect">이어 보기</string>
-    <string name="session_connect_invalid">코드는 8자리 영문·숫자여야 해요</string>
+    <!-- 검증기(FamilyCodeValidator)는 6~8자리를 받는다 — 서버 발급은 8자리(F58)지만 초창기
+         6자리 호환을 유지하므로 안내도 받는 자릿수에 맞춘다. -->
+    <string name="session_connect_invalid">코드는 6~8자리 영문·숫자여야 해요</string>
     <string name="session_connect_done">가족 코드가 이 차에 저장됐어요. 같은 코드로 다른 차에서도 기록이 이어져요.</string>
     <string name="session_guest">가족 없이 둘러보기</string>
     <string name="session_guest_note">데모·개인 모드 — 기록은 이 차에만 저장돼요</string>
     <string name="session_guest_done">둘러보기로 시작해요. 기록은 이 차에만 저장돼요.</string>
     <string name="session_proceed_parked">정차 화면으로 이동</string>
+    <!-- E⑤(2026-11-13): 서버가 PIN 을 거부했을 때의 안내 한 줄. 도착마다 같은 틀린 PIN 이
+         재전송돼 서버 실패 횟수(5회)를 채우지 않도록 큐가 전송을 멈춘 상태다 — 시작(가족
+         코드) 화면에서 다시 입력하면 재개된다. TripSession.PIN_REJECTED_LINE 상수 경로가
+         같은 문장을 쓴다(세션은 Context 가 없어 문구 리소스화는 T9 정리 대상). -->
+    <string name="session_pin_rejected">PIN이 맞지 않아요. 가족 코드 화면에서 다시 입력해 주세요</string>
 
     <!-- ===== B1: 이어받을 사람 질문(시안 19) — 코스 3/3 완주 직후 정차 화면, 가족 배지 다음 1회만.
          주행 중에는 질문하지 않고, 거절해도 배지·완주 기록은 그대로 유지된다. ===== -->

@@ -1,0 +1,177 @@
+{
+  "feature": "F5",
+  "name": "음성 해설·음성 편지",
+  "acs": [
+    {
+      "id": "ARO-F5-AC01",
+      "pattern": "ubiquitous",
+      "text": "앱은 안내 음성을 사전 제작 오디오 → 차량 음성 합성(Pleos) → 안드로이드 기본 음성 순서의 3단 체인으로 시도합니다.",
+      "io": [],
+      "verify": {
+        "kind": "code",
+        "refs": ["소스 app/src/main/java/app/arosaegim/AppContainer.kt(selectNarrator — 1단 AssetAudioNarrator 기본 경로·2단 PleosTtsNarrator·3단 AndroidTtsNarrator 최후 폴백)", "소스 docs/TRACEABILITY.md 1절 A1"]
+      },
+      "status": "(설계)",
+      "numbers": ["3"]
+    },
+    {
+      "id": "ARO-F5-AC02",
+      "pattern": "unwanted",
+      "text": "차량 음성 합성의 초기화 확인이 아직 안 된 상태에서 문장을 말해야 하면 앱은 기다리지 않고 안드로이드 기본 음성으로 말합니다.",
+      "io": [
+        {"in": "onReady=false 상태에서 speak 호출", "out": "안드로이드 기본 음성(대체)이 즉시 말함, 블로킹 없음"}
+      ],
+      "verify": {
+        "kind": "unit",
+        "refs": ["단위 테스트 SwitchableNarratorTest.`onReady 전에는 대체(Android TTS 자리)로 말한다 - 블로킹 없이 즉시 기동`"]
+      },
+      "status": "[코드 확인]",
+      "numbers": []
+    },
+    {
+      "id": "ARO-F5-AC03",
+      "pattern": "event",
+      "text": "차량 음성 합성의 초기화 확인이 늦게 성공하면 앱은 그 다음부터 안드로이드 기본 음성 대신 차량 음성 합성으로 바꿔 말하고, 이 전환은 되돌아가지 않습니다.",
+      "io": [
+        {"in": "onReady가 늦게 true로 바뀜", "out": "이후 speak는 차량 음성 합성이 담당, 활성 구현 전환"},
+        {"in": "전환 후 onReady가 false로 되돌아감", "out": "차량 음성 합성을 유지(일방향)"}
+      ],
+      "verify": {
+        "kind": "unit",
+        "refs": ["단위 테스트 SwitchableNarratorTest.`onReady 지연 확인 후에는 Pleos로 말한다`", "단위 테스트 SwitchableNarratorTest.`전환은 일방향 - ready가 false로 되돌아가도 Pleos를 유지한다`"]
+      },
+      "status": "[코드 확인]",
+      "numbers": []
+    },
+    {
+      "id": "ARO-F5-AC04",
+      "pattern": "state",
+      "text": "초기화 확인이 끝내 오지 않으면 앱은 안드로이드 기본 음성(대체)을 계속 씁니다.",
+      "io": [],
+      "verify": {
+        "kind": "unit",
+        "refs": ["단위 테스트 SwitchableNarratorTest.`onReady가 끝내 오지 않으면 대체로 머문다`"]
+      },
+      "status": "[코드 확인]",
+      "numbers": []
+    },
+    {
+      "id": "ARO-F5-AC05",
+      "pattern": "ubiquitous",
+      "text": "\"지금 안내 음성을 쓸 수 있는가\"라는 질문에 앱은 현재 활성 구현의 실제 준비 상태를 그대로 답합니다.",
+      "io": [],
+      "verify": {
+        "kind": "unit",
+        "refs": ["단위 테스트 SwitchableNarratorTest.`isAvailable은 활성 위임자의 실제 준비 상태를 답한다 - 거짓 표기 금지`"]
+      },
+      "status": "[코드 확인]",
+      "numbers": []
+    },
+    {
+      "id": "ARO-F5-AC06",
+      "pattern": "unwanted",
+      "text": "이 에뮬레이터에서는 안드로이드 기본 음성 초기화와 차량 음성 합성 초기화 확인이 모두 실패해, 지금은 두 합성 경로 모두 소리가 나지 않습니다. 원인 2건은 확정됐습니다.",
+      "io": [
+        {"in": "에뮬레이터에서 안내 음성 재생 시도(U6)", "out": "소리 없음 — Android TTS 초기화 실패 + Pleos onReady 미수신"}
+      ],
+      "verify": {
+        "kind": "emulator",
+        "refs": ["개발 기록 U6(U6 FAIL — 원인 2건 확정)", "개발 기록 F54(에뮬레이터 TTS 환경 한계 가능성)"]
+      },
+      "status": "[실패]",
+      "numbers": []
+    },
+    {
+      "id": "ARO-F5-AC07",
+      "pattern": "state",
+      "text": "음성 편지는 시드의 예시 1건(식별자 letter-demo-1, 국립경주박물관 묶음)만 제공됩니다.",
+      "io": [
+        {"in": "시드 로드", "out": "음성 편지 목록이 단일 예시 객체 1건으로 정규화됨(letter-demo-1)"}
+      ],
+      "verify": {
+        "kind": "unit",
+        "refs": ["단위 테스트 SeedRepositoryTest.realSeedFile_parsesToExpectedContent(letter-demo-1·gj-museum·simulated=true 단언)", "서버 시험 test_voice_letters_returns_seed_demo"]
+      },
+      "status": "[코드 확인]",
+      "numbers": ["1"]
+    },
+    {
+      "id": "ARO-F5-AC08",
+      "pattern": "event",
+      "text": "가족이 음성 편지 재생 버튼을 누르면 앱은 그 순간부터 사전 제작 음성 편지 재생을 시작합니다(자동재생 없음).",
+      "io": [
+        {"in": "gj-museum 정차 화면에서 \"재생\" 버튼 누름", "out": "음성 편지 재생 시작, 버튼 글자가 \"재생 중…\"으로 바뀜"}
+      ],
+      "verify": {
+        "kind": "code",
+        "refs": ["소스 app/src/main/java/app/arosaegim/ui/parked/ThenNowExtras.kt(VoiceLetterCard — onClick 재생)", "소스 docs/ARCHITECTURE.md 7절(음성 편지 T9-2 — 정차했을 때만 재생 버튼)"]
+      },
+      "status": "(설계)",
+      "numbers": []
+    },
+    {
+      "id": "ARO-F5-AC09",
+      "pattern": "unwanted",
+      "text": "음성 편지 재생이 실패하면 앱은 재생 대신 \"예시(음성 준비 중)\" 글자 안내를 보여줍니다.",
+      "io": [
+        {"in": "음성 편지 재생 실패(오디오 파일 없음)", "out": "\"예시(음성 준비 중)\" 안내 문구 표시"}
+      ],
+      "verify": {
+        "kind": "code",
+        "refs": ["소스 android/app/src/main/res/values/strings.xml(parked_voice_letter_unavailable)", "소스 app/src/main/java/app/arosaegim/ui/parked/ThenNowExtras.kt(VoiceLetterCard)"]
+      },
+      "status": "(설계)",
+      "numbers": []
+    },
+    {
+      "id": "ARO-F5-AC10",
+      "pattern": "unwanted",
+      "text": "정차 화면이 가려지면 앱은 재생 중인 음성 편지를 멈춥니다.",
+      "io": [
+        {"in": "음성 편지 재생 중 기어 D 진입(주행 전환)", "out": "음성 편지 재생 중단"}
+      ],
+      "verify": {
+        "kind": "code",
+        "refs": ["소스 app/src/main/java/app/arosaegim/ui/parked/ParkedActivity.kt(onPause에서 voiceLetterPlayer.stop 호출)", "소스 docs/ARCHITECTURE.md 7절(주행을 시작하면 재생이 멈춘다)"]
+      },
+      "status": "(설계)",
+      "numbers": []
+    },
+    {
+      "id": "ARO-F5-AC11",
+      "pattern": "unwanted",
+      "text": "다른 소리가 오디오 포커스를 완전히 또는 일시적으로 가져가면 앱은 재생 중인 안내 음성·음성 편지를 멈춥니다.",
+      "io": [],
+      "verify": {
+        "kind": "code",
+        "refs": ["소스 app/src/main/java/app/arosaegim/pleos/PleosVoiceLetterPlayer.kt(포커스 상실·일시 상실 처리)", "소스 app/src/main/java/app/arosaegim/fallback/AssetAudioNarrator.kt(포커스 처리)", "소스 app/src/main/java/app/arosaegim/pleos/PleosTtsNarrator.kt(포커스 처리)"]
+      },
+      "status": "(설계)",
+      "numbers": []
+    },
+    {
+      "id": "ARO-F5-AC12",
+      "pattern": "optional",
+      "text": "다른 소리가 낮추기만 요청하는 경우(소리를 줄여도 되는 상황) 앱은 재생을 멈추지 않고 계속합니다.",
+      "io": [],
+      "verify": {
+        "kind": "code",
+        "refs": ["소스 app/src/main/java/app/arosaegim/pleos/PleosVoiceLetterPlayer.kt(포커스 상실·일시 상실만 처리 — 낮추기 요청은 미처리)"]
+      },
+      "status": "(설계)",
+      "numbers": []
+    },
+    {
+      "id": "ARO-F5-AC13",
+      "pattern": "state",
+      "text": "차가 정차한 상태인 동안에만 앱은 음성 편지 카드를 화면에 둡니다. 주행 화면에는 이 카드가 없습니다.",
+      "io": [],
+      "verify": {
+        "kind": "code",
+        "refs": ["소스 app/src/main/java/app/arosaegim/ui/parked/ThenNowExtras.kt(VoiceLetterCard — 정차 화면 전용)", "소스 app/src/main/java/app/arosaegim/ui/driving/DrivingScreen.kt(음성 편지 카드 없음)", "소스 docs/ARCHITECTURE.md 7절"]
+      },
+      "status": "(설계)",
+      "numbers": []
+    }
+  ]
+}

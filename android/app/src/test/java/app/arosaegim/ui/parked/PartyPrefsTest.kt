@@ -9,7 +9,7 @@ import org.junit.Test
 /**
  * B4 인원 비교 문장 접어 두기 — 순수 로직 단위 테스트(2026-11-12).
  *
- * 계약(glm 07문서 2절 B4):
+ * 계약(요구 문서 07의 2절 B4):
  *  - GET /v1/families/me/prefs 응답({"party_line_hidden_places": [...], "party_line_all_hidden"})
  *    을 파싱한다. 필드가 빠져도 서버 초기값(빈 목록·false)으로 채우고, 깨진 응답은 null — 로컬 폴백.
  *  - 접힘 목록에 placeId 가 있으면 그 장소에서만 문장을 숨긴다. 다른 장소 무영향.
@@ -103,7 +103,7 @@ class PartyPrefsTest {
         assertEquals(setOf("gj-museum"), partyPrefsPlacesWithPlace(null, "gj-museum"))
     }
 
-    // ── 로컬 폴백 키 계약(값 고정 — 단말 저장 키는 지시서 계약이다) ──
+    // ── 로컬 폴백 키 계약(값 고정 — 단말 저장 키는 요구 문서 계약이다) ──
 
     @Test
     fun `폴백 저장소 키 이름이 계약과 같다`() {

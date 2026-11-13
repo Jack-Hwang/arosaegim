@@ -14,7 +14,7 @@ import kotlinx.serialization.json.jsonObject
 /*
  * 가족 기록 신규 API(heir·then-now·folded·metrics) 응답 파서(B1~B4, 2026-11-11).
  *
- * 공통 원칙(지시서 계약): 서버 응답에 필드가 없거나 파싱에 실패하면 '기능 숨김'이다.
+ * 공통 원칙(요구 문서 계약): 서버 응답에 필드가 없거나 파싱에 실패하면 '기능 숨김'이다.
  * 추측으로 문구·버튼을 만들지 않는다. 모든 파서는 순수 Kotlin이라 JVM 단위 테스트가 가능하다.
  */
 

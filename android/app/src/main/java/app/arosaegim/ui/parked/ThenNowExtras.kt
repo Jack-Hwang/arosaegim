@@ -61,7 +61,7 @@ import java.net.URL
  * 안전 규칙(04문서): 애니메이션·자동재생 없음. 인원·거리·편지는 "안 읽히면 숨김" 원칙 —
  * 값이 null 이면 컴포저블 전체를 그리지 않는다. 색은 MaterialTheme.aroColors 토큰만.
  *
- * 고정 API 주의(통합 담당 확인 사항): 아래 타입은 병렬 작업 중인 domain/·ports/·data/ 에서
+ * 고정 API 주의(통합 시 확정): 아래 타입은 domain/·ports/·data/ 에서
  * 제공된다 — HeritageInfo / VoiceLetter / VoiceLetterPlayer / Place.heritage /
  * ThenNowDemo.partySize / SeedContent.voiceLetters. 이 파일은 그 시그니처를 그대로 쓴다.
  */

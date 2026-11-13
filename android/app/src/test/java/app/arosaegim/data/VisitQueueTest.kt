@@ -1,8 +1,10 @@
 package app.arosaegim.data
 
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -43,6 +45,15 @@ class VisitQueueTest {
         /** 모든 호출을 실패시킨다(서버 없음 상태 재현). */
         var failAlways = false
 
+        /** 모든 호출을 AuthException(401·403 재현)으로 거부한다. */
+        var rejectAlways = false
+
+        /** 이 PIN 값이 실려 오면 AuthException(서버 invalid_pin 재현)으로 거부한다. */
+        var rejectPin: String? = null
+
+        /** 지금까지의 postVisit 시도 횟수 — 재시도 루프·거절 조건 검증용. */
+        val attemptCount: Int get() = attempts.get()
+
         private val attempts = java.util.concurrent.atomic.AtomicInteger()
 
         override suspend fun postVisit(
@@ -53,6 +64,9 @@ class VisitQueueTest {
             // received 는 '서버에 실제 도달한 전송'만 기록한다 — 실패한 시도는 기록하지 않는다.
             // 호출 순서(order)는 시도 기준 1부터 센다.
             val order = attempts.incrementAndGet()
+            if (rejectAlways || rejectPin != null && pin == rejectPin) {
+                return Result.failure(AuthException("테스트: 가족 인증 실패(HTTP 401)"))
+            }
             return if (failAlways || order == failAt) {
                 Result.failure(IOException("테스트: 전송 실패($order)"))
             } else {
@@ -186,12 +200,12 @@ class VisitQueueTest {
     fun `6_pin 공급자의 세션 PIN 이 X-Family-Pin 값으로 전달된다`() = runBlocking {
         val api = FakeApiClient()
         val queue = newQueue(api, pinProvider = { "230444" }) // 세션 메모리 PIN 흉내(00문서 10.6).
-        queue.enqueue(visit("p1"), familyCode = "8XTPUG8N")
+        queue.enqueue(visit("p1"), familyCode = "A37K9Q2M")
 
         val result = queue.flush()
 
         assertTrue("코드·PIN 이 모두 있으면 전송 성공(E1 실측 계약)", result.isSuccess)
-        assertEquals("가족 코드가 실렸다", "8XTPUG8N", api.receivedFamilyCodes[0])
+        assertEquals("가족 코드가 실렸다", "A37K9Q2M", api.receivedFamilyCodes[0])
         assertEquals("공급자의 PIN 이 전송된다", "230444", api.receivedPins[0])
     }
 
@@ -236,5 +250,110 @@ class VisitQueueTest {
         assertTrue("추가 키는 무시되고 visit_id·stamp_no 로 성공 판정", result.isSuccess)
         assertEquals("전송 1건", 1, result.getOrNull())
         assertEquals("큐가 비었다", 0, queue.pendingCount.value)
+    }
+
+    /* ---------------- E④ 재시도 예산(2026-11-13 고정) ---------------- */
+
+    @Test
+    fun `10_전송 실패 후 재시도 루프는 없다 — flush 1회당 시도도 1회다`() = runBlocking {
+        val api = FakeApiClient()
+        api.failAlways = true // 서버 없음 — 첫 항목에서 실패하고 끝난다.
+        val queue = newQueue(api)
+        queue.enqueue(visit("p1"), familyCode = null)
+        queue.enqueue(visit("p2"), familyCode = null)
+
+        queue.flush()
+        delay(200) // 내부 재시도·타이머가 있다면 이 사이에 추가 시도가 관측된다.
+        assertEquals("flush 1회 = 시도 1회(첫 항목에서 즉시 중단)", 1, api.attemptCount)
+
+        queue.flush() // 재시도는 '다음 flush 트리거'(다음 도착)에서만 일어난다.
+        assertEquals("다시 부른 flush 만 1회 더 시도한다", 2, api.attemptCount)
+        assertEquals("실패 항목은 큐에 유지된다", 2, queue.pendingCount.value)
+    }
+
+    /* ---------------- E⑤ PIN 오입력 반복 방지(2026-11-13) ---------------- */
+
+    @Test
+    fun `11_서버가 PIN을 거부하면 같은 조합 재전송을 멈추고 큐는 보존된다`() = runBlocking {
+        val credentials = SessionCredentials(pin = "111111")
+        val api = FakeApiClient()
+        api.rejectPin = "111111" // 서버 401 invalid_pin 재현 — 이 PIN 은 틀린 값이다.
+        val file = newTempFile()
+        val queue = VisitQueue(
+            file,
+            api,
+            pinProvider = { credentials.pinOrNull() },
+            onAuthRejected = { rejectedPin -> credentials.markRejected(rejectedPin) },
+        )
+        queue.enqueue(visit("p1"), familyCode = "FAMCODE8") // 도착 시점의 세션 PIN 을 쓴 경로.
+
+        val first = queue.flush()
+
+        assertTrue("PIN 거부 실패", first.isFailure)
+        assertTrue("실패는 PIN 거절 타입이다", first.exceptionOrNull() is PinRejectedException)
+        assertTrue("세션 자격 증명에 거절이 표시된다", credentials.isRejected())
+        assertNull("거부된 PIN 은 세션 메모리에서도 지워진다", credentials.pinOrNull())
+        assertEquals("큐는 보존된다(파일을 지우지 않는다)", 1, queue.pendingCount.value)
+        assertTrue(
+            "큐 파일도 보존된다",
+            file.exists() && file.readText().contains("p1"),
+        )
+        assertEquals("거절 시점의 시도는 1회", 1, api.attemptCount)
+
+        val second = queue.flush()
+        val third = queue.flush()
+        assertEquals("거절 상태에서는 전송하지 않는다(시도 횟수 불변)", 1, api.attemptCount)
+        assertTrue("두 flush 모두 PIN 거절로 실패", second.isFailure && third.isFailure)
+        assertEquals("큐는 그대로 보존", 1, queue.pendingCount.value)
+
+        credentials.setPin("222222") // 사용자가 새 PIN 을 입력 — 재개.
+        val resumed = queue.flush()
+        assertTrue("새 PIN 으로 재개된다", resumed.isSuccess)
+        assertEquals("재입력된 PIN 이 전송된다", "222222", api.receivedPins[0])
+        assertEquals("재개 후 큐는 비었다", 0, queue.pendingCount.value)
+    }
+
+    @Test
+    fun `12_enqueue 시 받은 거부된 PIN 도 메모리에서 치워 재전송되지 않는다`() = runBlocking {
+        val api = FakeApiClient()
+        api.rejectPin = "333333"
+        var sessionPin: String? = "333333"
+        val queue = VisitQueue(newTempFile(), api, pinProvider = { sessionPin })
+        // 도착 시점에 PIN 을 함께 enqueue 한 경로 — PIN 은 큐 메모리 맵에만 묶여 있다(파일 없음).
+        queue.enqueue(visit("p1"), familyCode = "FAMCODE8", pin = "333333")
+
+        val rejected = queue.flush()
+        assertTrue("거부 실패", rejected.isFailure)
+        assertTrue(rejected.exceptionOrNull() is PinRejectedException)
+        assertEquals("거절 시점의 시도는 1회", 1, api.attemptCount)
+
+        sessionPin = "444444" // 사용자가 새 PIN 을 입력했다(세션 메모리 갈아끼움).
+        val resumed = queue.flush()
+        assertTrue("새 PIN 으로 재개된다", resumed.isSuccess)
+        assertEquals(
+            "enqueue 시의 거부된 PIN 이 아니라 새 값이 전송된다",
+            "444444",
+            api.receivedPins[0],
+        )
+    }
+
+    @Test
+    fun `13_코드나 PIN 이 빠진 401 은 PIN 거절로 보지 않는다 — 기존 동작 유지`() = runBlocking {
+        val api = FakeApiClient()
+        api.rejectAlways = true // 헤더 누락(코드·PIN 미실림) 401 재현 — 서버가 PIN 검증 전에 거절.
+        val queue = newQueue(api, pinProvider = { "555555" })
+        queue.enqueue(visit("p1"), familyCode = null)
+
+        val first = queue.flush()
+
+        assertTrue("실패", first.isFailure)
+        assertTrue(
+            "PIN 거절 타입이 아니다(헤더가 빠진 401 은 거부 조합이 아니다)",
+            first.exceptionOrNull() !is PinRejectedException,
+        )
+
+        val second = queue.flush()
+        assertEquals("이 경로는 기존 동작 유지 — flush마다 다시 시도한다", 2, api.attemptCount)
+        assertTrue("두 번째도 실패(큐 보존)", second.isFailure)
     }
 }

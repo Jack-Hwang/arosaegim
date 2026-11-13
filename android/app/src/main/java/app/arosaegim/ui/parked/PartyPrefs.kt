@@ -11,7 +11,7 @@ import kotlinx.serialization.json.jsonObject
 
 /*
  * B4: 인원 비교 문장('오늘은 N명이 함께 왔어요. 그때는 M명…') 접어 두기의 조회·판정·폴백
- * (00문서 16절·glm 07_NEXT_TASKS 2절 B4 — 2026-11-12).
+ * (00문서 16절·요구 문서 07의 2절 B4 — 2026-11-12).
  *
  * 저장 위치(계약): 서버 가족 기록 —
  *   GET  /v1/families/me/prefs → {"party_line_hidden_places": [...], "party_line_all_hidden": false}
@@ -78,7 +78,7 @@ fun partyPrefsPlacesWithPlace(prefs: PartyLinePrefs?, placeId: String): Set<Stri
  * 이 저장소는 '서버 실패 시에만' 읽히고, 서버 값이 있으면 언제나 무시된다. 로그아웃·차 교체에는
  * 이어지지 않는다(로컬 한계 — 주석으로 서버 연동 예정을 명시한다).
  *
- * 키 계약(지시서 지정): 접힌 장소 folded_party_<placeId>(Boolean), 모든 장소 끄기
+ * 키 계약(요구 문서 지정): 접힌 장소 folded_party_<placeId>(Boolean), 모든 장소 끄기
  * all_party_folded(Boolean). 개인 식별값·좌표는 저장하지 않는다(00문서 2-2).
  */
 internal object PartyFoldLocalStore {

@@ -118,7 +118,7 @@ fun ParkedScreen(container: AppContainer, onExitToDriving: () -> Unit) {
     val currentTarget by session.currentTarget.collectAsState()
     val stampedCount by session.stampedCount.collectAsState()
     val isCompleted by session.isCompleted.collectAsState()
-    // T6-2: 좌석 점유 → 오늘 인원 / T12 보조: 오늘 함께 달린 거리(병렬 작업인 TripSession 이
+    // T6-2: 좌석 점유 → 오늘 인원 / T12 보조: 오늘 함께 달린 거리(TripSession 이
     // TripSignalProvider 를 받아 노출하는 StateFlow — 고정 API: partySize, tripKm).
     val partySizeNow by session.partySize.collectAsState()
     val tripKm by session.tripKm.collectAsState()
@@ -126,12 +126,12 @@ fun ParkedScreen(container: AppContainer, onExitToDriving: () -> Unit) {
     // 데모 모드 꼬리표: 수동 주행 상태 구현(폴백)이면 '데모 모드'(04문서 상태별 처리).
     val isDemoMode = remember { container.drivingState is ManualDrivingState }
 
-    // T9-2: 이 장소에 남긴 예시 음성 편지 1건. seed.voiceLetters 는 병렬 작업 중인
+    // T9-2: 이 장소에 남긴 예시 음성 편지 1건. seed.voiceLetters 는 저장소 시드의
     // SeedContent 확장 필드(고정 API) — 파싱 전이면 빈 목록으로 볼 수도 있어 null 허용.
     val voiceLetter = remember(seed.voiceLetters, lastArrival?.id) {
         seed.voiceLetters.firstOrNull { it.placeId == lastArrival?.id }
     }
-    // VoiceLetterPlayer 어댑터(병렬 작업인 AppContainer 확장 필드 — 고정 API).
+    // VoiceLetterPlayer 어댑터(AppContainer 확장 필드 — 고정 API).
     val voiceLetterPlayer = container.voiceLetterPlayer
 
     // ── T9-3 자리 이름표 서버 연결(2026-11-11) ──

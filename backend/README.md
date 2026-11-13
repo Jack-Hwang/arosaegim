@@ -82,7 +82,7 @@ backend/
 │   ├── routers/     # families courses places visits memories rewards members stamps points
 │   └── services/    # then_now.py·points.py(순수 함수), photos.py, album.py
 ├── tests/           # pytest (임시 DB·업로드 디렉터리)
-├── seed/seed.json   # glm/seed/seed.json 사본
+├── seed/seed.json   # 시드 데이터(앱 내장 시드 android/assets/seed 와 동일)
 ├── web/             # 웹 담당 폴더(비어 있어도 됨)
 ├── uploads/         # 업로드 사진(기동 시 자동 생성)
 └── requirements.txt

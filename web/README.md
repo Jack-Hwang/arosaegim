@@ -46,7 +46,7 @@ web/
 
 ## 서버 실행법 (backend/README.md 참조)
 
-백엔드는 별도 담당이며 `glm/02_BACKEND_AND_DATA.md` 계약대로 만든다(Python 3.12 + FastAPI + SQLite). 백엔드가 `/web`을 정적으로 같이 서비스하는 구성(02문서 8절)을 전제한다.
+백엔드는 별도 담당이며 요구 문서 02의 계약대로 만든다(Python 3.12 + FastAPI + SQLite). 백엔드가 `/web`을 정적으로 같이 서비스하는 구성(02문서 8절)을 전제한다.
 
 ```bash
 # 백엔드 폴더에서 (정확한 명령은 backend/README.md 참조)

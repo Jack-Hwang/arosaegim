@@ -11,15 +11,17 @@
 
 | 요소 | 상태 | 비고 |
 |---|---|---|
-| `android/` 차량 앱 | **코드 완료** | 주행/정차 전환·도착 스탬프·퀴즈·그때와 지금·스탬프북·맛집·코스 선택·오늘의 기록·가족 세션·방문 동기화. 단위 테스트 179/179 통과. 스모크 U1~U16·D1·D2 실측 완료(`docs/DEV_LOG.md` 표) |
-| `backend/` REST 서버 | **코드 완료** | API 전체(가족·코스·방문·기억·영수증·구성원·스탬프북·포인트·지표) + 캐시백 규칙(숙소 3박·사진 필수+해시·pending·device_limit). pytest 76/76 통과(신규 상속자·순번·누적거리·접기·이름표 API 포함) |
+| `android/` 차량 앱 | **코드 완료** | 주행/정차 전환·도착 스탬프·퀴즈·그때와 지금·스탬프북·맛집·코스 선택·오늘의 기록·가족 세션·방문 동기화. 단위 테스트 190/190 통과. 스모크 U1~U16·D1·D2 실측 완료(`docs/DEV_LOG.md` 표) |
+| `backend/` REST 서버 | **코드 완료** | API 전체(가족·코스·방문·기억·영수증·구성원·스탬프북·포인트·지표) + 캐시백 규칙(숙소 3박·사진 필수+해시·pending·device_limit). pytest 87/87 통과(신규 상속자·순번·누적거리·접기·이름표 API 포함) |
 | `web/` 가족 모바일 웹 | **코드 완료** | 7화면(가족 코드·동의·코스·그때 기록·타임라인·가족 관리·영수증). 백엔드 `/web` 정적 서빙 |
 | `tools/` 시연 스크립트 | **완성** | drive-demo-route · grant-permissions · record-demo (PowerShell 5.1/7 호환, 구문 검증 PASS) |
 | `docs/` | 갱신 완료 | ARCHITECTURE(실측 반영) · DEV_LOG(상시) · ATTRIBUTION |
 
+**현재 값** — 문서의 숫자는 `tools/spec_drift_check.py`로 코드에서 센 값과 대조한다(2026-11-13 측정): 앱 단위 테스트 190건 · 서버 테스트 87건 · 라우터 11개 · 엔드포인트 37개 · 서버 모델 46개 · 앱 테스트 파일 22개 · 서버 테스트 파일 9개 · 화면 문구(strings.xml) 121개.
+
 **남은 것 (코드 아님).**
 1. 사용자 GUI 실측 — U7 완결(기어 P→D restrict 수신)·U6 청취·U11/U13(Virtual Console 좌석·주행거리)·음성 청취.
-2. 기획서 문장 확정 — DEV_LOG 표 기준으로 갱신(00문서 13절·15절 지시).
+2. 기획서 문장 확정 — DEV_LOG 표 기준으로 갱신.
 3. GitHub 공개 — 릴리스 체크리스트(아래) 진행.
 
 ## 빠른 시작
@@ -29,16 +31,16 @@
 ```bash
 cd android
 ./gradlew assembleDebug          # 빌드
-./gradlew test                   # 도메인·시드 단위 테스트 (72개)
+./gradlew test                   # 도메인·시드 단위 테스트 (190개)
 # Pleos Connect 에뮬레이터에 설치:
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 # dangerous 권한 부여(권한 UI 크래시 방지):
 powershell ./tools/grant-permissions.ps1 -Package app.arosaegim
 ```
 
-- **릴리스 APK**: `apk/arosaegim_아로새김_release.apk`(39.6MB) — apksigner verify 통과(CN=arosaegim, v0.1.0)
-- **에뮬레이터 설치 가이드**: `glm/05_INSTALL_EMULATOR.md` — Android Studio 없이 cmdline-tools만으로
-  구축·부팅 가능(실측 — `docs/DEV_LOG.md` F28). **Cold boot 필수**(Quick boot는 차량 HAL이 동작하지 않음).
+- **릴리스 APK**: `apk/arosaegim_아로새김_release.apk`(40.4MB) — apksigner verify 통과(CN=arosaegim, v0.1.0)
+- **에뮬레이터 설치**: Android Studio 없이 cmdline-tools만으로
+  구축·부팅 가능(실측 — `docs/DEV_LOG.md` F28, 절차는 `docs/EMULATOR_SETUP.md`). **Cold boot 필수**(Quick boot는 차량 HAL이 동작하지 않음).
 - Virtual Console: `adb forward tcp:8088 tcp:8088` 후 브라우저 `http://127.0.0.1:8088/` (기어 D/P·좌석·주행거리).
 
 ### 백엔드 + 가족 웹
@@ -56,16 +58,16 @@ pytest                             # 서버 테스트 87개
 ```bash
 cd android
 ./gradlew clean testDebugUnitTest assembleDebug
-# 기대: BUILD SUCCESSFUL, 72/72 — SeedRepository · CourseProgress · Haversine · ModeStateMachine
+# 기대: BUILD SUCCESSFUL, 190/190 — SeedRepository · CourseProgress · Haversine · ModeStateMachine
 #       · StampBook 9 · StampEngine 6 · ThenNowResolver 12 · TripSession(tripKm/partySize 포함) 등
 ```
 
 - SDK 스모크 U1~U14는 앱 진단 화면(Diagnostics)에서 실행 — 실측 결과는 `docs/DEV_LOG.md` 표(U1~U14 전부 기록).
-- 에뮬레이터 수동 E2E 체크리스트(릴리스 전 매번)는 `glm/03_TEST_AND_DEMO.md` 5-2절.
+- 에뮬레이터 수동 E2E 체크리스트(릴리스 전 매번)는 이 문서의 'Virtual Console 실측 세션 체크리스트' 절.
 
 ## 새 PC에서 재현하는 순서
 
-1. 에뮬레이터 구축 — `glm/05_INSTALL_EMULATOR.md` 순서대로(Android Studio 없이 가능).
+1. 에뮬레이터 구축 — 절차는 `docs/EMULATOR_SETUP.md`(Android Studio 없이 cmdline-tools만으로 가능 — `docs/DEV_LOG.md` F28).
 2. `cd android && ./gradlew assembleDebug` → APK 빌드.
 3. `adb install -r app/build/outputs/apk/debug/app-debug.apk` → 설치.
 4. `powershell ./tools/grant-permissions.ps1 -Package app.arosaegim` → FUSED_LOCATION 권한 부여(-AllowMockLocation 옵션 선택).
@@ -140,11 +142,13 @@ adb forward tcp:8088 tcp:8088     # Virtual Console → 브라우저 http://127.
 - 좌석 신호는 인원 수 비교에만 쓴다(좌석별·사람별 저장 없음). 읽지 못하면 문장을 숨긴다.
 - Back 키는 앱을 종료하지 않는다(moveTaskToBack).
 
-## 릴리스 체크리스트 (glm/03 문서 6절)
+**참고.** 코드 주석의 "NN문서 …" 표기는 개발 중 쓴 요구 문서의 번호이며 그 문서는 이 저장소에 포함되지 않는다.
+
+## 릴리스 체크리스트
 
 - [ ] 저장소에 실명·개인 이메일·개인 계정이 없다 (`git log --format='%an %ae' | sort -u` 확인 — 공개 직전 재확인)
 - [x] APK 파일명 `팀명_앱이름_release.apk` — '팀명'은 별칭(arosaegim), `apk/arosaegim_아로새김_release.apk` 배치 완료(apksigner verify 통과 — DEV_LOG 11-11)
 - [x] README에 앱 이름·한 줄 소개·실행 방법·테스트 환경·APK 위치 기재 (이 파일이 담당)
 - [x] release 서명 키는 저장소에 올리지 않았다 (`*.keystore`·`keystore.properties` gitignore 등록 — DEV_LOG 11-11)
 - [x] `docs/ATTRIBUTION.md`에 콘텐츠 출처·라이선스 기록 완료
-- [ ] 비공개 저장소라면 공지된 심사용 계정을 Collaborator로 초대하고 접근 확인 (공지 대기 중)
+- [ ] 비공개로 제출하고 11/16까지 공개 저장소로 전환

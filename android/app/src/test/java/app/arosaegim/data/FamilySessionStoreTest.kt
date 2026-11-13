@@ -49,7 +49,7 @@ class FamilySessionStoreTest {
     @Test
     fun `일곱 자리 영숫자도 유효하다 — 서버가 8자리 코드를 발급한다(F58)`() {
         assertTrue(FamilyCodeValidator.validate("A1B2C3D"))
-        assertTrue(FamilyCodeValidator.validate("8XTPUG8N"))
+        assertTrue(FamilyCodeValidator.validate("A37K9Q2M"))
     }
 
     @Test
@@ -137,5 +137,59 @@ class FamilySessionStoreTest {
         credentials.setPin("230444")
         assertEquals("ZZ99X7", credentials.codeOrNull())
         assertEquals("230444", credentials.pinOrNull())
+    }
+
+    // --- 거절 상태(서버가 PIN 을 거부했을 때의 안전장치, 2026-11-13) ---
+    //
+    // 서버가 'PIN이 틀렸다'고 답한 값을 세션 메모리에 남겨 두면 도착마다 같은 틀린 PIN 이
+    // 재전송돼 서버 실패 횟수(5회)를 채우고 가족 전체가 10분 잠긴다. 거절 표시는 값을
+    // 메모리에서 지워 재전송을 멈추고, 새 PIN 입력(setPin)·해제(clearPin·clear)에서 풀린다.
+
+    @Test
+    fun `거절 표시하면 pinOrNull은 null이 되고 코드는 유지된다`() {
+        val credentials = SessionCredentials(familyCode = "ZZ99X7", pin = "230444")
+        credentials.markRejected("230444")
+        assertTrue("거절 상태가 된다", credentials.isRejected())
+        assertNull("거부된 PIN 은 메모리에서도 지워진다(재전송 방지)", credentials.pinOrNull())
+        assertEquals("거절은 PIN 만 — 가족 코드는 남는다", "ZZ99X7", credentials.codeOrNull())
+    }
+
+    @Test
+    fun `setPin으로 새 pin을 넣으면 거절이 풀린다`() {
+        val credentials = SessionCredentials(pin = "230444")
+        credentials.markRejected("230444")
+        credentials.setPin("999999") // 사용자가 다시 입력했다 — 재개.
+        assertFalse("새 PIN 입력으로 거절이 해제된다", credentials.isRejected())
+        assertEquals("재입력된 PIN 이 보관된다", "999999", credentials.pinOrNull())
+    }
+
+    @Test
+    fun `clearPin과 clear도 거절을 푼다`() {
+        val withCode = SessionCredentials(familyCode = "ZZ99X7", pin = "230444")
+        withCode.markRejected("230444")
+        withCode.clearPin()
+        assertFalse("PIN 해제로 거절도 풀린다", withCode.isRejected())
+
+        val full = SessionCredentials(familyCode = "ZZ99X7", pin = "230444")
+        full.markRejected("230444")
+        full.clear()
+        assertFalse("로그아웃으로 거절도 풀린다", full.isRejected())
+        assertNull(full.codeOrNull())
+    }
+
+    @Test
+    fun `거절 표시는 보관 중인 pin이 없으면 아무 일도 하지 않는다`() {
+        val credentials = SessionCredentials()
+        credentials.markRejected()
+        assertFalse("PIN 이 없으면 거절 표시는 무의미하다", credentials.isRejected())
+    }
+
+    @Test
+    fun `거절 표시는 거부된 값과 다른 새 pin이 이미 있으면 건너뛴다`() {
+        // 네트워크 응답(거절)이 사용자의 새 입력보다 늦게 도착한 경우 — 새 PIN 을 지우지 않는다.
+        val credentials = SessionCredentials(pin = "111111")
+        credentials.markRejected("222222") // 거부된 값은 222222, 세션에는 이미 111111.
+        assertFalse("새 PIN 은 거르지 않는다", credentials.isRejected())
+        assertEquals("111111", credentials.pinOrNull())
     }
 }
