@@ -1,7 +1,10 @@
 package app.arosaegim.ui.parked
 
+import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -34,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import app.arosaegim.AppContainer
 import app.arosaegim.R
 import app.arosaegim.data.OwnerRequiredException
+import app.arosaegim.domain.DrivingState
 import app.arosaegim.domain.HeirCandidate
 import app.arosaegim.domain.HeirQuestionInputs
 import app.arosaegim.domain.HeirQuestionPolicy
@@ -47,9 +52,13 @@ import app.arosaegim.domain.parseHeirStatus
 import app.arosaegim.domain.parseThenNowPlaceState
 import app.arosaegim.domain.shouldShowFoldButton
 import app.arosaegim.fallback.ManualDrivingState
-import app.arosaegim.ui.common.AroTextStyles
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import app.arosaegim.ui.common.LargePrimaryButton
+import app.arosaegim.ui.common.MenuButton
+import app.arosaegim.ui.common.PageNavigationBar
 import app.arosaegim.ui.common.aroColors
+import java.util.Locale
 import kotlinx.coroutines.launch
 
 /**
@@ -88,6 +97,25 @@ object CourseStartState {
     }
 }
 
+/**
+ * 코스 목록 모드 플래그(F10 T2, 2026-11-14) — CourseStartState 와 같은 방식의
+ * 프로세스 수명 홀더다.
+ *
+ * 진행 중 코스(스탬프·다음 목표가 하나라도 있음)가 있을 때 메뉴·홈의 '코스 선택·
+ * 다른 코스 보기'는 진행을 지우지 않는다 — 코스 목록(스텝0 화면)만 연다. 이때 true 로
+ * 스텝0 판정을 열고, 출발 버튼으로 코스를 시작하거나 다른 항목으로 나가면 false 로 닫는다.
+ */
+object CourseListState {
+
+    /** 코스 목록(스텝0 화면)을 진행 보호 모드로 열어 두는지. */
+    var requested by mutableStateOf(false)
+
+    /** 코스 목록 모드를 닫는다. */
+    fun clear() {
+        requested = false
+    }
+}
+
 /*
  * 정차(PARKED) 화면 본체 — 탭이 아닌 세로 스텝 네비게이션(00문서 ParkedActivity 절·12절 T6).
  *   스텝0 코스 선택(시안 02) → 스텝1 스탬프 획득 카드 → 스텝2 퀴즈(문제 1개씩)
@@ -105,9 +133,20 @@ object CourseStartState {
  * 스텝5(오늘의 기록)는 ParkedRecordStep.kt, 서버 응답 파싱 헬퍼(T9-3 members·E2 then-now)는
  * ParkedServerParsing.kt 에 있다. 이 파일은 화면 껍데기(상태 수집·효과·스텝 분기)와
  * CourseStartState 상태 홀더만 둔다.
+ *
+ * F10(T2 메뉴·T3 홈, 2026-11-14) 통합: 기존 스텝 분기 앞에 '홈 표시 여부' 판정(HomeGate)을
+ * 두고, 머리글 trailingAction 의 [☰ 메뉴] 버튼(MenuButton)·패널(MenuPanel — ⒝ 본문 축소 /
+ * ⒞ 겹침+왼쪽 어둡게)·항목 콜백을 연결한다. 도착 이벤트 직후(마지막 도착 변화)는 홈이 아니라
+ * 기존대로 스텝1(스탬프 카드)이 먼저고(HomeGateState — AC20), 주행(D)이 되면 홈·패널은
+ * 닫히고 주행 화면이 뜬다(ModeRouter 무변경 — AC07).
  */
 @Composable
-fun ParkedScreen(container: AppContainer, onExitToDriving: () -> Unit) {
+fun ParkedScreen(
+    container: AppContainer,
+    onExitToDriving: () -> Unit,
+    // T4 통합 지점 — 설정 화면(가족 전환·로그아웃) 연결은 별도 작업이다. 기본 no-op 이라
+    // 기존 호출부(ParkedActivity)는 그대로 컴파일된다.
+) {
     val session = container.tripSession
     val context = LocalContext.current
     // 시드 파일 1회 읽기. 실패 시 빈 코스로 복구된다(SeedRepository 계약).
@@ -239,7 +278,14 @@ fun ParkedScreen(container: AppContainer, onExitToDriving: () -> Unit) {
     var thenNowState by remember { mutableStateOf<ThenNowPlaceState?>(null) }
 
     // B4: 가족 prefs(인원 비교 문장 접기 — GET /v1/families/me/prefs). null = 미조회·세션 없음.
+    // ── F10 T4: 설정·가족 전환 라우트(0=없음 1=설정 2=가족 전환 확인) — 열려 있으면 패널·본문 대신 그린다.
+    var settingsRoute by remember { mutableStateOf(0) }
+    val deviceAllHidden = remember { PartyFoldLocalStore.readAllHidden(context) }
+    val drivingNow = drivingStateNow == DrivingState.DRIVING
+
     var partyPrefs by remember { mutableStateOf<PartyLinePrefs?>(null) }
+    // GET 응답으로 채워졌는지(서버 값) / 실패 시 기기 임시값인지 — 설정 화면 표시 판정용(F10 T4).
+    var partyPrefsFromServer by remember { mutableStateOf(false) }
 
     // B3: 가족 누적 거리(metrics.family_total_trip_km). null = 미조회·실패·필드 없음 → 줄 숨김.
     var familyTotalKm by remember { mutableStateOf<Double?>(null) }
@@ -272,12 +318,13 @@ fun ParkedScreen(container: AppContainer, onExitToDriving: () -> Unit) {
         val pin = familyStore.pinOrNull()
         if (code == null || pin == null) return@LaunchedEffect
         val fromServer = container.apiClient.getPrefs(code, pin).fold(
-            onSuccess = { body -> parsePartyLinePrefs(body) },
+            onSuccess = { body -> partyPrefsFromServer = true; parsePartyLinePrefs(body) },
             onFailure = { t ->
                 markPinRejectedOnAuthFailure(pin, t) // GET 경로 PIN 거절 표시.
                 null // 실패 = 로컬 폴백(가짜 서버 값 금지).
             },
         )
+        partyPrefsFromServer = fromServer != null
         partyPrefs = fromServer ?: PartyLinePrefs(
             hiddenPlaceIds = PartyFoldLocalStore.readFoldedPlaceIds(context),
             allHidden = PartyFoldLocalStore.readAllHidden(context),
@@ -466,8 +513,89 @@ fun ParkedScreen(container: AppContainer, onExitToDriving: () -> Unit) {
     val bookDef = remember(lastArrival?.id) { pickBookDef(seed, lastArrival?.id) }
     val stampTotal = bookDef?.placeIds?.size ?: course.places.size
 
+    // ───────────── F10(T2 메뉴·T3 홈, 2026-11-14): '어떤 내용을 보여 줄까' 판정과 메뉴 상태 ─────────────
+    // 세션(가족 코드 접속 또는 둘러보기)·주행 여부 — ModeRouter 의 세션 게이트(Q28)와 같은 판정원.
+    val familyCode by familyStore.familyCode.collectAsState()
+    val hasSession = familyCode != null || familyStore.isGuestMode
+
+
+    // 마지막 방문 기록(있을 때만) — VisitStore 의 이 코스 기록 중 마지막 1건의 장소 이름.
+    // 스탬프 수가 바뀌면(도착·초기화) 다시 읽는다. 읽기 실패는 기록 없음과 같다(크래시 금지).
+    val lastVisitPlaceName = remember(stampedCount) {
+        val visits = runCatching { container.visitStore.readAll() }.getOrDefault(emptyList())
+        visits.lastOrNull { it.courseId == course.id }
+            ?.let { visit -> course.places.firstOrNull { it.id == visit.placeId }?.name }
+    }
+
+    // 홈 모델(F10 T3) — 기기의 값만으로 계산한다. 거리 한 줄은 TripSession.tripKm 이 줄 때만
+    // 들어가고, 없으면 그 줄만 숨겨진다(오류 문구 금지 — AC23).
+    val homeModel = HomeContent.resolve(
+        HomeInputs(
+            hasSession = hasSession,
+            courseName = course.title,
+            stampedCount = stampedCount,
+            stampTotal = course.places.size,
+            currentTargetName = currentTarget?.name,
+            completed = isCompleted,
+            lastVisitPlaceName = lastVisitPlaceName,
+            distanceText = tripKm?.let { String.format(Locale.US, "%.1fkm", it) },
+        ),
+    )
+
+    // 도착 장면 보호(AC20) — 화면 진입·가림을 관찰해 '도착 직후'인지를 홀더에 기록한다.
+    // 첫 구성에서 1회 동기 실행해 첫 프레임부터 올바른 판정을 쓰고, ON_RESUME 때 갱신한다.
+    remember { HomeGateState.onEntry(session.lastArrival.value?.id) }
+    val activity = LocalContext.current as? ComponentActivity
+    DisposableEffect(activity) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> {
+                    // 재진입(콜드·복귀)마다 자동 판정으로 돌아간다 — 홈이 첫 화면(AC09).
+                    HomeGateState.onEntry(session.lastArrival.value?.id)
+                    HomeModeState.clearSelection()
+                }
+                Lifecycle.Event.ON_PAUSE -> HomeGateState.onHidden()
+                else -> Unit
+            }
+        }
+        activity?.lifecycle?.addObserver(observer)
+        onDispose { activity?.lifecycle?.removeObserver(observer) }
+    }
+
+    // 주행(D) 전환 — 패널·버튼·홈을 함께 감춘다(AC07). 주행·정차 화면 전환 자체는
+    // ModeRouter 가 담당하므로 여기서는 정차 화면 안의 상태만 닫는다(무변경 계약).
+    LaunchedEffect(drivingNow) {
+        if (drivingNow) {
+            MenuPanelState.close()
+            HomeModeState.closeForDriving()
+        }
+    }
+
+    // 홈이 열려 있는 중에 새 도착이 오면 홈을 닫고 정차 본문(스탬프 장면)으로 돌아간다.
+    // 첫 구성 때의 초기값은 '이미 알던 도착'이라 새 도착으로 세지 않는다.
+    var composedArrivalId by remember { mutableStateOf(session.lastArrival.value?.id) }
+    LaunchedEffect(lastArrival?.id) {
+        val currentId = lastArrival?.id
+        if (currentId != composedArrivalId) {
+            composedArrivalId = currentId
+            if (HomeModeState.showingHome == true) HomeModeState.selectBody()
+        }
+    }
+
     // ── 스텝0 판정: 스탬프가 0개이고 코스를 시작하지 않았으면(로컬 플래그) 코스 선택을 먼저 본다.
-    val showCourseSelect = stampedCount == 0 && !CourseStartState.courseStarted
+    //    진행 중 코스 보호 모드(CourseListState)에서는 진행을 지우지 않고 코스 목록만 연다(F10 T2).
+    val showCourseSelect =
+        (stampedCount == 0 && !CourseStartState.courseStarted) || CourseListState.requested
+
+    // ── 홈 게이트(F10 T3 — 순수 판정 HomeGate, 시험은 HomeContentTest).
+    val showHome = HomeGate.shouldShowHome(
+        HomeGateInputs(
+            hasSession = hasSession,
+            driving = drivingNow,
+            arrivalUnseen = HomeGateState.arrivalUnseen,
+            homeSelected = HomeModeState.showingHome,
+        ),
+    )
 
     // 06문서 고칠 것 3번: 루트에서 safe drawing 인셋(상단 주행 정보·하단 GNB)을 피한다 —
     // 스텝0(코스 선택) 분기와 본문 분기 모두 이 안쪽에 그려진다. 기존 내부 구조(배경·스크롤
@@ -480,148 +608,342 @@ fun ParkedScreen(container: AppContainer, onExitToDriving: () -> Unit) {
         // 가로·세로 분기(04문서 공통): 좁은 창(세로)은 위아래로 쌓고, 넓은 창(가로)은 좌우 배치.
         val isWide = maxWidth >= 600.dp
 
-        if (showCourseSelect) {
-            // ── 스텝0: 코스 선택(시안 02). 출발 버튼 → 스텝1(스탬프 카드)로 넘어간다.
-            CourseSelectScreen(
-                container = container,
-                stampedCount = stampedCount,
-                onCourseStarted = {
-                    CourseStartState.startCourse()
-                    // 새 코스 시작 — 퀴즈 진행도 처음부터(QuizStateHolder.reset 계약).
-                    QuizStateHolder.reset()
-                },
-            )
-        } else {
+        // ── F10 T2: 메뉴 버튼·패널 모드 판정(순수 — MenuPolicy). 창 크기는 현재 제약값을 쓴다.
+        val menuPolicy = MenuPolicy.resolve(
+            MenuPolicyInputs(
+                driving = drivingNow,
+                hasSession = hasSession,
+                onStartScreen = false, // 시작 화면은 ParkedScreen 밖(StartScreen)이다.
+                windowWidthDp = maxWidth.value.toInt(),
+                windowHeightDp = maxHeight.value.toInt(),
+                panelRequestedOpen = MenuPanelState.isOpen,
+            ),
+        )
+        val panelWidth = menuPolicy.panelWidthDp.dp
+        val panelFamilyCode = MenuPolicy.maskFamilyCode(familyCode)
+        // 패널의 선택 항목 표시(surfaceBase 배경) — 지금 보고 있는 내용에 해당하는 항목.
+        val selectedMenuItem = when {
+            showHome -> MenuPanelItem.HOME
+            showCourseSelect -> MenuPanelItem.COURSE
+            !CourseStartState.showRecord && QuizStateHolder.stepIndex.coerceIn(0, 3) == 2 -> MenuPanelItem.THENNOW
+            else -> null
+        }
+
+        // 항목 처리 — 패널을 먼저 닫고 각 항목의 목적지로 옮긴다(즉시 전환, 애니메이션 없음).
+        fun onMenuItem(item: MenuPanelItem) {
+            MenuPanelState.close()
+            when (item) {
+                MenuPanelItem.HOME -> {
+                    CourseListState.clear()
+                    CourseStartState.showRecord = false
+                    HomeModeState.selectHome()
+                }
+                MenuPanelItem.COURSE -> {
+                    HomeModeState.selectBody()
+                    CourseStartState.showRecord = false
+                    // 진행 중 코스가 있으면(스탬프·다음 목표가 있음) 진행을 지우지 않는다 —
+                    // 코스 목록(스텝0 화면)만 연다. 없으면 기존 스텝0 판정에 맡긴다.
+                    val courseListNeeded = stampedCount > 0 || currentTarget != null
+                    if (MenuPolicy.courseSelectMode(courseListNeeded) == CourseSelectMode.COURSE_LIST_ONLY) {
+                        CourseListState.requested = true
+                    } else {
+                        CourseListState.clear()
+                    }
+                }
+                MenuPanelItem.THENNOW -> {
+                    // 그때와 지금(스텝3) — 기존 기록 열람 스텝으로 옮긴다.
+                    HomeModeState.selectBody()
+                    CourseListState.clear()
+                    CourseStartState.showRecord = false
+                    QuizStateHolder.stepIndex = 2
+                }
+                MenuPanelItem.SETTINGS -> settingsRoute = 1 // T4 설정 화면(아래 라우트 렌더링).
+            }
+        }
+
+        // 정차 본문(홈·스텝0·스텝1~5) — 패널 모드에 따라 통째로 옮겨 그린다(애니메이션 없음).
+        val body: @Composable () -> Unit = {
+            when {
+                // ── 홈(F10 T3) — 세션 + 정차 + 도착 아님일 때 첫 화면(AC09).
+                showHome -> HomeScreen(
+                    model = homeModel,
+                    showMenuButton = menuPolicy.showMenuButton,
+                    onOpenMenu = { MenuPanelState.open() },
+                    onContinue = {
+                        // 이어서 출발 → 스텝1(스탬프 카드). 퀴즈 진행은 QuizStateHolder 가 보존한다.
+                        HomeModeState.selectBody()
+                        CourseListState.clear()
+                        CourseStartState.startCourse()
+                        QuizStateHolder.stepIndex = 0
+                    },
+                    onOtherCourses = {
+                        // 다른 코스 보기 → 코스 목록(진행 중 코스 보호 — 진행을 지우지 않는다).
+                        HomeModeState.selectBody()
+                        CourseListState.requested = true
+                    },
+                    onOpenThenNow = {
+                        HomeModeState.selectBody()
+                        CourseListState.clear()
+                        CourseStartState.showRecord = false
+                        QuizStateHolder.stepIndex = 2 // 스텝3(그때와 지금)
+                    },
+                    onPickCourse = {
+                        // 코스 고르기(첫 기록 모드) — 진행 중 코스가 없으므로 기존 스텝0 판정에 맡긴다.
+                        HomeModeState.selectBody()
+                        CourseListState.clear()
+                    },
+                )
+                // ── 스텝0: 코스 선택(시안 02). 출발 버튼 → 스텝1(스탬프 카드)로 넘어간다.
+                else -> if (showCourseSelect) {
+                    CourseSelectScreen(
+                        container = container,
+                        stampedCount = stampedCount,
+                        onCourseStarted = {
+                            CourseStartState.startCourse()
+                            // 새 코스 시작 — 퀴즈 진행도 처음부터(QuizStateHolder.reset 계약).
+                            QuizStateHolder.reset()
+                            CourseListState.clear() // 코스 목록 모드 종료 — 스텝1부터 본문.
+                        },
+                    )
+                } else {
+                    Column(
+                        Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.aroColors.backgroundPrimary)
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                    ) {
+                        // 상단 머리글(Page Navigation — AC01) + 데모 꼬리표 + [☰ 메뉴](F10 T2).
+                        // 메뉴 버튼은 정차 + 세션 있음일 때만 보인다(MenuPolicy — 규칙 ⒜·⒟).
+                        PageNavigationBar(
+                            courseName = course.title,
+                            trailingAction = {
+                                if (isDemoMode) SmallTag(stringResource(R.string.parked_demo_mode_tag))
+                                if (menuPolicy.showMenuButton) {
+                                    MenuButton(label = stringResource(R.string.menu_label)) {
+                                        MenuPanelState.open()
+                                    }
+                                }
+                            },
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        // 하단 스텝 내비게이션: ①~④ + 스텝5(오늘의 기록). 완주 시 자동으로 스텝5가 선택된다.
+                        ParkedPageNavigationBar(
+                            labels = listOf(
+                                stringResource(R.string.parked_step_stamp),
+                                stringResource(R.string.parked_step_quiz),
+                                stringResource(R.string.parked_step_thennow),
+                                stringResource(R.string.parked_step_book),
+                                stringResource(R.string.parked_step_record),
+                            ),
+                            selected = if (CourseStartState.showRecord) {
+                                RECORD_STEP_INDEX
+                            } else {
+                                QuizStateHolder.stepIndex.coerceIn(0, 3)
+                            },
+                            onSelect = { index ->
+                                if (index == RECORD_STEP_INDEX) {
+                                    CourseStartState.showRecord = true
+                                } else {
+                                    CourseStartState.showRecord = false
+                                    QuizStateHolder.stepIndex = index
+                                }
+                            },
+                        )
+                        Spacer(Modifier.height(12.dp))
+
+                        if (CourseStartState.showRecord) {
+                            // ── 스텝5: 오늘의 기록(시안 09). 기존 완주 요소(배지·거리)도 이 화면으로 이동 정리했다.
+                            RecordContent(
+                                course = course,
+                                seed = seed,
+                                bookDef = bookDef,
+                                stampedIds = stampedIds,
+                                stampedCount = stampedCount,
+                                stampTotal = stampTotal,
+                                partySize = partySizeNow,
+                                tripKm = tripKm,
+                                isCompleted = isCompleted,
+                                // B3: 가족 누적 거리(0 이하·없음은 null — 줄 숨김).
+                                familyTotalKmLabel = familyTotalKm?.let { formatFamilyTotalTripKm(it) },
+                                // B1: 이어받을 사람 질문 카드(가족 배지 다음 1회) — 정책 판정값을 그대로
+                                // 전달한다. PIN 없음(heirPinGuideVisible)이면 질문 대신 안내 카드로 전환
+                                // (구성원 버튼은 세션 조회분만 — PIN 없으면 빈 목록이라 버튼이 생기지 않는다).
+                                heirCardVisible = heirShouldAsk || heirPinGuideVisible,
+                                heirCardCandidates = heirCandidates,
+                                heirCardBusy = heirBusy,
+                                heirCardDesignatedName = heirDesignatedName,
+                                heirCardOwnerGuide = heirOwnerGuide || heirPinGuideVisible,
+                                heirCardFailed = heirPickFailed,
+                                heirCardOnPick = { pickHeir(it) },
+                                heirCardOnDefer = { HeirQuestionMemory.defer(course.id) },
+                                modifier = Modifier.weight(1f),
+                                onBackHome = {
+                                    // 처음으로: 세션 리셋(스탬프·방문 기록·거리·인원 초기화) 후 스텝0(코스 선택) 복귀.
+                                    session.resetCourse()
+                                    QuizStateHolder.reset()
+                                    CourseStartState.reset()
+                                    CourseListState.clear() // 코스 목록 모드도 함께 닫는다.
+                                },
+                            )
+                        } else {
+                            // 본문: 세로 스텝. 스크롤은 스텝 안에서만 최소 사용.
+                            Column(
+                                Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth()
+                                    .verticalScroll(rememberScrollState()),
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                when (QuizStateHolder.stepIndex.coerceIn(0, 3)) {
+                                    0 -> StampStep(lastArrival, currentTarget, stampedCount, stampTotal)
+                                    1 -> QuizStep(lastArrival, quizzes)
+                                    2 -> ThenNowStep(
+                                        container = container,
+                                        demo = seed.thenNowDemo,
+                                        place = lastArrival,
+                                        isWide = isWide,
+                                        partySizeNow = partySizeNow,
+                                        voiceLetter = voiceLetter,
+                                        voiceLetterPlayer = voiceLetterPlayer,
+                                        // E2 서버 과거 기록(2026-11-11) — 세션 없음·조회 실패면 null 로
+                                        // 예시(시드) 폴백(기존 동작). 서버 값이면 '예시' 태그 없이 그려진다.
+                                        serverPast = serverPast,
+                                        // T9-3 서버 실데이터(구성원 자리 이름표) — 세션 없음·실패면 null 로 숨김.
+                                        seatTags = seatTags,
+                                        seatAuthError = seatAuthError,
+                                        // B2·B4: then-now 부가 상태 — 조회 실패·필드 없음이면 null 로
+                                        // 첫 기록 문구·접기 버튼 없이 기존 동작을 유지한다(가짜 금지).
+                                        thenNowState = thenNowState,
+                                        // B4: 가족 prefs 접힘(partyLineFolded)까지 함께 본다 — 어느 경로로
+                                        // 접혀도 이 장소에서 문장·버튼이 다시 나오지 않는다.
+                                        comparisonFolded = isPersonComparisonFolded(thenNowState) || partyLineFolded,
+                                        showFoldButton = shouldShowFoldButton(thenNowState) && !partyLineFolded,
+                                        onFoldComparison = { foldComparison() },
+                                    )
+                                    else -> BookStep(
+                                        seed = seed,
+                                        place = lastArrival,
+                                        stampedIds = stampedIds,
+                                        isWide = isWide,
+                                        // '오늘의 기록 보기' 버튼 — 스텝5로 이동한다.
+                                        onOpenRecord = { CourseStartState.openRecord() },
+                                    )
+                                }
+                            }
+                            // 하단 버튼: 다음 목표 안내. 실제 주행 재개는 차량 앱 밖 내비 역할이라 여기선 안내만 한다.
+                            val target = currentTarget
+                            if (target != null) {
+                                Spacer(Modifier.height(12.dp))
+                                LargePrimaryButton(text = stringResource(R.string.parked_next_place, target.name)) {
+                                    QuizStateHolder.stepIndex = 0 // 스텝1(스탬프 카드)로 돌아가 다음 목표를 안내한다.
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── F10 T4: 설정·가족 전환 라우트 — 열려 있으면 패널·본문 대신 설정 화면을 그린다(정차 전용).
+        if (settingsRoute != 0) {
             Column(
                 Modifier
                     .fillMaxSize()
                     .background(MaterialTheme.aroColors.backgroundPrimary)
                     .padding(horizontal = 16.dp, vertical = 12.dp),
             ) {
-                // 상단: 코스 제목 + 데모 모드 꼬리표
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = course.title,
-                        modifier = Modifier.weight(1f),
-                        style = AroTextStyles.titleSmall,
-                        color = MaterialTheme.aroColors.textPrimary,
-                        maxLines = 1,
-                    )
-                    if (isDemoMode) SmallTag(stringResource(R.string.parked_demo_mode_tag))
-                }
-                Spacer(Modifier.height(8.dp))
-                // 하단 스텝 내비게이션: ①~④ + 스텝5(오늘의 기록). 완주 시 자동으로 스텝5가 선택된다.
-                ParkedPageNavigationBar(
-                    labels = listOf(
-                        stringResource(R.string.parked_step_stamp),
-                        stringResource(R.string.parked_step_quiz),
-                        stringResource(R.string.parked_step_thennow),
-                        stringResource(R.string.parked_step_book),
-                        stringResource(R.string.parked_step_record),
-                    ),
-                    selected = if (CourseStartState.showRecord) {
-                        RECORD_STEP_INDEX
-                    } else {
-                        QuizStateHolder.stepIndex.coerceIn(0, 3)
-                    },
-                    onSelect = { index ->
-                        if (index == RECORD_STEP_INDEX) {
-                            CourseStartState.showRecord = true
-                        } else {
-                            CourseStartState.showRecord = false
-                            QuizStateHolder.stepIndex = index
-                        }
-                    },
-                )
-                Spacer(Modifier.height(12.dp))
-
-                if (CourseStartState.showRecord) {
-                    // ── 스텝5: 오늘의 기록(시안 09). 기존 완주 요소(배지·거리)도 이 화면으로 이동 정리했다.
-                    RecordContent(
-                        course = course,
-                        seed = seed,
-                        bookDef = bookDef,
-                        stampedIds = stampedIds,
-                        stampedCount = stampedCount,
-                        stampTotal = stampTotal,
-                        partySize = partySizeNow,
-                        tripKm = tripKm,
-                        isCompleted = isCompleted,
-                        // B3: 가족 누적 거리(0 이하·없음은 null — 줄 숨김).
-                        familyTotalKmLabel = familyTotalKm?.let { formatFamilyTotalTripKm(it) },
-                        // B1: 이어받을 사람 질문 카드(가족 배지 다음 1회) — 정책 판정값을 그대로
-                        // 전달한다. PIN 없음(heirPinGuideVisible)이면 질문 대신 안내 카드로 전환
-                        // (구성원 버튼은 세션 조회분만 — PIN 없으면 빈 목록이라 버튼이 생기지 않는다).
-                        heirCardVisible = heirShouldAsk || heirPinGuideVisible,
-                        heirCardCandidates = heirCandidates,
-                        heirCardBusy = heirBusy,
-                        heirCardDesignatedName = heirDesignatedName,
-                        heirCardOwnerGuide = heirOwnerGuide || heirPinGuideVisible,
-                        heirCardFailed = heirPickFailed,
-                        heirCardOnPick = { pickHeir(it) },
-                        heirCardOnDefer = { HeirQuestionMemory.defer(course.id) },
-                        modifier = Modifier.weight(1f),
-                        onBackHome = {
-                            // 처음으로: 세션 리셋(스탬프·방문 기록·거리·인원 초기화) 후 스텝0(코스 선택) 복귀.
-                            session.resetCourse()
-                            QuizStateHolder.reset()
-                            CourseStartState.reset()
+                when (settingsRoute) {
+                    1 -> SettingsScreen(
+                        connectedFamilyCode = familyCode,
+                        partyPrefs = partyPrefs.takeIf { partyPrefsFromServer },
+                        devicePartyAllHidden = deviceAllHidden,
+                        onFamilySwitch = { settingsRoute = 2 },
+                        onSignOut = {
+                            container.signOutFlow.run()
+                            context.startActivity(
+                                Intent(context, StartActivity::class.java)
+                                    .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT),
+                            )
                         },
+                        onTogglePartyLine = { visible ->
+                            scope.launch {
+                                val pin = familyStore.pinOrNull()
+                                if (pin == null) {
+                                    PartyFoldLocalStore.writeAllHidden(context, !visible)
+                                    partyPrefs = PartyLinePrefs(
+                                        hiddenPlaceIds = PartyFoldLocalStore.readFoldedPlaceIds(context),
+                                        allHidden = !visible,
+                                    )
+                                } else {
+                                    container.apiClient.putPrefs(
+                                        familyCode,
+                                        pin,
+                                        SettingsState.keptHiddenPlaceIds(partyPrefs),
+                                        !visible,
+                                    ).fold(
+                                        onSuccess = { responseBody ->
+                                            partyPrefsFromServer = true
+                                            partyPrefs = parsePartyLinePrefs(responseBody)
+                                                ?: partyPrefs?.copy(allHidden = !visible)
+                                        },
+                                        onFailure = {
+                                            PartyFoldLocalStore.writeAllHidden(context, !visible)
+                                            partyPrefs = PartyLinePrefs(
+                                                hiddenPlaceIds = PartyFoldLocalStore.readFoldedPlaceIds(context),
+                                                allHidden = !visible,
+                                            )
+                                        },
+                                    )
+                                }
+                            }
+                        },
+                        onBack = { settingsRoute = 0 },
                     )
-                } else {
-                    // 본문: 세로 스텝. 스크롤은 스텝 안에서만 최소 사용.
-                    Column(
-                        Modifier
-                            .weight(1f)
-                            .fillMaxWidth()
-                            .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        when (QuizStateHolder.stepIndex.coerceIn(0, 3)) {
-                            0 -> StampStep(lastArrival, currentTarget, stampedCount, stampTotal)
-                            1 -> QuizStep(lastArrival, quizzes)
-                            2 -> ThenNowStep(
-                                container = container,
-                                demo = seed.thenNowDemo,
-                                place = lastArrival,
-                                isWide = isWide,
-                                partySizeNow = partySizeNow,
-                                voiceLetter = voiceLetter,
-                                voiceLetterPlayer = voiceLetterPlayer,
-                                // E2 서버 과거 기록(2026-11-11) — 세션 없음·조회 실패면 null 로
-                                // 예시(시드) 폴백(기존 동작). 서버 값이면 '예시' 태그 없이 그려진다.
-                                serverPast = serverPast,
-                                // T9-3 서버 실데이터(구성원 자리 이름표) — 세션 없음·실패면 null 로 숨김.
-                                seatTags = seatTags,
-                                seatAuthError = seatAuthError,
-                                // B2·B4: then-now 부가 상태 — 조회 실패·필드 없음이면 null 로
-                                // 첫 기록 문구·접기 버튼 없이 기존 동작을 유지한다(가짜 금지).
-                                thenNowState = thenNowState,
-                                // B4: 가족 prefs 접힘(partyLineFolded)까지 함께 본다 — 어느 경로로
-                                // 접혀도 이 장소에서 문장·버튼이 다시 나오지 않는다.
-                                comparisonFolded = isPersonComparisonFolded(thenNowState) || partyLineFolded,
-                                showFoldButton = shouldShowFoldButton(thenNowState) && !partyLineFolded,
-                                onFoldComparison = { foldComparison() },
+                    else -> FamilySwitchConfirmScreen(
+                        onConfirm = {
+                            container.signOutFlow.run()
+                            context.startActivity(
+                                Intent(context, StartActivity::class.java)
+                                    .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT),
                             )
-                            else -> BookStep(
-                                seed = seed,
-                                place = lastArrival,
-                                stampedIds = stampedIds,
-                                isWide = isWide,
-                                // '오늘의 기록 보기' 버튼 — 스텝5로 이동한다.
-                                onOpenRecord = { CourseStartState.openRecord() },
-                            )
-                        }
-                    }
-                    // 하단 버튼: 다음 목표 안내. 실제 주행 재개는 차량 앱 밖 내비 역할이라 여기선 안내만 한다.
-                    val target = currentTarget
-                    if (target != null) {
-                        Spacer(Modifier.height(12.dp))
-                        LargePrimaryButton(text = stringResource(R.string.parked_next_place, target.name)) {
-                            QuizStateHolder.stepIndex = 0 // 스텝1(스탬프 카드)로 돌아가 다음 목표를 안내한다.
-                        }
-                    }
+                        },
+                        onCancel = { settingsRoute = 1 },
+                    )
                 }
+            }
+        } else when (menuPolicy.panelMode) {
+            MenuPanelMode.CLOSED -> body()
+            MenuPanelMode.BODY_SHRINK -> {
+                // 정차 + 가로 창(⒝) — 본문 폭이 패널 폭만큼 줄어들고 패널이 오른쪽에 붙는다.
+                Row(Modifier.fillMaxSize()) {
+                    Box(Modifier.weight(1f)) { body() }
+                    MenuPanel(
+                        panelWidth = panelWidth,
+                        familyCodeMasked = panelFamilyCode,
+                        selected = selectedMenuItem,
+                        onClose = { MenuPanelState.close() },
+                        onItem = { item -> onMenuItem(item) },
+                    )
+                }
+            }
+            MenuPanelMode.OVERLAY -> {
+                // 세로(1:1) 창(⒞) — 본문 폭은 그대로 두고 패널이 겹치며 왼쪽이 어둡다(AC17).
+                // 왼쪽 어둡게 — 토큰 색을 반투명으로 겹친다(새 16진수 없음). 빈 곳을 누르면 닫힌다.
+                Box(Modifier.fillMaxSize()) { body() }
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.aroColors.backgroundPrimary.copy(alpha = 0.7f))
+                        .clickable { MenuPanelState.close() },
+                )
+                MenuPanel(
+                    panelWidth = panelWidth,
+                    modifier = Modifier.align(Alignment.CenterEnd),
+                    familyCodeMasked = panelFamilyCode,
+                    selected = selectedMenuItem,
+                    onClose = { MenuPanelState.close() },
+                    onItem = { item -> onMenuItem(item) },
+                )
             }
         }
     }

@@ -3,6 +3,7 @@ package app.arosaegim.ui.common
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -21,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -211,6 +213,45 @@ fun DemoModeTag(
             style = AroTextStyles.label.copy(
                 color = MaterialTheme.aroColors.textSecondary,
             ),
+        )
+    }
+}
+
+/**
+ * MenuButton — 머리글 오른쪽 [☰ 메뉴] 버튼(F10 T2, 2026-11-14).
+ *
+ * PageNavigationBar 의 trailingAction 슬롯(AC01 note — 머리글의 부가 기능 자리)에 놓인다.
+ * 아이콘(☰ 글리프)과 글자를 한 쌍으로 보여 주고, 높이는 76dp 이상(접촉 면적 하한)이다.
+ * 애니메이션 없음. 버튼을 보여 줄지는 호출부가 정한다 — 정차 화면 + 세션 있는 경우에만
+ * trailingAction 으로 넘겨야 한다(MenuPolicy — 시작 화면·세션 없음·주행 중에는 넘기지 않는다).
+ */
+@Composable
+fun MenuButton(
+    label: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = modifier
+            .heightIn(min = MinButtonHeight)
+            .clip(RoundedCornerShape(CornerRadius))
+            .background(MaterialTheme.aroColors.buttonBasic)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        // 아이콘 자리 — 아이콘 리소스 의존 없이 텍스트 글리프(NavGlyphButton 과 같은 방식).
+        Text(
+            text = "☰",
+            style = AroTextStyles.bodyMedium,
+            color = MaterialTheme.aroColors.textPrimary,
+        )
+        Text(
+            text = label,
+            style = AroTextStyles.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+            color = MaterialTheme.aroColors.textPrimary,
+            maxLines = 1,
         )
     }
 }

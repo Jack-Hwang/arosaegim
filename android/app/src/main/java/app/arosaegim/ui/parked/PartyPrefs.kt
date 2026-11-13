@@ -112,6 +112,12 @@ internal object PartyFoldLocalStore {
         runCatching { prefs(context).getBoolean(KEY_ALL_FOLDED, false) }.getOrDefault(false)
 
     /** 이 장소의 접기를 로컬에 남긴다(서버 저장 실패 시에만 호출한다). */
+    fun writeAllHidden(context: Context, hidden: Boolean) {
+        runCatching {
+            prefs(context).edit().putBoolean(KEY_ALL_FOLDED, hidden).apply()
+        }
+    }
+
     fun writeFolded(context: Context, placeId: String) {
         if (placeId.isBlank()) return // 빈 placeId 는 읽는 쪽에서 걸러지므로 아예 남기지 않는다.
         runCatching {
