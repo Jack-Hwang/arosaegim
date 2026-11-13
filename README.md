@@ -11,7 +11,7 @@
 
 | 요소 | 상태 | 비고 |
 |---|---|---|
-| `android/` 차량 앱 | **코드 완료** | 주행/정차 전환·도착 스탬프·퀴즈·그때와 지금·스탬프북·맛집·코스 선택·오늘의 기록·가족 세션·방문 동기화. 단위 테스트 163/163 통과. 스모크 U1~U16·D1·D2 실측 완료(`docs/DEV_LOG.md` 표) |
+| `android/` 차량 앱 | **코드 완료** | 주행/정차 전환·도착 스탬프·퀴즈·그때와 지금·스탬프북·맛집·코스 선택·오늘의 기록·가족 세션·방문 동기화. 단위 테스트 179/179 통과. 스모크 U1~U16·D1·D2 실측 완료(`docs/DEV_LOG.md` 표) |
 | `backend/` REST 서버 | **코드 완료** | API 전체(가족·코스·방문·기억·영수증·구성원·스탬프북·포인트·지표) + 캐시백 규칙(숙소 3박·사진 필수+해시·pending·device_limit). pytest 76/76 통과(신규 상속자·순번·누적거리·접기·이름표 API 포함) |
 | `web/` 가족 모바일 웹 | **코드 완료** | 7화면(가족 코드·동의·코스·그때 기록·타임라인·가족 관리·영수증). 백엔드 `/web` 정적 서빙 |
 | `tools/` 시연 스크립트 | **완성** | drive-demo-route · grant-permissions · record-demo (PowerShell 5.1/7 호환, 구문 검증 PASS) |
@@ -47,7 +47,7 @@ powershell ./tools/grant-permissions.ps1 -Package app.arosaegim
 cd backend
 pip install -r requirements.txt
 uvicorn app.main:app --port 8000   # 백엔드 실행
-pytest                             # 서버 테스트 86개
+pytest                             # 서버 테스트 87개
 # 웹 접속: http://localhost:8000/web/  (에뮬레이터 앱은 http://10.0.2.2:8000 — 실측 PASS)
 ```
 

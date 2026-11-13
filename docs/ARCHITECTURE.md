@@ -437,7 +437,7 @@ Back 키는 finish() 대신 moveTaskToBack(true)로 태스크를 보존해 재�
 ```bash
 cd android
 ./gradlew clean testDebugUnitTest assembleDebug
-# 기대 결과: BUILD SUCCESSFUL, 단위 테스트 163/163
+# 기대 결과: BUILD SUCCESSFUL, 단위 테스트 179/179
 #  SeedRepository·CourseProgress·Haversine·ModeStateMachine·StampBook(9)·StampEngine(6)
 #  ThenNowResolver(12)·TripSession(+tripKm/partySize 10케이스)·FamilyCodeValidator 등
 ```

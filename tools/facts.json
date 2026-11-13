@@ -1,0 +1,84 @@
+{
+  "_설명": "사실 대장(fact registry) — arosaegim/tools 판. proof/spec_drift_check.py(원본: sdd/04_verify/facts.json)와 같은 스키마며, 저장소(arosaegim) 코드의 '재서 확인할 수 있는 숫자'를 측정한다. measure = 코드에서 값을 재는 방법(HEAD 기준 git 명령), doc_patterns = 기획서·제출용 문서 원본에서 그 사실을 말하는 문장을 찾는 정규식(문서는 저장소 상위 ../제출용·../기획서에 있으므로 ../ 접두어로 가리킨다). 문서 숫자가 코드와 어긋나면 drift gate가 실패로 보고한다. 커밋 기준 2026-11-13 오후(HEAD) 실측값: 앱 @Test 179 · 서버 def test_ 87 · 라우터 11 · strings 121 · APK 40483945바이트. docs/TRACEABILITY.md 표가 이 숫자와 짝을 이룬다.",
+  "exclude": ["/_backup/", "/_bak_pre_edit/", "_backup.py", "pre_resync", "/tmp/", "/qcache/", "/out_un/", "/__pycache__/", "/검토자료_"],
+  "facts": [
+    {
+      "id": "F-TEST-APP",
+      "label": "앱 단위 테스트 수",
+      "measure": {"type": "git_grep_count", "pattern": "@Test", "paths": ["android/app/src/test"]},
+      "doc_patterns": [
+        {"globs": ["../제출용/_work/content.py", "../제출용/_work/add_ui.py", "../제출용/_work/spec/spec_*.py", "../기획서/화면시안/ext_*.py", "../기획서/실측/make_evidence_*.py"],
+         "regex": "앱 단위 테스트\\s*(\\d[\\d,]*)\\s*[건개]"}
+      ]
+    },
+    {
+      "id": "F-TEST-SERVER",
+      "label": "서버 테스트 수",
+      "measure": {"type": "git_grep_count", "pattern": "def test_", "paths": ["backend/tests"]},
+      "doc_patterns": [
+        {"globs": ["../제출용/_work/content.py", "../제출용/_work/add_ui.py", "../제출용/_work/spec/spec_*.py", "../기획서/화면시안/ext_*.py"],
+         "regex": "서버 (?:pytest |테스트 )(\\d+)\\s*(?:건|개|/\\s*\\d+)"}
+      ]
+    },
+    {
+      "id": "F-ENDPOINTS",
+      "label": "서버 엔드포인트 수(라우터 안)",
+      "measure": {"type": "git_grep_count", "pattern": "^@router\\.(get|post|put|delete|patch)", "paths": ["backend/app/routers"]},
+      "doc_patterns": [
+        {"globs": ["../제출용/_work/content.py", "../제출용/_work/add_ui.py", "../제출용/_work/spec/spec_*.py", "../기획서/화면시안/ext_*.py", "../기획서/화면시안/captions.json", "../기획서/화면시안/captions_ext/*.json"],
+         "regex": "엔드포인트(?:는|가)?\\s*(\\d+)\\s*개"}
+      ]
+    },
+    {
+      "id": "F-ROUTERS",
+      "label": "서버 라우터 수",
+      "measure": {"type": "git_ls_tree_count", "path": "backend/app/routers", "glob": "*.py", "exclude": ["__init__.py"]},
+      "doc_patterns": [
+        {"globs": ["../제출용/_work/content.py", "../제출용/_work/add_ui.py", "../제출용/_work/spec/spec_*.py", "../기획서/화면시안/ext_*.py", "../기획서/화면시안/captions.json", "../기획서/화면시안/captions_ext/*.json"],
+         "regex": "라우터(?:는|가)?\\s*(\\d+)\\s*개",
+         "skip_line_contains": ["→", "라우터 10개"]}
+      ]
+    },
+    {
+      "id": "F-MODELS",
+      "label": "서버 모델 클래스 수",
+      "measure": {"type": "git_show_regex_count", "file": "backend/app/models.py", "pattern": "^class "},
+      "doc_patterns": [
+        {"globs": ["../제출용/_work/content.py", "../제출용/_work/add_ui.py", "../제출용/_work/spec/spec_*.py", "../기획서/화면시안/ext_*.py", "../기획서/화면시안/captions.json", "../기획서/화면시안/captions_ext/*.json"],
+         "regex": "(?<!요청 )(?<!입력\\) )(?<!입력 )(?:Pydantic )?모델(?: 클래스)?\\s*(\\d+)\\s*개"}
+      ]
+    },
+    {
+      "id": "F-STRINGS",
+      "label": "앱 화면 문구(strings.xml) 수",
+      "measure": {"type": "git_show_regex_count", "file": "android/app/src/main/res/values/strings.xml", "pattern": "<string name="},
+      "doc_patterns": [
+        {"globs": ["../제출용/_work/content.py", "../제출용/_work/spec/spec_*.py"],
+         "regex": "화면 문구\\s*(\\d+)\\s*개"},
+        {"globs": ["../제출용/_work/spec/spec_ui_copy.py"],
+         "regex": "문자열\\s*(\\d+)\\s*개"}
+      ]
+    },
+    {
+      "id": "F-TESTFILES-APP",
+      "label": "앱 테스트 파일 수",
+      "measure": {"type": "git_grep_files", "pattern": "@Test", "paths": ["android/app/src/test"]},
+      "doc_patterns": []
+    },
+    {
+      "id": "F-TESTFILES-SERVER",
+      "label": "서버 테스트 파일 수",
+      "measure": {"type": "git_grep_files", "pattern": "def test_", "paths": ["backend/tests"]},
+      "doc_patterns": []
+    },
+    {
+      "id": "F-APK-BYTES",
+      "label": "릴리스 APK 바이트",
+      "measure": {"type": "git_ls_tree_size", "path": "apk/"},
+      "doc_patterns": [
+        {"globs": ["../제출용/_work/content.py", "../제출용/_work/spec/spec_*.py"],
+         "regex": "(40,\\d{3},\\d{3})\\s*바이트"}
+      ]
+    }
+  ]
+}

@@ -22,6 +22,34 @@ def test_pin_locks_after_five_failures(client, family):
     assert r.json()["error"]["code"] == "family_locked"
 
 
+def test_pin_lock_records_locked_until_in_future(client, family):
+    """E⑤ 보강: 5회 실패로 잠긴 가족의 locked_until은 현재보다 앞선 시각으로 기록된다.
+    잠금 해제 예정 시각이 DB에 남으므로 시간 주입·sleep 없이 '10분 뒤 풀린다'는 규칙을 검증한다."""
+    import sqlite3
+    from datetime import datetime
+
+    from app import config
+
+    code_headers = {"X-Family-Code": family["family_code"]}
+    for _ in range(5):
+        client.get("/v1/families/me/timeline", headers={**code_headers, "X-Family-Pin": "000000"})
+
+    conn = sqlite3.connect(config.DB_PATH)
+    conn.row_factory = sqlite3.Row
+    row = conn.execute(
+        "SELECT failed_attempts, locked_until FROM families WHERE code = ?",
+        (family["family_code"],),
+    ).fetchone()
+    conn.close()
+
+    assert row["locked_until"] is not None
+    assert row["failed_attempts"] == 0  # 잠금과 함께 실패 카운터는 0으로 되돌려진다(security._fail_pin)
+    locked_until = datetime.strptime(row["locked_until"], "%Y-%m-%dT%H:%M:%S")
+    remaining = (locked_until - datetime.now()).total_seconds()
+    assert remaining > 0  # 미래 시각 — 이 구간 동안은 올바른 PIN으로도 429 family_locked
+    assert remaining <= config.PIN_LOCK_MINUTES * 60  # 잠금은 '지금 + 10분'으로 기록된다
+
+
 def test_missing_pin_header_rejected(client, family):
     r = client.get("/v1/families/me/timeline", headers={"X-Family-Code": family["family_code"]})
     assert r.status_code == 401

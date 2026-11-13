@@ -51,6 +51,14 @@ private data class QueuedVisit(
  * 맵([pendingPins])에만 잠깐 묶어 둔다 — 프로세스가 끝나면 사라지고, 그때는 pinProvider
  * (세션에 다시 입력된 PIN)가 대신 답한다.
  *
+ * 전송 시점·재시도 예산(E④ 확인, 2026-11-13):
+ *  - flush 의 유일한 전송 트리거는 TripSession 도착 처리의 enqueue 직후 1회 호출이다
+ *    (주기 폴링·타이머 없음 — 서버 없는 환경에서 큐가 공회전하지 않는다. 설계 요건 충족 확인).
+ *  - 전송 실패 시 첫 실패 항목에서 즉시 중단하고 남은 항목을 큐에 유지한다. 재시도는
+ *    다음 enqueue(다음 도착)가 flush 를 다시 부를 때 일어나며, 재시도 예산은 곧
+ *    '전송 트리거 횟수'(= enqueue 횟수)다 — 백그라운드 폴링으로 소모되지 않는다.
+ *  - 이 절은 확인 결과의 문서화만이다. 오프라인 우선 계약 보호를 위해 로직은 변경하지 않았다.
+ *
  * @param file        visit_queue.json 파일(테스트는 임시 파일을 직접 지정한다).
  * @param api         전송 담당 클라이언트. flush 가 유일한 호출자다.
  * @param pinProvider 전송 시점의 세션 PIN 공급자(예: { sessionStore.pinOrNull() }).

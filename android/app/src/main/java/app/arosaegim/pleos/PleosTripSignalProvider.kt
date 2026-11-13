@@ -29,6 +29,8 @@ import kotlin.coroutines.resume
  *    (00문서 11-2: 좌석 신호는 세대 간 인원 비교에만 쓴다).
  *  - 모든 단계를 runCatching 으로 감싸고, 실패 시 null 로 답한다 — 가짜 값 금지(T5-1).
  *  - SDK 콜백 대기는 메인 스레드 전제(기존 Vehicle 어댑터 규약) + 3초 타임아웃.
+ *  - 좌석 응답률이 50% 미만이면 partySize 는 null 이다 — 일부만 읽힌 합산이 '1명' 같은
+ *    잘못된 표시로 이어가지 않게 한다(Q27·F73). 집계 규칙은 countOccupied 순수 함수가 맡는다.
  */
 class PleosTripSignalProvider : TripSignalProvider {
 
@@ -37,6 +39,14 @@ class PleosTripSignalProvider : TripSignalProvider {
 
     /** 마지막 초기화·조회 오류(진단 표시용 — 화면 표시로만 쓰고 저장하지 않는다). */
     var lastError: String? = null
+        private set
+
+    /**
+     * 마지막 좌석 조회의 성공/실패 개수 한 줄(진단 화면 표시 전용 — Q27).
+     * 예: "좌석 조회: 요청 9 / 성공 5 / 실패 4". 개수만 담고 좌석 값·식별자는 담지 않으며,
+     * 저장·전송하지 않는다(lastError 와 같은 표시 전용 규약).
+     */
+    var lastSeatDiagnostics: String? = null
         private set
 
     /** 이미 초기화된 Vehicle 을 주입받는 생성자(AppContainer 가 같은 규약으로 재사용할 때). */
@@ -65,9 +75,11 @@ class PleosTripSignalProvider : TripSignalProvider {
     /**
      * 좌석 점유로 '오늘 함께 온 인원 수'(T6-2). 읽기 실패·타임아웃은 null.
      *
-     * 합산 방식: capability 로 받은 영역 목록에서 좌석(SeatValue)을 모아, ROW_1~3 각 좌석에
-     * getCurrentSeatOccupancy 를 병렬 조회한다. 성공한 좌석 중 true 개수만 합산하고,
-     * 실패한 좌석은 제외한다. 성공한 좌석이 하나도 없으면 null — 일부만 읽혀도 성공분만 믿는다.
+     * 합산 방식(Q27 견고화): capability 로 받은 영역 목록에서 좌석(SeatValue)을 모아, 그 목록에
+     * 담긴 좌석만 getCurrentSeatOccupancy 로 병렬 조회한다. capability 가 일부 좌석만 줘도
+     * 받은 목록 기준으로만 집계한다 — 미제공 좌석을 추측해 세지 않는다(가짜 값 금지).
+     * 좌석별 실패(null)는 '답 없음'으로 제외하되, 응답률이 50% 미만이면 불안정 판정으로
+     * null 을 돌려준다(countOccupied 참조 — Q27·F73 '오늘은 1명' 오표시 방지).
      */
     override suspend fun partySize(): Int? {
         if (!initialized) return null
@@ -83,10 +95,14 @@ class PleosTripSignalProvider : TripSignalProvider {
             }
         }.getOrNull() ?: return null
 
-        // 성공(Boolean 답)한 좌석만 세고, true(점유)만 합산한다. 전부 실패면 null.
-        val answered = results.filterNotNull()
-        if (answered.isEmpty()) return null
-        return answered.count { it }.coerceAtMost(MAX_SEATS)
+        // 진단 표시용 한 줄. 개수만 센다 — 좌석 값·식별자는 담지 않고 저장·전송하지도 않는다.
+        val answeredCount = results.count { it != null }
+        lastSeatDiagnostics =
+            "좌석 조회: 요청 ${results.size} / 성공 $answeredCount / 실패 ${results.size - answeredCount}"
+
+        // 키 = 요청 좌석 전부, 값 = 좌석별 답(null = 실패·타임아웃). 판정 규칙은 순수 함수가 맡는다.
+        val answers = candidates.zip(results).toMap()
+        return countOccupied(answers)?.coerceAtMost(MAX_SEATS)
     }
 
     /**
@@ -192,3 +208,31 @@ class PleosTripSignalProvider : TripSignalProvider {
         )
     }
 }
+
+/**
+ * 좌석 점유 집계 순수 함수(Q27 견고화 — JVM 단위 테스트 대상).
+ *
+ * [answers]의 키는 조회를 요청한 좌석 전부(capability 가 준 목록), 값은 좌석별 답이다.
+ * true = 점유, false = 빈 좌석, null = 조회 실패·타임아웃. 판정 규칙:
+ *  - 답(non-null)이 하나도 없으면 null — 기존 계약 유지(성공 좌석 0 = 판정 불가).
+ *  - 답한 좌석 비율이 [MIN_RESPONSE_RATIO] 미만이면 null — 일부만 읽힌 합산을 '1명' 같은
+ *    잘못된 표시로 이어가지 않게 한다(Q27·F73: 9석 요청 2석 응답 사례의 방어선).
+ *  - 그 외에는 답한 좌석 중 true(점유)만 합산한다. 키에 없는 좌석을 추측해 세지 않는다.
+ *
+ * 키 타입에 의존하지 않는다 — SeatValue 같은 SDK 클래스 로딩 없이 JVM 테스트가 가능하다.
+ */
+fun <T> countOccupied(answers: Map<T, Boolean?>): Int? {
+    if (answers.isEmpty()) return null // 요청 좌석이 아예 없으면 판정할 수 없다.
+    val answeredCount = answers.count { it.value != null }
+    if (answeredCount == 0) return null // 실패 좌석뿐 — 답이 없으므로 판정 불가(기존 계약).
+    if (answeredCount < answers.size * MIN_RESPONSE_RATIO) return null // 응답률 미달 — 불안정.
+    return answers.count { it.value == true }
+}
+
+/**
+ * 좌석 응답 안정 판정 하한(50%). 요청 좌석의 과반이 답하지 않으면 합산을 거부한다.
+ * Q27 원인 후보(9석 중 일부만 응답해 운전석 등 일부만 합산돼 '1명' 표시)에 대한 방어선이며,
+ * 정확히 50%(예: 2석 중 1석)는 통과로 본다. 0.5 는 부동소수점에서 정확히 표현되므로
+ * 경계 비교(answeredCount < size * 0.5)에 반올림 오차가 없다.
+ */
+const val MIN_RESPONSE_RATIO = 0.5

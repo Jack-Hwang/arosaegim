@@ -16,6 +16,23 @@
   - **Q29** E1 전체 경로(가족 코드·PIN 입력 → 출발 → geo fix 도착 → 서버 visits 행·스탬프 반영) 실측 — GUI 세션. 서버에 테스트 가족 `UJ2AUXS9`(발급 2026-11-13)가 있으니 그대로 쓰면 된다. **Q18 정리 대상에 UJ2AUXS9 추가**(기존 8XTPUG8N와 함께 제출 전 삭제). Q28(가족 코드 진입점 보완) 선행.
   - U11(좌석 4석에서의 문장 표시)·U13(주행거리 문장)·U6(음성 청취) 유지 — GUI 세션.
 - 다음: 미커밋 배치(네트워크 보안 설정·FuelBatteryProbe·스탬프 복원·마커·U9 lastRouted)는 병렬 세션이 커밋함(327158a, 2026-11-13 08:15). 본 섹션은 DEV_LOG만 커밋
+
+---
+
+## 2026-11-13 (오후) — 미구현 요구 전수 조사·병렬 구현(Q26·Q27·Q20·09문서 7번·지시서 E문서화)
+
+- 한 일: glm/ 갱신(11-12 20:57 이후 없음)을 확인하고 남은 구현 과제를 DEV_LOG·감사·지시서 후보에서 전수 추려 4개 작업 단위로 병렬 구현해 통합. 통합 검증: **앱 단위 테스트 179/179(163+7+9, 실패 0)**·백엔드 **pytest 87/87(+1)**·assembleDebug·assembleRelease 성공, `apk/arosaegim_아로새김_release.apk` 갱신(40,483,945바이트)
+- 확인된 사실(F-번호):
+  - **F81 Q26 해소 — 기어 P 지속 시 주행 해제 타임아웃**: DrivingStateMerger에 정차 유지 해제 규칙 추가 — 보조(기어)가 false(P)로 확인된 지속 시간이 5초(`PARK_RELEASE_HOLD_MS`, 2초 폴링 3회) 이상이면 1차(DO)가 주행을 주장해도 PARKED로 판정. 근거: 기어 P에서 차가 움직일 수 없다는 물리 사실(DO 잔존은 오류 — Q26 실증). 시계(`nowMs`)·보류 시간 주입으로 순수 유지, CombinedDrivingState는 무변경. 테스트 +7(기존 7 유지)
+  - **F82 Q27 완화 — 좌석 집계 부분 합산 차단**: 집계를 순수 함수 `countOccupied`로 추출하고 **응답률 50% 미달(`MIN_RESPONSE_RATIO=0.5`)이면 null**(F73의 "주입 3명→표시 1명"은 capability 일부 목록·부분 응답의 부분 합산 경로와 일치 — 확정 실측은 여전히 사용자 Virtual Console 세션 필요). `lastSeatDiagnostics`(요청/성공/실패 좌석 수 한 줄 — 표시 전용·저장 없음)를 진단 U11 상세에 연결. VisitQueue(E④)는 flush 호출자가 TripSession enqueue 직후 1회뿐임을 확인 — 공회전 폴링 없음(설계 요건 충족), KDoc에 전송 시점·재시도 예산 절 추가. 테스트 +9
+  - **F83 Q20 부분 해소 — ParkedScreen 분리**: 1094줄 → ParkedScreen 596 + ParkedSteps 143 + ParkedRecordStep 219 + ParkedServerParsing 200(순수 이동 — git diff로 바이트 대조, private→internal 5개 최소 확장만). ParkedScreen 컴저블 하나가 상태를 클로저로 캡처해 596줄이 순수 이동 한계 — 이하 정리는 상태 끌어올림 리팩터가 필요(별도 과제)
+  - **F84 09문서 7번 해소**: `assets/seed/then_placeholder.png` 1×1 순녹색 → 960×720 중립 자리표시(배경 #F0EDE8·'사진 자리' 안내, 13,246바이트) — ThenPhoto 코드 무변경, 에셋 교체만
+  - **F85 지시서 E항목 직접 수행(문서·가드 확인)**: E③ 포인트 가드 **이미 구현 확인**(services/points.py: 건당 MAX_AMOUNT_KRW=1,000,000·가족당 하루 5건 daily_limit — 테스트 존재)·E⑤ PIN 잠금 **이미 구현 확인**(security.py: 5회 실패 10분 — locked_until 미래 시각 검증 테스트 +1)·E④ 확인(위 F82)·E① `docs/TRACEABILITY.md`(요구↔구현↔시험 표 3개)·E② `docs/ADR.md`(실제 결정 14건, 코드 근거 경로 포함)·E⑥ `tools/`(숫자 자동 대조 도구 + facts.json — d4eb823 기준 9/9 OK)
+- Open Questions(Q-번호):
+  - **Q30(신규)**: `tools/spec_drift_check.py`는 HEAD 기준 측정 — 이번 커밋 후 F-TEST-APP(179)·F-TEST-SERVER(87)·F-APK-BYTES는 **기획서·제출용 문서가 163/86에서 갱신될 때까지 잠정 FAIL**이 정상(인수인계 예고 조항: HEAD가 바뀌면 문서 숫자 재대조 — 기획서 담당 소유). 저장소 내 README·ARCHITECTURE·TRACEABILITY는 이미 179/87로 갱신함
+  - Q27 확정 실측·U11 문장 표시·U6 음성 — 사용자 Virtual Console 세션(테스트 가족 UJ2AUXS9/PIN 739749)
+  - Q14(letter_demo 오디오 — 발주자 준비 시 assets/audio 자동 활성)·Q18(테스트 가족 정리: 8XTPUG8N·UJ2AUXS9)·Q20 잔여(ParkedScreen 596줄 상태 끌어올림)
+- 다음: 커밋·푸시
 - 확인된 사실(추가):
   - **F80 Q28 수정 — 정차 자동 전환의 세션 게이트**: 새 설치에서 첫 상태 수집(PARKED)이 정차 화면을 곧바로 최상단으로 올려 시작 화면(가족 코드 입력)의 진입점이 사라졌다(위 (아침) 섹션 Q28). 수정: ModeRouter에 `sessionExists` 게이트 — 정차로의 자동 전환은 세션(가족 코드·둘러보기)이 있을 때만; 주행 화면은 DO 안전 화면이므로 세션과 무관하게 항상 허용. 순수 판정 `ModeRouter.resolveTarget` 분리 + 단위 테스트 4케이스(`ModeRouterResolveTest`), `FamilySessionStore.hasSession()` 신설, 진단 U9의 `forceBringTo`는 게이트 우회(개발자 명시 전환 보호). ArosaegimApp에서 `container.familySessionStore.hasSession()` 배선. 실측 검증(08:30): 수정분 debug APK 재설치 후 콜드 스타트 → 6초 경과 시 `topResumedActivity`가 여전히 런처(진단 화면)이고 ParkedActivity가 뜨지 않았다(수정 전에는 몇 초 안에 정차 화면이 덮였다) — `.pleos-download/q28_verify.png`. 앱 테스트 163/163(신규 4케이스 포함)·assembleDebug·assembleRelease 성공, `apk/arosaegim_아로새김_release.apk` 갱신.
 

@@ -15,6 +15,7 @@ import app.arosaegim.domain.Place
 import app.arosaegim.fallback.AssetAudioNarrator
 import app.arosaegim.fallback.ManualDrivingState
 import app.arosaegim.pleos.FuelBatteryProbe
+import app.arosaegim.pleos.PleosTripSignalProvider
 import app.arosaegim.ports.Narrator
 import app.arosaegim.ui.ModeRouter
 import app.arosaegim.ui.parked.DiagnosticsMetrics
@@ -517,6 +518,10 @@ class DiagnosticsViewModel(
         onDetail("Virtual Console 'Seat Occupancy' 조작 후 재실행 — TripSession.tripSignals 경유 조회")
         val size = container.tripSession.tripSignals?.partySize()
         onDetail("partySize() = ${size ?: "안 읽힘(null)"}")
+        // Q27(2026-11-13): 요청·성공·실패 좌석 수 한 줄 — 응답률 미달(null) 원인 판별용. 표시 전용.
+        (container.tripSession.tripSignals as? PleosTripSignalProvider)
+            ?.lastSeatDiagnostics
+            ?.let { onDetail(it) }
         return if (size != null) {
             onDetail("판정: PASS(인원 수 환산 성공 — 정차 화면 문장 표시)")
             Outcome(true)
