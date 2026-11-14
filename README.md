@@ -11,7 +11,7 @@
 
 심사위원이 처음 열 때 5분 안에 확인할 수 있는 출발점입니다.
 
-1. **앱 설치 파일(APK, 안드로이드 앱 패키지)**: `apk/arosaegim_아로새김_release.apk` — 40,484,425바이트(약 40MB), 서명 검증 통과.
+1. **앱 설치 파일(APK, 안드로이드 앱 패키지)**: `apk/arosaegim_아로새김_release.apk` — 40,652,561바이트(약 40MB), 서명 검증 통과(CN=arosaegim).
 2. **시험 실행 명령과 현재 개수**: `cd android && ./gradlew testDebugUnitTest` — 앱 단위 시험 271건 · `cd backend && python -m pytest -q` — 서버 시험 137건. 두 명령은 저장소 그대로 전수 통과 상태입니다.
 3. **문서 지도**: 개발 기록 `docs/DEV_LOG.md`(F·Q 번호) · 설계 결정 14건 `docs/ADR.md` · 요구-구현-시험 대조 `docs/TRACEABILITY.md` · 수용 기준 정본 `docs/spec/ac/*.json`(F1~F10, 129건)과 자동 생성 추적표 `docs/SPEC_TRACE.md` · 품질 체계 `docs/QUALITY.md` · 평가 지표 `docs/QUALITY_EVAL.md` · 헌장 `docs/spec/00_CHARTER.md` · AI 범위 판정 `docs/AI_SCOPE.md` · 에뮬레이터 구축 `docs/EMULATOR_SETUP.md`.
 4. **숫자 대조 명령**: `python tools/spec_drift_check.py --repo . --rev HEAD --facts tools/facts.json` — 문서의 숫자가 코드에서 센 값과 어긋나면 실패로 알립니다(직전 점검: 10개 사실 전부 일치).
