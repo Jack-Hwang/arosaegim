@@ -53,7 +53,7 @@ python -m pytest
 | POST /v1/families/me/food-notes | 코드+PIN | 맛집·숙소 기록(kind 선택, 방문 1건에 묶임) |
 | GET/POST /v1/families/me/members | 코드+PIN | 구성원(첫 구성원 owner, seat_role 선택) |
 | POST /v1/families/me/members/{id}/consent | 코드+PIN | 보호자 동의 기록 |
-| POST /v1/families/me/heir | 코드+PIN | 상속자 지정(owner만, designated 기록) |
+| POST /v1/families/me/heir | 코드+PIN | 이어받을 사람 지정(owner만, designated 기록) |
 | POST /v1/families/me/handover | 코드+PIN | 관리 권한 이전(owner만, transferred 기록) |
 | GET /v1/families/me/metrics | 코드+PIN | 가족 지표(스탬프북 완성률·그때와 지금 열람 수·재방문 간격·영수증 인증 수·물려주기 여부) |
 | POST /v1/rewards/preview | 코드+PIN | 혜택 미리보기(simulated:true) |

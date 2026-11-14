@@ -13,7 +13,7 @@
 
 1. **앱 설치 파일(APK, 안드로이드 앱 패키지)**: `apk/arosaegim_아로새김_release.apk` — 40,652,561바이트(약 40MB), 서명 검증 통과(CN=arosaegim).
 2. **시험 실행 명령과 현재 개수**: `cd android && ./gradlew testDebugUnitTest` — 앱 단위 시험 271건 · `cd backend && python -m pytest -q` — 서버 시험 137건. 두 명령은 저장소 그대로 전수 통과 상태입니다.
-3. **문서 지도**: 개발 기록 `docs/DEV_LOG.md`(F·Q 번호) · 설계 결정 14건 `docs/ADR.md` · 요구-구현-시험 대조 `docs/TRACEABILITY.md` · 수용 기준 정본 `docs/spec/ac/*.json`(F1~F10, 129건)과 자동 생성 추적표 `docs/SPEC_TRACE.md` · 품질 체계 `docs/QUALITY.md` · 평가 지표 `docs/QUALITY_EVAL.md` · 헌장 `docs/spec/00_CHARTER.md` · AI 범위 판정 `docs/AI_SCOPE.md` · 에뮬레이터 구축 `docs/EMULATOR_SETUP.md`.
+3. **문서 지도**: 개발 기록 `docs/DEV_LOG.md`(F·Q 번호) · 설계 결정 14건 `docs/ADR.md` · 요구-구현-시험 대조 `docs/TRACEABILITY.md` · 수용 기준 정본 `docs/spec/ac/*.json`(F1~F10, 136건)과 자동 생성 추적표 `docs/SPEC_TRACE.md` · 품질 체계 `docs/QUALITY.md` · 평가 지표 `docs/QUALITY_EVAL.md` · 헌장 `docs/spec/00_CHARTER.md` · AI 범위 판정 `docs/AI_SCOPE.md` · 에뮬레이터 구축 `docs/EMULATOR_SETUP.md`.
 4. **숫자 대조 명령**: `python tools/spec_drift_check.py --repo . --rev HEAD --facts tools/facts.json` — 문서의 숫자가 코드에서 센 값과 어긋나면 실패로 알립니다(직전 점검: 10개 사실 전부 일치).
 5. **확인·미확인 요약**: [확인](에뮬레이터 실측)·[코드 확인](단위 시험·코드)·[일부 확인]·[실패](음성 합성·연료 신호 2건)·[미확인]은 숨기지 않고 `docs/DEV_LOG.md`의 실측 표(U1~U16 및 D1·D2)와 `docs/SPEC_TRACE.md`의 상태 열에 그대로 남겨 두었습니다.
 
@@ -22,7 +22,7 @@
 | 요소 | 상태 | 비고 |
 |---|---|---|
 | `android/` 차량 앱 | **코드 완료** | Gleo Interface 도구 3개(App Schema·호출 처리 — 실제 음성 호출은 승인 전이라 미확인) 포함.  주행/정차 전환·도착 스탬프·퀴즈·그때와 지금·스탬프북·맛집·코스 선택·오늘의 기록·가족 세션·방문 동기화. 단위 테스트 271/271 통과. 스모크 U1~U16·D1·D2 실측 완료(`docs/DEV_LOG.md` 표) |
-| `backend/` REST 서버 | **코드 완료** | API 전체(가족·코스·방문·기억·영수증·구성원·스탬프북·포인트·지표) + 캐시백 규칙(숙소 3박·사진 필수+해시·pending·device_limit). pytest 137/137 통과(신규 상속자·순번·누적거리·접기·이름표 API 포함) |
+| `backend/` REST 서버 | **코드 완료** | API 전체(가족·코스·방문·기억·영수증·구성원·스탬프북·포인트·지표) + 캐시백 규칙(숙소 3박·사진 필수+해시·pending·device_limit). pytest 137/137 통과(신규 이어받을 사람·순번·누적 거리·접기·이름표 API 포함) |
 | `web/` 가족 모바일 웹 | **코드 완료** | 7화면(가족 코드·동의·코스·그때 기록·타임라인·가족 관리·영수증). 백엔드 `/web` 정적 서빙 |
 | `tools/` 시연 스크립트 | **완성** | drive-demo-route · grant-permissions · record-demo (PowerShell 5.1/7 호환, 구문 검증 PASS) |
 | `docs/` | 갱신 완료 | ARCHITECTURE(실측 반영) · DEV_LOG(상시) · ATTRIBUTION |
@@ -41,7 +41,7 @@
 ```bash
 cd android
 ./gradlew assembleDebug          # 빌드
-./gradlew test                   # 도메인·시드 단위 테스트 (207개)
+./gradlew testDebugUnitTest      # 앱 단위 시험 (271건)
 # Pleos Connect 에뮬레이터에 설치:
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 # dangerous 권한 부여(권한 UI 크래시 방지):

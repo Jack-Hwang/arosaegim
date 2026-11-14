@@ -51,6 +51,6 @@
 
 ## 4. 검증 명령
 
-- 서버: `cd arosaegim/backend && python -m pytest tests -q` — 87 passed(2026-11-13, 신규 1건 포함).
-- 앱: `cd arosaegim/android && ./gradlew test` — 207/207(2026-11-14 기준 — PIN 잠금 계약·화면 분리 계약·퀴즈 진행 보존·포트 대체 구현 계약 시험 포함).
-- 숫자 대조: `cd arosaegim/tools && python -I -B -X utf8 spec_drift_check.py --repo .. --rev HEAD --facts facts.json` — 9개 사실 전부 OK.
+- 서버: `cd arosaegim/backend && python -m pytest tests -q` — 137 passed(2026-11-15, 포인트 골든셋 50케이스 포함).
+- 앱: `cd arosaegim/android && ./gradlew testDebugUnitTest` — 271/271(2026-11-15 기준 — PIN 잠금 계약·화면 분리 계약·퀴즈 진행 보존·포트 대체 구현 계약 시험 포함).
+- 숫자 대조: `cd arosaegim/tools && python -I -B -X utf8 spec_drift_check.py --repo .. --rev HEAD --facts facts.json` — 10개 사실 전부 OK.
