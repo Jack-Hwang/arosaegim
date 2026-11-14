@@ -68,7 +68,7 @@
 
 - 배경: 병렬 작업 여럿이 ParkedScreen.kt를 같이 고치는 동안 충돌 병합에서 줄이 유실됐을 수 있다는 점검 지적 — 작업 트리가 HEAD와 동일(깨끗한 상태)이라 그대로 실제 빌드로 판정했다.
 - 확인된 사실(F-번호):
-  - **F117 HEAD 컴파일 복구**: 컴파일 실패 확인 — Unresolved: SettingsScreen·Intent·StartActivity·SettingsState(import 5종 누락)·drivingStateNow(선언 1줄 유실 — 4c0d82c의 377행에 있던 것)·`!!` 연산자 연쇄 오류. 복구: import 5줄 재추가 + `val drivingStateNow by container.drivingState.state.collectAsState()`를 첫 사용 앞으로 복원 + 뒤쪽 중복 선언 제거. 로직·화면·기능 변경 없음(유실된 줄의 복원만). 재확인: compileDebugKotlin 통과·**앱 258/258(실패 0)**·서버 137/137·assembleRelease 성공·**APK 40,635,757바이트 — 이전과 동일 바이트**(복구 소스가 이전 빌드와 동일 입력임을 의미)·spec_check 오류 0·드리프트 전 항목 일치. git diff 4c0d82c c4a1281 잔존 삭제분도 전수 훑음 — 전부 F10 통합·PIN 거절 연결의 의도된 변경이며 컴파일로 검증됐다. 서버 응답 모델 식별자 1종만 대소문자 무시 검사의 예외(기존과 같다).
+  - **F117 HEAD 컴파일 복구**: 컴파일 실패 확인 — Unresolved: SettingsScreen·Intent·StartActivity·SettingsState(import 5종 누락)·drivingStateNow(선언 1줄 유실 — 4c0d82c의 377행에 있던 것)·`!!` 연산자 연쇄 오류. 복구: import 5줄 재추가 + `val drivingStateNow by container.drivingState.state.collectAsState()`를 첫 사용 앞으로 복원 + 뒤쪽 중복 선언 제거. 로직·화면·기능 변경 없음(유실된 줄의 복원만). 재확인: compileDebugKotlin 통과·**앱 258/258(실패 0)**·서버 137/137·assembleRelease 성공·**APK 40,635,757 B — 이전과 동일 바이트**(당시 기준 — 복구 소스가 이전 빌드와 동일 입력임을 의미. 현 APK는 40,652,561 B)·spec_check 오류 0·드리프트 전 항목 일치. git diff 4c0d82c c4a1281 잔존 삭제분도 전수 훑음 — 전부 F10 통합·PIN 거절 연결의 의도된 변경이며 컴파일로 검증됐다. 서버 응답 모델 식별자 1종만 대소문자 무시 검사의 예외(기존과 같다).
 - ⑤ **기획서 반영 요청:** 없음 — 시험 수(258/137)·APK 바이트(40,635,757) 모두 불변. "HEAD는 컴파일·전체 시험 통과(복구 후 재확인)" 사실만 추가.
 
 ---
