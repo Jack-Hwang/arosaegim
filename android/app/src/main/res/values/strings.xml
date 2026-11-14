@@ -127,7 +127,7 @@
     <string name="parked_book_progress">진행 %1$d%% (%2$d/%3$d)</string>
     <string name="parked_book_badge">배지: %1$s</string>
     <string name="parked_book_empty">이 코스의 스탬프북이 준비되지 않았어요</string>
-    <string name="parked_partner_section">이 근처에서 먹고, 묵고, 돌러받기</string>
+    <string name="parked_partner_section">이 근처에서 먹고, 묵고, 돌려받기</string>
     <string name="parked_partner_rate">결제액 %1$s 포인트 캐시백(예시)</string>
     <string name="parked_partner_point_notice">캐시백은 현금이 아닌 포인트로 지급돼요</string>
     <string name="parked_partner_kind_restaurant">맛집</string>
