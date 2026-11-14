@@ -176,13 +176,14 @@
         }
       ],
       "verify": {
-        "kind": "code",
+        "kind": "unit",
         "refs": [
-          "ui/parked/QuizState.kt QuizStateHolder"
+          "QuizStateHolderTest.`같은 장소면 퀴즈 진행을 보존한다 — 주행 복귀 이어풀기`"
         ]
       },
-      "status": "(설계)",
-      "numbers": []
+      "status": "[코드 확인]",
+      "numbers": [],
+      "note": "단위 시험이 같은 장소에서 문항 번호·고른 보기·채점 여부가 보존됨을 확인한다. 화면 실측은 아직 없다."
     }
   ]
 }

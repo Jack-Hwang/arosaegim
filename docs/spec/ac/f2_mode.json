@@ -68,10 +68,10 @@
       "text": "앱은 주행 화면에만 주행 최적화를 선언하고 정차 화면에는 선언하지 않습니다.",
       "io": [],
       "verify": {
-        "kind": "code",
+        "kind": "unit",
         "refs": [
-          "AndroidManifest.xml(DrivingActivity distractionOptimized=true 선언)",
-          "개발 기록 ARCHITECTURE.md 3절"
+          "DrivingScreenContractTest.`주행 화면만 주행 최적화를 선언하고 퀴즈 화면은 선언하지 않는다`",
+          "AndroidManifest.xml(DrivingActivity distractionOptimized=true 선언)"
         ]
       },
       "status": "[코드 확인]",
@@ -125,15 +125,14 @@
         }
       ],
       "verify": {
-        "kind": "code",
+        "kind": "unit",
         "refs": [
-          "QuizState.kt(QuizStateHolder — 프로세스 수명 싱글톤)",
-          "개발 기록 ARCHITECTURE.md 3절(퀴즈 상태 보존)"
+          "QuizStateHolderTest.`같은 장소면 퀴즈 진행을 보존한다 — 주행 복귀 이어풀기`"
         ]
       },
-      "status": "(설계)",
+      "status": "[코드 확인]",
       "numbers": [],
-      "note": "코드로 확인, 실측 전"
+      "note": "단위 시험이 문항 번호·고른 보기·채점 여부의 보존을 직접 확인한다. 화면에서 이어 풀기 장면의 실측은 아직 없다."
     },
     {
       "id": "ARO-F2-AC08",
