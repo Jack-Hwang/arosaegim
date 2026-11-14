@@ -26,6 +26,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import android.content.Intent
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -58,6 +59,10 @@ import app.arosaegim.ui.common.LargePrimaryButton
 import app.arosaegim.ui.common.MenuButton
 import app.arosaegim.ui.common.PageNavigationBar
 import app.arosaegim.ui.common.aroColors
+import app.arosaegim.ui.session.StartActivity
+import app.arosaegim.ui.settings.FamilySwitchConfirmScreen
+import app.arosaegim.ui.settings.SettingsScreen
+import app.arosaegim.ui.settings.SettingsState
 import java.util.Locale
 import kotlinx.coroutines.launch
 
@@ -281,6 +286,7 @@ fun ParkedScreen(
     // ── F10 T4: 설정·가족 전환 라우트(0=없음 1=설정 2=가족 전환 확인) — 열려 있으면 패널·본문 대신 그린다.
     var settingsRoute by remember { mutableStateOf(0) }
     val deviceAllHidden = remember { PartyFoldLocalStore.readAllHidden(context) }
+    val drivingStateNow by container.drivingState.state.collectAsState()
     val drivingNow = drivingStateNow == DrivingState.DRIVING
 
     var partyPrefs by remember { mutableStateOf<PartyLinePrefs?>(null) }
@@ -421,7 +427,6 @@ fun ParkedScreen(
 
     // B1: 주행 상태 — 주행 중에는 질문하지 않는다(계약). ParkedActivity 는 주행 중 가려지지만
     // 전환 직후 잠깐 그려질 수 있어 정책 입력으로도 막는다.
-    val drivingStateNow by container.drivingState.state.collectAsState()
 
     // B1 질문 판정(정책은 순수 도메인 — HeirQuestionPolicy). 계산값이라 상태로 따로 두지 않는다.
     val heirShouldAsk = HeirQuestionPolicy.shouldAsk(
