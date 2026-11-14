@@ -12,7 +12,7 @@
 심사위원이 처음 열 때 5분 안에 확인할 수 있는 출발점입니다.
 
 1. **앱 설치 파일(APK, 안드로이드 앱 패키지)**: `apk/arosaegim_아로새김_release.apk` — 40,484,425바이트(약 40MB), 서명 검증 통과.
-2. **시험 실행 명령과 현재 개수**: `cd android && ./gradlew testDebugUnitTest` — 앱 단위 시험 258건 · `cd backend && python -m pytest -q` — 서버 시험 137건. 두 명령은 저장소 그대로 전수 통과 상태입니다.
+2. **시험 실행 명령과 현재 개수**: `cd android && ./gradlew testDebugUnitTest` — 앱 단위 시험 271건 · `cd backend && python -m pytest -q` — 서버 시험 137건. 두 명령은 저장소 그대로 전수 통과 상태입니다.
 3. **문서 지도**: 개발 기록 `docs/DEV_LOG.md`(F·Q 번호) · 설계 결정 14건 `docs/ADR.md` · 요구-구현-시험 대조 `docs/TRACEABILITY.md` · 수용 기준 정본 `docs/spec/ac/*.json`(F1~F10, 129건)과 자동 생성 추적표 `docs/SPEC_TRACE.md` · 품질 체계 `docs/QUALITY.md` · 평가 지표 `docs/QUALITY_EVAL.md` · 헌장 `docs/spec/00_CHARTER.md` · AI 범위 판정 `docs/AI_SCOPE.md` · 에뮬레이터 구축 `docs/EMULATOR_SETUP.md`.
 4. **숫자 대조 명령**: `python tools/spec_drift_check.py --repo . --rev HEAD --facts tools/facts.json` — 문서의 숫자가 코드에서 센 값과 어긋나면 실패로 알립니다(직전 점검: 10개 사실 전부 일치).
 5. **확인·미확인 요약**: [확인](에뮬레이터 실측)·[코드 확인](단위 시험·코드)·[일부 확인]·[실패](음성 합성·연료 신호 2건)·[미확인]은 숨기지 않고 `docs/DEV_LOG.md`의 실측 표(U1~U16 및 D1·D2)와 `docs/SPEC_TRACE.md`의 상태 열에 그대로 남겨 두었습니다.
@@ -21,13 +21,13 @@
 
 | 요소 | 상태 | 비고 |
 |---|---|---|
-| `android/` 차량 앱 | **코드 완료** | 주행/정차 전환·도착 스탬프·퀴즈·그때와 지금·스탬프북·맛집·코스 선택·오늘의 기록·가족 세션·방문 동기화. 단위 테스트 258/258 통과. 스모크 U1~U16·D1·D2 실측 완료(`docs/DEV_LOG.md` 표) |
+| `android/` 차량 앱 | **코드 완료** | Gleo Interface 도구 3개(App Schema·호출 처리 — 실제 음성 호출은 승인 전이라 미확인) 포함.  주행/정차 전환·도착 스탬프·퀴즈·그때와 지금·스탬프북·맛집·코스 선택·오늘의 기록·가족 세션·방문 동기화. 단위 테스트 271/271 통과. 스모크 U1~U16·D1·D2 실측 완료(`docs/DEV_LOG.md` 표) |
 | `backend/` REST 서버 | **코드 완료** | API 전체(가족·코스·방문·기억·영수증·구성원·스탬프북·포인트·지표) + 캐시백 규칙(숙소 3박·사진 필수+해시·pending·device_limit). pytest 137/137 통과(신규 상속자·순번·누적거리·접기·이름표 API 포함) |
 | `web/` 가족 모바일 웹 | **코드 완료** | 7화면(가족 코드·동의·코스·그때 기록·타임라인·가족 관리·영수증). 백엔드 `/web` 정적 서빙 |
 | `tools/` 시연 스크립트 | **완성** | drive-demo-route · grant-permissions · record-demo (PowerShell 5.1/7 호환, 구문 검증 PASS) |
 | `docs/` | 갱신 완료 | ARCHITECTURE(실측 반영) · DEV_LOG(상시) · ATTRIBUTION |
 
-**현재 값** — 문서의 숫자는 `tools/spec_drift_check.py`로 코드에서 센 값과 대조한다(2026-11-14 측정): 앱 단위 테스트 258건 · 서버 테스트 137건 · 라우터 11개 · 엔드포인트 37개 · 서버 모델 46개 · 앱 테스트 파일 32개 · 서버 테스트 파일 10개 · 화면 문구(strings.xml) 170개.
+**현재 값** — 문서의 숫자는 `tools/spec_drift_check.py`로 코드에서 센 값과 대조한다(2026-11-14 측정): 앱 단위 테스트 271건 · 서버 테스트 137건 · 라우터 11개 · 엔드포인트 37개 · 서버 모델 46개 · 앱 테스트 파일 33개 · 서버 테스트 파일 10개 · 화면 문구(strings.xml) 170개.
 
 **남은 것 (코드 아님).**
 1. 사용자 GUI 실측 — U7 완결(기어 P→D restrict 수신)·U6 청취·U11/U13(Virtual Console 좌석·주행거리)·음성 청취.
@@ -68,7 +68,7 @@ pytest                             # 서버 테스트 137개
 ```bash
 cd android
 ./gradlew clean testDebugUnitTest assembleDebug
-# 기대: BUILD SUCCESSFUL, 258/258 — SeedRepository · CourseProgress · Haversine · ModeStateMachine
+# 기대: BUILD SUCCESSFUL, 271/271 — SeedRepository · CourseProgress · Haversine · ModeStateMachine
 #       · StampBook 9 · StampEngine 6 · ThenNowResolver 12 · TripSession(tripKm/partySize 포함) 등
 ```
 

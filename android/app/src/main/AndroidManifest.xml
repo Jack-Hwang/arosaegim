@@ -71,5 +71,21 @@
         <activity
             android:name="app.arosaegim.ui.session.StartActivity"
             android:exported="false" />
+
+        <!-- Gleo 음성 function calling 수신 서비스 — 단일 서비스가 3개 도구(GET_NEXT_STAMP_PLACE·
+             START_QUIZ·GET_TODAY_SUMMARY)를 모두 받는다(스키마: assets/schema.json).
+             원문 미확인 확정(T0) — exported="true" 는 DiagnosticsActivity·DrivingActivity
+             선례의 유추값이다. intent-filter·DO meta-data·새 권한은 추가하지 않는다. -->
+        <service
+            android:name="app.arosaegim.agent.GleoActionService"
+            android:exported="true" />
+
+        <!-- Gleo 호출 수신 리시버 — 서비스와 같은 계약(AgentCallHandler.handle)을 받는다.
+             수신 경로가 원문 미확인이라 서비스·리시버 둘 다 같은 계약을 받는다 — adb 검증은
+             리시버로 한다(T6 실측: Android 12+ 백그라운드 시작 제한으로 shell startService 는
+             막히고, am broadcast 는 열려 있다. 실제 음성 경로는 서비스를 유지한다). -->
+        <receiver
+            android:name="app.arosaegim.agent.GleoActionReceiver"
+            android:exported="true" />
     </application>
 </manifest>

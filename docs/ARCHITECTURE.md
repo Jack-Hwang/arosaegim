@@ -21,7 +21,7 @@
 첫째, SDK 호출은 모두 어댑터(포트) 인터페이스 뒤에 숨겼다. SDK 상태가 불확실해도 앱 전체가 멈추지 않는다.
 둘째, 앱은 서버 없이 내장 시드만으로 핵심 흐름이 끝까지 동작한다.
 셋째, 도착 판정·스탬프·퀴즈 상태 같은 규칙은 안드로이드 의존 없는 순수 Kotlin으로 분리해
-258개 단위 테스트로 검증했다(DEV_LOG 테스트 기록).
+271개 단위 테스트로 검증했다(DEV_LOG 테스트 기록).
 
 **실측까지 끝냈다.**
 Pleos Connect 에뮬레이터 v2.1.0에서 스모크 테스트 U1~U14를 실측했다.
@@ -368,7 +368,7 @@ VIN/CRN capability와 조회 메서드뿐이고 제조사·연식 getter는 존�
 **Q9. 왜 어댑터(포트)를 두었나?**
 SDK 동작이 불확실해도 앱이 멈추지 않게 하기 위해서다(00문서 2-3 #10).
 포트 하나에 Pleos 구현과 대체 구현을 두고, 시작 시 초기화 성공 여부로 선택해 사유를 기록한다(5절 표).
-부작용으로 순수 Kotlin 규칙과 SDK 결합이 분리되어 단위 테스트가 쉬워졌다(258개).
+부작용으로 순수 Kotlin 규칙과 SDK 결합이 분리되어 단위 테스트가 쉬워졌다(271개).
 
 **Q10. JSON 라이브러리로 kotlinx.serialization을 쓴 이유는?**
 org.json은 JVM 단위 테스트에서는 스텁이라 시드 파싱 테스트(SeedRepository)를 돌리려면
@@ -437,7 +437,7 @@ Back 키는 finish() 대신 moveTaskToBack(true)로 태스크를 보존해 재�
 ```bash
 cd android
 ./gradlew clean testDebugUnitTest assembleDebug
-# 기대 결과: BUILD SUCCESSFUL, 단위 테스트 258/258
+# 기대 결과: BUILD SUCCESSFUL, 단위 테스트 271/271
 #  SeedRepository·CourseProgress·Haversine·ModeStateMachine·StampBook(9)·StampEngine(6)
 #  ThenNowResolver(12)·TripSession(+tripKm/partySize 10케이스)·FamilyCodeValidator 등
 ```
@@ -505,3 +505,16 @@ Maps/Navigation, Music/Audio, Mobility Services뿐이다.
 
 **방침.** 어느 쪽으로 확정되든 주행 화면은 두 카테고리의 허용 예시 범위(경로 안내 정보, 오디오 재생과 단순 조작)를
 넘지 않게 설계했다. 확정은 플랫폼 문서의 공식 기준 확인 후 DEV_LOG(Q11)에 기록한다.
+
+
+---
+
+## agent — Gleo Interface 수신 (2026-11-14)
+
+앱은 `assets/schema.json`(App Schema)에 도구 3개를 선언한다: `GET_NEXT_STAMP_PLACE`(다음 스탬프 장소 안내)·`START_QUIZ`(마지막 도착 장소의 퀴즈 시작 — 정차 전용)·`GET_TODAY_SUMMARY`(스탬프·거리·인원 요약). 호출 수신은 `agent/GleoActionService`(실제 음성 경로용 서비스)와 `agent/GleoActionReceiver`(adb 검증 경로용 리시버)가 같은 계약을 받는다 — 수신 Intent의 extra 키는 `functionName`(원문 미확인 — 응답 계약과의 대칭 가정)이다.
+
+판정·문장 조립은 `agent/AgentTools.kt`(순수 Kotlin — Context 없음)가 맡는다: `AgentAppSnapshot`으로 앱 상태(`TripSession`·`DrivingStateProvider`·`FamilySessionStore`·`CourseStartState`·`QuizStateHolder`의 **읽기 전용** 값)를 한 묶음으로 받아 분기표대로 `AgentCallResult`(status·영어 한 문장)를 돌려준다. 응답은 broadcast 액션 `ai.pleos.playground.intent.action.APP_ACTION_RESPONSE`에 `functionName`·`status`·`message`·`mode` extra로 보낸다 — 이 액션의 수신 리시버가 시스템(`ai.umos.ambientai`)에 등록돼 있는 것을 dumpsys로 확인했다.
+
+가드: 허용 목록 밖 거절(이중 방어 — 서비스·dispatch)·`START_QUIZ`는 주행 중 fail(정차 전용 기능)·응답 한 문장 120자 이내·개인정보(코드·PIN·구성원 이름·좌표) 비포함·모든 읽기는 StateFlow 동기 읽기라 7초 게이트 안에서 끝난다. "확인 뒤 실행"(asking) 가드는 다중 턴 프로토콜이 미확인이라 보류했다 — 성공 조건을 만족하면 즉시 실행한다.
+
+`GET_NEXT_STAMP_PLACE`은 장소 이름만 답한다(거리 계산 API가 없다 — 위치는 도착 판정에만 쓴다, ADR-006). `GET_TODAY_SUMMARY`는 퀴즈를 언급하지 않는다(누적 카운터가 없다 — 없는 숫자는 만들지 않는다). 실제 음성 호출(Gleo가 schema를 읽어 호출하는 것)은 승인 전이라 [미확인]이다.

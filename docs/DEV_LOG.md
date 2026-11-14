@@ -3,6 +3,20 @@
 > 작업 로그. 최신이 위. 스모크 테스트 결과표(U1~U16 및 D1·D2)를 맨 위에 유지한다.
 > 날짜 시각은 로컬(KST) 기준.
 
+## 2026-11-14 — 14번 문서(Gleo Interface 도구 3개) 수행
+
+- 번호 안내: 이 섹션의 F118~는 이 섹션 전용이다 — 위 11번 문서 섹션이 F112~F117을 이미 썼으므로(지시서 작성 시점 기준 마지막 F111과 어긋남) 마지막 F 뒤 번호로 이어서 쓴다.
+- T0 원문 재확인(F118): Pleos 앱 연동 가이드(app-integration-guide의 core-concepts 등)는 로그인 뒤 문서라 공개 사이트에서는 읽을 수 없었다(공개 URL은 공모전 소개 랜딩으로 redirection) — **원문 미확인**. 01문서 6-1([OFFICIAL] 사전 조사분)과 2026-11-14 공식 공지(현황 o — "별도 검토·승인 없이 사용 가능"·"개발 문서에 공개되지 않은 SDK와 Pleos LLM SDK는 제공되지 않음"·"차량 마이크 음성의 외부 음성 인식 전송 미지원")로 진행하며, 아래는 모두 "원문 미확인" 가정값이다: 수신 Intent의 함수 이름 extra 키 = `functionName`(응답 계약과 대칭 가정), 응답 broadcast action = `ai.pleos.playground.intent.action.APP_ACTION_RESPONSE`, `component` = 세 함수 모두 `"service"`(01문서 6-1 "주행 중 응답은 service").
+- **기획서 반영 요청:** GET_NEXT_STAMP_PLACE는 거리 없이 **장소 이름만** 응답한다 — 거리 계산 API가 코드에 없다(위치 좌표 읽기 포트가 없고 좌표 비저장 규칙과 같은 맥락. 설계 정본 표 T1 "다음 목적지 이름·거리"과 다른 축소 — 구현 전 통보).
+- 확인된 사실(F-번호):
+  - **F119 T1 스키마**: `assets/schema.json` 신설 — `actionCalls` 3개(GET_NEXT_STAMP_PLACE·START_QUIZ·GET_TODAY_SUMMARY, 영어 한 줄 설명, `component`="service"·앱당 최대 3개 규칙 준수), JSON 유효 확인.
+  - **F120 T2 수신 컴포넌트**: `agent/GleoActionService`(실제 음성 경로용 서비스) + `agent/GleoActionReceiver`(adb 검증 경로용 리시버 — Android 12+의 백그라운드 서비스 시작 제한으로 shell 호출자가 서비스를 못 시작하는 실측에 따른 검증 경로) — 두 경로가 `AgentCallHandler.handle` 하나를 공유하고, 응답은 broadcast 액션 `APP_ACTION_RESPONSE`로 보낸다(이 액션의 수신 리시버가 시스템에 등록돼 있음을 dumpsys로 실측 — 응답 계약의 원문 실측). 매니페스트에 service·receiver `exported="true"` 선언(이 저장소 최초의 서비스·리시버 선언).
+  - **F121 T3·T4 도구 로직·가드**: `AgentTools`(순수 Kotlin — Android·Context 의존 없음) — `AgentAppSnapshot`(TripSession·DrivingState·FamilySessionStore·CourseStartState·QuizStateHolder의 읽기 전용 값)으로 분기표 판정: 세션 없음 FAIL 최우선·START_QUIZ 주행 중 fail(정차 전용)·코스 미시작 fail·도착 없음 fail·퀴즈 없음 fail·정상 SUCCESS(장소 이름만 응답)·요약은 스탬프·거리·인원(없는 항목은 문장에서 생략). 가드: 허용 목록 이중 방어·응답 120자 이내·개인정보(코드·PIN·구성원 이름·좌표) 비포함·StateFlow 동기 읽기만(7초 게이트·네트워크·디스크 없음). "확인 뒤 실행"(asking) 가드는 다중 턴 프로토콜이 [미확인]이라 보류 — 성공 조건 만족 시 즉시 실행(기획서 반영 요청으로 알림). 시험 13건.
+  - **F122 T6 실측**: U17·U18 표 참조 — 리시버 경로로 수신·dispatch·응답 방송 발신까지 dumpsys 확인(caller=app.arosaegim). 실제 음성 호출은 승인 전이라 [미확인].
+  - **F123 T7 문서**: README(시험 수·Gleo 도구 한 줄)·ARCHITECTURE(agent/ 새 절 — 위치·책임·읽기 전용 의존·응답 방송 계약)·F24 뒤 보강(2026-11-14 공식 공지로 별도 검토·승인 없이 사용 가능 확인 — 이번 범위에서 T1~T3 세 함수의 App Schema·호출 처리를 구현하고 adb 방송으로 흉내 내어 확인, F118~F122).
+- 통합 검증(갱신): **앱 271/271(33파일)·서버 137/137**·assembleRelease 성공·APK 40,652,561바이트 갱신·`apksigner verify` 통과(CN=arosaegim)·spec_check 오류 0(136건)·드리프트 전 항목 일치(커밋 후 HEAD 기준).
+- ⑤ **기획서 반영 요청(모음):** ① 도구 3개 구현 — 코드·단위 시험까지 [코드 확인], 실제 음성 호출은 [미확인](승인 전) ② GET_NEXT_STAMP_PLACE는 장소 이름만(거리 없음 — 위 요청과 같은 것) ③ GET_TODAY_SUMMARY는 퀴즈 개수 미포함(누적 카운터 없음) ④ START_QUIZ는 asking 없이 즉시 실행(다중 턴 프로토콜 [미확인] 보류) ⑤ 앱 시험 수 258→**271**(32→**33파일** — AgentToolsTest 신설)·APK **40,652,561바이트** ⑥ T0 원문 미확인(로그인 뒤 문서 — 01문서 6-1 기준으로 진행) ⑦ 응답 액션 `APP_ACTION_RESPONSE`의 시스템 수신 리시버 등록 실측 dumpsys. 앱 258→271 = **기획서 반영 요청:** 앱 단위 시험 수를 271건(33파일)으로 갱신.
+
 ## 2026-11-14 (새벽) — 11번 문서(SDD·명세·품질 통합) 수행 통합 보고
 
 - 한 일: 11번 문서의 산출물 A~J를 4+5 병렬 작업으로 수행해 통합. 번호 안내: 이 섹션의 F101~F106은 이 섹션 전용이다 — 아래쪽 12번 문서 섹션의 F91~F92와 번호가 겹치므로 섹션 소속으로 구분한다(2026-11-11 선례와 같다). 같은 P0 항목을 12번 문서 작업과 병렬로 수행한 부분(ac 정본·ADR·SPEC_TRACE·tools·가족 코드 값 정리)은 작업 트리에서 합쳤고 최종 상태 기준으로 전부 검증했다.
@@ -350,6 +364,8 @@
 | D2 | EV 배터리 capability 실측(실측 전용) | **PASS — capability 결과 `READ`**. 값 미읽음(약속 준수) | v2.1.0 실측 | 2.3.2 | .pleos-download/d2_result.png — F76 |
 | U15 | 연료 지원(Vehicle 직접 접근 프로브) | **FAIL — D1과 동일 사유** | v2.1.0 실측 | 2.3.2 | .pleos-download/u15_result.png — F76 |
 | U16 | EV 배터리 지원(EvBattery 직접 접근 프로브) | **PASS — 확인함** | v2.1.0 실측 | 2.3.2 | .pleos-download/u16_result.png — F76 |
+| U17 | Gleo 호출(주행 D 상태) | **[미확인]** — 기어 변경 금지 규칙으로 D 상태 미실측(실측 시점 기어: 콘솔 미접속). 도구 로직의 주행 분기는 단위 시험으로 확인 | 에뮬레이터 v2.1.0 실측(부분) | 2.3.2 | 방송 테스트 구조는 U18과 동일 — F119 |
+| U18 | Gleo 호출(정차 P 상태) | **[일부 확인]** — adb broadcast로 `GET_NEXT_STAMP_PLACE` 호출 → 리시버 수신·dispatch·응답 방송(`APP_ACTION_RESPONSE`) 발신까지 dumpsys로 확인(caller=app.arosaegim·응답 status는 세션 없음 fail 경로). **실제 음성 호출(Gleo가 schema를 읽어 매핑)은 승인 전이라 [미확인]** | 에뮬레이터 v2.1.0 실측 | 2.3.2 | dumpsys BroadcastFilter에 시스템(ambientai) 수신 리시버 등록 확인 — 응답 액션 원문 실측 — F120 |
 
 > 실측 방법: 진단 화면을 `input tap`으로 직접 조작(좌표는 스크린샷 측정). U3·U10의 위치 주입은 `adb emu geo fix`. U7·U11·U13 완결은 Virtual Console(adb forward tcp:8088 → 127.0.0.1:8088) 필요.
 

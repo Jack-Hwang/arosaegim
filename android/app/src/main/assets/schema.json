@@ -1,0 +1,7 @@
+{
+  "actionCalls": [
+    {"functionName": "GET_NEXT_STAMP_PLACE", "description": "Tell the next stamp place on the current course.", "component": "service"},
+    {"functionName": "START_QUIZ", "description": "Start the quiz for the last stamped place. Parked only.", "component": "service"},
+    {"functionName": "GET_TODAY_SUMMARY", "description": "Summarize today's stamps, distance and party size.", "component": "service"}
+  ]
+}
